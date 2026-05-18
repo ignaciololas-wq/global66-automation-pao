@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"C:/Users/julio.lolas/Desktop\" 2>&1 | head -30)"
+    ]
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "global66-automation",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start":      "node index.js",
+    "dev":        "node --watch index.js",
+    "test:playwright": "node scripts/test.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@slack/bolt": "^4.7.2",
+    "@supabase/supabase-js": "^2.105.4",
+    "dotenv": "^17.4.2",
+    "playwright": "^1.60.0"
+  }
+}
