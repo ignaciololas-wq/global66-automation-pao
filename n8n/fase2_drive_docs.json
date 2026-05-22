@@ -1,0 +1,119 @@
+{
+  "name": "Fase 2 — Docs proveedor + Drive + checklist país",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "fase2-start",
+        "httpMethod": "POST"
+      },
+      "id": "webhook",
+      "name": "Trigger: Hito 1 verde",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "name": "={{ $json.razon_social + ' — ' + $json.rut }}",
+        "parents": ["={{ $env.GOOGLE_DRIVE_ROOT_FOLDER }}"],
+        "options": { "folder": true }
+      },
+      "id": "create-folder",
+      "name": "Drive: create supplier folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "channel": "@{{ $json.email_contacto }}",
+        "text": "Hola, te enviamos el checklist de documentación necesario para completar tu alta como proveedor de Global66."
+      },
+      "id": "notify-supplier",
+      "name": "Email proveedor checklist",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.N8N_WEBHOOK_BASE }}/get-checklist?country={{ $json.pais }}",
+        "method": "GET"
+      },
+      "id": "get-checklist",
+      "name": "Get checklist by country",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [660, 460]
+    },
+    {
+      "parameters": {
+        "amount": 14,
+        "unit": "days"
+      },
+      "id": "wait-docs",
+      "name": "Wait 14 days for docs upload",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.N8N_WEBHOOK_BASE }}/validate-checklist",
+        "method": "POST",
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ JSON.stringify({folder_id: $node['create-folder'].json.id, country: $json.pais}) }}"
+      },
+      "id": "validate",
+      "name": "Validate checklist",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [{ "value1": "={{ $json.valid }}", "value2": true }]
+        }
+      },
+      "id": "if-valid",
+      "name": "IF docs OK",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1320, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.N8N_WEBHOOK_BASE }}/fase3-start",
+        "method": "POST"
+      },
+      "id": "trigger-fase3",
+      "name": "Trigger Fase 3",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1540, 200]
+    },
+    {
+      "parameters": {
+        "channel": "@{{ $json.email_contacto }}",
+        "text": "Faltan documentos: {{ $json.missing.join(', ') }}"
+      },
+      "id": "remind",
+      "name": "Recordatorio proveedor",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1540, 400]
+    }
+  ],
+  "connections": {
+    "Trigger: Hito 1 verde": { "main": [[{ "node": "Drive: create supplier folder", "type": "main", "index": 0 }]] },
+    "Drive: create supplier folder": { "main": [[{ "node": "Email proveedor checklist", "type": "main", "index": 0 }, { "node": "Get checklist by country", "type": "main", "index": 0 }]] },
+    "Email proveedor checklist": { "main": [[{ "node": "Wait 14 days for docs upload", "type": "main", "index": 0 }]] },
+    "Wait 14 days for docs upload": { "main": [[{ "node": "Validate checklist", "type": "main", "index": 0 }]] },
+    "Validate checklist": { "main": [[{ "node": "IF docs OK", "type": "main", "index": 0 }]] },
+    "IF docs OK": { "main": [[{ "node": "Trigger Fase 3", "type": "main", "index": 0 }], [{ "node": "Recordatorio proveedor", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "versionId": "1"
+}

@@ -1,5 +1,11 @@
 node_modules/
 .env
+.env.local
+secrets/
 *.png
+*.log
 finecto-screenshot.png
 test-*.png
+coverage/
+dist/
+proyecto pao/

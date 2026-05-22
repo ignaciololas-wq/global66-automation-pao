@@ -1,0 +1,44 @@
+{
+  "name": "Alertas vencimiento contratos 9/6/3/30d/7d",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "days", "daysInterval": 1, "triggerAtHour": 8 }] }
+      },
+      "id": "cron",
+      "name": "Daily 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.N8N_WEBHOOK_BASE }}/run-alertas",
+        "method": "POST"
+      },
+      "id": "run-alerts",
+      "name": "Run alertas.js",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "channel": "={{ $env.SLACK_ADMIN_CHANNEL }}",
+        "text": "Resumen alertas vencimiento — {{ $json.length }} contratos notificados"
+      },
+      "id": "summary",
+      "name": "Slack summary",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [660, 300]
+    }
+  ],
+  "connections": {
+    "Daily 08:00": { "main": [[{ "node": "Run alertas.js", "type": "main", "index": 0 }]] },
+    "Run alertas.js": { "main": [[{ "node": "Slack summary", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "versionId": "1"
+}

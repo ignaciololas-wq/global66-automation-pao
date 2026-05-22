@@ -1,0 +1,118 @@
+{
+  "name": "Fase 3 — SignNow firma electrónica",
+  "nodes": [
+    {
+      "parameters": { "path": "fase3-start", "httpMethod": "POST" },
+      "id": "webhook",
+      "name": "Trigger: Fase 2 valid",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.signnow.com/oauth2/token",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Basic {{ Buffer.from($env.SIGNNOW_CLIENT_ID + ':' + $env.SIGNNOW_CLIENT_SECRET).toString('base64') }}" }] },
+        "sendBody": true,
+        "bodyParameters": { "parameters": [{ "name": "grant_type", "value": "password" }, { "name": "username", "value": "={{ $env.SIGNNOW_USERNAME }}" }, { "name": "password", "value": "={{ $env.SIGNNOW_PASSWORD }}" }, { "name": "scope", "value": "*" }] }
+      },
+      "id": "auth",
+      "name": "SignNow: get token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.signnow.com/template/{{ $env.SIGNNOW_TEMPLATE_ID }}/copy",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $node['auth'].json.access_token }}" }] },
+        "sendBody": true,
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ JSON.stringify({document_name: 'Contrato ' + $json.razon_social}) }}"
+      },
+      "id": "copy",
+      "name": "SignNow: copy template",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.signnow.com/document/{{ $node['copy'].json.id }}/invite",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $node['auth'].json.access_token }}" }] },
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ JSON.stringify({to: [{email: $json.email_contacto, role: 'Proveedor', order: 1}, {email: 'apoderado@global66.com', role: 'Global66', order: 2}], from: $env.SIGNNOW_USERNAME, subject: 'Firma contrato proveedor', message: 'Firmá el contrato adjunto.', redirect_uri: $env.N8N_WEBHOOK_BASE + '/signnow-callback'}) }}"
+      },
+      "id": "invite",
+      "name": "SignNow: send invite",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [880, 300]
+    },
+    {
+      "parameters": { "path": "signnow-callback", "httpMethod": "POST" },
+      "id": "callback",
+      "name": "Callback: signed",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [220, 540]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.signnow.com/document/{{ $json.document_id }}/download?type=collapsed",
+        "method": "GET",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $node['auth'].json.access_token }}" }] },
+        "options": { "response": { "response": { "responseFormat": "file" } } }
+      },
+      "id": "download-signed",
+      "name": "Download signed PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [440, 540]
+    },
+    {
+      "parameters": {
+        "name": "=Contrato firmado — {{ $json.razon_social }}.pdf",
+        "parents": ["={{ $json.drive_folder_id }}"]
+      },
+      "id": "drive-upload",
+      "name": "Drive: upload signed PDF",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [660, 540]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.FINNECTO_BASE_URL }}/v1.0/contracts/{{ $json.contract_id }}",
+        "method": "PATCH",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $env.FINNECTO_API_KEY }}" }] },
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ JSON.stringify({status: 'signed', signed_pdf_url: $node['drive-upload'].json.webViewLink, signed_at: new Date().toISOString()}) }}"
+      },
+      "id": "finnecto-update",
+      "name": "Finnecto: mark signed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [880, 540]
+    }
+  ],
+  "connections": {
+    "Trigger: Fase 2 valid": { "main": [[{ "node": "SignNow: get token", "type": "main", "index": 0 }]] },
+    "SignNow: get token": { "main": [[{ "node": "SignNow: copy template", "type": "main", "index": 0 }]] },
+    "SignNow: copy template": { "main": [[{ "node": "SignNow: send invite", "type": "main", "index": 0 }]] },
+    "Callback: signed": { "main": [[{ "node": "Download signed PDF", "type": "main", "index": 0 }]] },
+    "Download signed PDF": { "main": [[{ "node": "Drive: upload signed PDF", "type": "main", "index": 0 }]] },
+    "Drive: upload signed PDF": { "main": [[{ "node": "Finnecto: mark signed", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "versionId": "1"
+}

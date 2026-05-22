@@ -1,0 +1,12 @@
+node_modules
+.git
+.env
+.env.local
+secrets/
+proyecto pao/
+test/
+*.log
+README.md
+n8n/
+db/
+forms/

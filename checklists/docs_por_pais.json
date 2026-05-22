@@ -1,0 +1,50 @@
+{
+  "CL": {
+    "name": "Chile",
+    "required": [
+      { "id": "rut_empresa", "name": "Certificado de RUT", "valid_months": 3 },
+      { "id": "vigencia_sociedad", "name": "Certificado de vigencia (Registro de Comercio)", "valid_months": 3 },
+      { "id": "poderes", "name": "Escritura de poderes vigentes", "valid_months": 6 },
+      { "id": "cedula_representante", "name": "Cédula representante legal", "valid_months": 60 },
+      { "id": "certificado_antecedentes", "name": "Certificado antecedentes empresa", "valid_months": 3 },
+      { "id": "f29_ultimos_3", "name": "Formularios F29 últimos 3 meses", "valid_months": 3 }
+    ]
+  },
+  "PE": {
+    "name": "Perú",
+    "required": [
+      { "id": "ruc", "name": "Ficha RUC SUNAT", "valid_months": 3 },
+      { "id": "vigencia_poder", "name": "Vigencia de poder SUNARP", "valid_months": 3 },
+      { "id": "dni_representante", "name": "DNI representante legal", "valid_months": 60 },
+      { "id": "declaracion_jurada", "name": "Declaración jurada anti-lavado", "valid_months": 12 }
+    ]
+  },
+  "MX": {
+    "name": "México",
+    "required": [
+      { "id": "rfc", "name": "Constancia de Situación Fiscal RFC", "valid_months": 3 },
+      { "id": "acta_constitutiva", "name": "Acta constitutiva", "valid_months": null },
+      { "id": "poder_notariado", "name": "Poder notariado representante", "valid_months": 12 },
+      { "id": "ine_representante", "name": "INE representante legal", "valid_months": 120 },
+      { "id": "opinion_cumplimiento", "name": "Opinión de cumplimiento SAT 32-D", "valid_months": 1 }
+    ]
+  },
+  "CO": {
+    "name": "Colombia",
+    "required": [
+      { "id": "rut_dian", "name": "RUT DIAN", "valid_months": 6 },
+      { "id": "camara_comercio", "name": "Certificado Cámara de Comercio", "valid_months": 1 },
+      { "id": "cedula_representante", "name": "Cédula representante legal", "valid_months": null },
+      { "id": "certificado_paz_salvo", "name": "Paz y salvo parafiscales", "valid_months": 3 }
+    ]
+  },
+  "AR": {
+    "name": "Argentina",
+    "required": [
+      { "id": "cuit", "name": "Constancia de CUIT AFIP", "valid_months": 3 },
+      { "id": "estatuto", "name": "Estatuto social inscrito IGJ", "valid_months": null },
+      { "id": "acta_designacion", "name": "Acta designación autoridades vigente", "valid_months": 12 },
+      { "id": "dni_representante", "name": "DNI representante legal", "valid_months": 120 }
+    ]
+  }
+}

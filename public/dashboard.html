@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Dashboard Pao P2</title>
+<style>
+  :root { --bg:#0b1020; --card:#151b30; --text:#e7eaf6; --muted:#8a94b8; --green:#3ddc84; --yellow:#f0b429; --red:#e64a4a; }
+  * { box-sizing: border-box }
+  body { background:var(--bg); color:var(--text); font:14px/1.5 system-ui,-apple-system,Segoe UI,Arial; margin:0; padding:24px }
+  h1 { font-size:24px; margin:0 0 16px }
+  .row { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr)); gap:16px; margin-bottom:16px }
+  .card { background:var(--card); border-radius:12px; padding:16px; box-shadow:0 4px 12px rgba(0,0,0,0.3) }
+  .card h2 { font-size:13px; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); margin:0 0 12px }
+  .num { font-size:32px; font-weight:600; line-height:1 }
+  .num small { font-size:14px; color:var(--muted); font-weight:400; margin-left:8px }
+  table { width:100%; border-collapse:collapse; font-size:13px }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid #2a3050 }
+  th { color:var(--muted); font-weight:500; text-transform:uppercase; font-size:11px; letter-spacing:0.05em }
+  .pill { display:inline-block; padding:2px 8px; border-radius:12px; font-size:12px; font-weight:500 }
+  .green { background:rgba(61,220,132,0.15); color:var(--green) }
+  .yellow { background:rgba(240,180,41,0.15); color:var(--yellow) }
+  .red { background:rgba(230,74,74,0.15); color:var(--red) }
+  .muted { color:var(--muted) }
+  #loading { text-align:center; padding:40px; color:var(--muted) }
+  .err { background:rgba(230,74,74,0.1); border:1px solid var(--red); border-radius:8px; padding:12px; color:var(--red) }
+</style>
+</head>
+<body>
+<h1>📊 Dashboard Pao P2 — Alta contratos proveedores</h1>
+<div id="loading">Cargando…</div>
+<div id="app" hidden>
+
+  <div class="row" id="metrics"></div>
+
+  <div class="row">
+    <div class="card">
+      <h2>Por fase</h2>
+      <table id="phases"><thead><tr><th>Fase</th><th>Total</th><th>🟢</th><th>🟡</th><th>🔴</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card">
+      <h2>Tiempo aprobación por equipo</h2>
+      <table id="approvals"><thead><tr><th>Equipo</th><th>Horas avg</th><th>Aprobados</th><th>Rechazados</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <h2>Costo Gemini últimos 7 días</h2>
+      <table id="costs"><thead><tr><th>Día</th><th>Extracciones</th><th>Tokens in</th><th>Tokens out</th><th>USD</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card">
+      <h2>Sanciones últimas 4 semanas</h2>
+      <table id="sanctions"><thead><tr><th>Semana</th><th>Checks</th><th>Hits</th><th>%</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card" style="grid-column:1/-1">
+      <h2>Últimas 20 corridas</h2>
+      <table id="runs"><thead><tr><th>Proveedor</th><th>Tax ID</th><th>País</th><th>Monto</th><th>Fase</th><th>Semáforo</th><th>Fecha</th></tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+</div>
+<div id="error" hidden class="err"></div>
+
+<script>
+const SB_URL = window.SUPABASE_URL || 'https://kdhpbrpeneokvhwyxmwn.supabase.co';
+const SB_KEY = window.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_gMuIUc-TW3cBMQMXT3Tcfw_OnFQHbs-';
+
+async function q(table, qs = '') {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}?${qs}`, {
+    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+  });
+  if (!r.ok) throw new Error(`${table}: ${r.status} ${await r.text()}`);
+  return r.json();
+}
+
+const pill = (txt, kind) => `<span class="pill ${kind ?? ''}">${txt ?? '—'}</span>`;
+const semKind = (s) => s === 'green' ? 'green' : s === 'yellow' ? 'yellow' : s === 'red' ? 'red' : '';
+
+(async function load() {
+  try {
+    const [phases, approvals, costs, sanctions, runs] = await Promise.all([
+      q('v_runs_by_phase'),
+      q('v_avg_approval_time'),
+      q('v_extraction_costs', 'limit=7'),
+      q('v_sanctions_hits', 'limit=4'),
+      q('workflow_runs', 'order=created_at.desc&limit=20'),
+    ]);
+
+    const total = phases.reduce((a, p) => a + (p.total ?? 0), 0);
+    const active = phases.filter(p => !['signed','rejected','cancelled'].includes(p.current_phase)).reduce((a,p)=>a+p.total,0);
+    const greenSum = phases.reduce((a,p)=>a+(p.green??0),0);
+    const totalCost = costs.reduce((a,c)=>a + Number(c.cost_usd_total ?? 0), 0).toFixed(2);
+
+    document.getElementById('metrics').innerHTML = `
+      <div class="card"><h2>Total runs</h2><div class="num">${total}</div></div>
+      <div class="card"><h2>Activos</h2><div class="num">${active}</div></div>
+      <div class="card"><h2>Verdes</h2><div class="num" style="color:var(--green)">${greenSum}</div></div>
+      <div class="card"><h2>Gasto Gemini 7d</h2><div class="num">$${totalCost}<small>USD</small></div></div>
+    `;
+
+    document.querySelector('#phases tbody').innerHTML = phases.map(p =>
+      `<tr><td>${p.current_phase}</td><td>${p.total}</td><td>${p.green}</td><td>${p.yellow}</td><td>${p.red}</td></tr>`).join('');
+
+    document.querySelector('#approvals tbody').innerHTML = approvals.map(a =>
+      `<tr><td>${a.team}</td><td>${a.avg_hours_to_decide ?? '—'}h</td><td>${a.approved}</td><td>${a.rejected}</td></tr>`).join('') || '<tr><td colspan=4 class=muted>Sin datos</td></tr>';
+
+    document.querySelector('#costs tbody').innerHTML = costs.map(c =>
+      `<tr><td>${c.day}</td><td>${c.extractions}</td><td>${c.tokens_in_sum ?? '-'}</td><td>${c.tokens_out_sum ?? '-'}</td><td>$${c.cost_usd_total ?? '0.00'}</td></tr>`).join('') || '<tr><td colspan=5 class=muted>Sin datos</td></tr>';
+
+    document.querySelector('#sanctions tbody').innerHTML = sanctions.map(s =>
+      `<tr><td>${s.week}</td><td>${s.checks}</td><td>${s.hits}</td><td>${s.hit_pct}%</td></tr>`).join('') || '<tr><td colspan=4 class=muted>Sin datos</td></tr>';
+
+    document.querySelector('#runs tbody').innerHTML = runs.map(r =>
+      `<tr>
+        <td>${r.razon_social}</td>
+        <td class=muted>${r.tax_id}</td>
+        <td>${r.pais}</td>
+        <td>${r.monto ?? ''} ${r.moneda ?? ''}</td>
+        <td>${pill(r.current_phase)}</td>
+        <td>${pill(r.semaforo, semKind(r.semaforo))}</td>
+        <td class=muted>${(r.created_at ?? '').slice(0, 16).replace('T',' ')}</td>
+      </tr>`).join('');
+
+    document.getElementById('loading').hidden = true;
+    document.getElementById('app').hidden = false;
+  } catch (e) {
+    const err = document.getElementById('error');
+    err.hidden = false;
+    err.textContent = 'Error cargando: ' + e.message + ' (verificá que las views Supabase tengan SELECT GRANT a anon/authenticated)';
+    document.getElementById('loading').hidden = true;
+  }
+})();
+</script>
+</body>
+</html>
