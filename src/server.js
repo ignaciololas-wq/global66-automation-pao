@@ -53,10 +53,12 @@ function json(res, status, payload) {
 
 const routes = {
   'POST /form-webhook': async (req, res) => {
-    const body = JSON.parse(await readBody(req));
+    const raw = JSON.parse(await readBody(req));
+    const { isTallyPayload, adaptTally } = await import('./tally_adapter.js');
+    const body = isTallyPayload(raw) ? adaptTally(raw) : raw;
     try {
       const run = await startRun(body, { allowDuplicate: body.allow_duplicate === true });
-      json(res, 200, { run_id: run.id });
+      json(res, 200, { run_id: run.id, source: isTallyPayload(raw) ? 'tally' : 'google' });
     } catch (e) {
       if (e.code === 'DUPLICATE_ACTIVE_RUN') {
         return json(res, 409, { error: e.message, existing: e.existing });
