@@ -160,6 +160,17 @@ const routes = {
     }
   },
 
+  'GET /admin': async (req, res) => {
+    try {
+      const html = await import('node:fs/promises').then((fs) => fs.readFile('public/admin.html', 'utf-8'));
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.end(html);
+    } catch (e) {
+      json(res, 500, { error: e.message });
+    }
+  },
+
   'POST /providers': async (req, res) => {
     const body = JSON.parse(await readBody(req));
     try {
