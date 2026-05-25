@@ -26,6 +26,16 @@ import { checkSanctions } from './lista_negra.js';
 import { validateChecklist, listFolderFiles } from './drive_docs.js';
 import { runDailyAlerts } from './alertas.js';
 import { verifySlackSignature } from './slack_verify.js';
+import {
+  createProvider,
+  findProviderByTaxId,
+  setProviderStatus,
+  listProviders,
+  createContract,
+  setContractStatus,
+  attachSignedPdf,
+  getContractById,
+} from './providers.js';
 
 const PORT = process.env.PORT ?? 3000;
 
@@ -146,6 +156,47 @@ const routes = {
     } catch (e) {
       json(res, 500, { error: e.message });
     }
+  },
+
+  'POST /providers': async (req, res) => {
+    const body = JSON.parse(await readBody(req));
+    try {
+      const p = await createProvider(body, { runId: body.run_id });
+      json(res, 201, p);
+    } catch (e) {
+      if (e.code === 'PROVIDER_EXISTS') return json(res, 409, { error: e.message, existing: e.existing });
+      throw e;
+    }
+  },
+
+  'GET /providers': async (req, res, url) => {
+    const status = url.searchParams.get('status');
+    const pais = url.searchParams.get('pais');
+    json(res, 200, await listProviders({ status, pais }));
+  },
+
+  'POST /providers/status': async (req, res) => {
+    const body = JSON.parse(await readBody(req));
+    await setProviderStatus(body.provider_id, body.status, { runId: body.run_id });
+    json(res, 200, { ok: true });
+  },
+
+  'POST /contracts': async (req, res) => {
+    const body = JSON.parse(await readBody(req));
+    const c = await createContract(body, { runId: body.run_id });
+    json(res, 201, c);
+  },
+
+  'POST /contracts/sign': async (req, res) => {
+    const body = JSON.parse(await readBody(req));
+    const c = await attachSignedPdf(body.contract_id, body.signed_pdf_url, body.signnow_document_id, { runId: body.run_id });
+    json(res, 200, c);
+  },
+
+  'GET /contracts': async (req, res, url) => {
+    const id = url.searchParams.get('id');
+    if (id) return json(res, 200, await getContractById(id));
+    json(res, 400, { error: 'id required' });
   },
 
   'GET /digest': async (req, res) => {

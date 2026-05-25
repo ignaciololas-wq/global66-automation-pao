@@ -1,7 +1,8 @@
 // Alertas de vencimiento — 9 / 6 / 3 meses + 30 / 7 días.
 // Corre como cron diario. Lee Finecto, notifica Slack + email owner.
 
-import { listExpiringContracts } from './finnecto.js';
+// Stack B: lee de Supabase (providers + contracts) en vez de Finnecto.
+import { listExpiringContracts } from './providers.js';
 import axios from 'axios';
 
 const ALERT_WINDOWS = [
@@ -21,12 +22,14 @@ async function postSlack(channel, blocks) {
 }
 
 function block(contract, label) {
+  const owner = contract.owner_email ?? contract.owner_slack_id ?? 'sin owner';
+  const name = contract.provider_name ?? contract.supplier_name ?? contract.id;
   return [
     {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text: `⚠️ *Contrato vence en ${label}*\n*Proveedor:* ${contract.supplier_name}\n*Tipo:* ${contract.type}\n*Monto:* ${contract.amount} ${contract.currency}\n*Vence:* ${contract.expires_at}\n*Owner:* <@${contract.owner_slack_id ?? 'unknown'}>`,
+        text: `⚠️ *Contrato vence en ${label}*\n*Proveedor:* ${name}\n*Tipo:* ${contract.tipo_contrato ?? contract.type}\n*Monto:* ${contract.amount} ${contract.currency}\n*Vence:* ${contract.expires_at}\n*Owner:* ${owner}`,
       },
     },
     {
@@ -34,7 +37,6 @@ function block(contract, label) {
       elements: [
         { type: 'button', text: { type: 'plain_text', text: 'Renovar' }, value: `renew:${contract.id}` },
         { type: 'button', text: { type: 'plain_text', text: 'No renovar' }, value: `cancel:${contract.id}` },
-        { type: 'button', text: { type: 'plain_text', text: 'Ver contrato' }, url: contract.url },
       ],
     },
   ];

@@ -106,15 +106,13 @@
     },
     {
       "parameters": {
-        "url": "={{ $env.FINNECTO_BASE_URL }}/v1.0/forms/",
+        "url": "={{ $env.SERVER_BASE }}/providers",
         "method": "POST",
-        "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $env.FINNECTO_API_KEY }}" }] },
         "jsonParameters": true,
-        "bodyParametersJson": "={{ JSON.stringify({form_id: $env.FINNECTO_PROVIDER_FORM_ID, responses: {razon_social: $json.razon_social, tax_id: $json.rut, country: $json.pais, contact_email: $json.email_contacto, billing_email: $json.email_facturacion}}) }}"
+        "bodyParametersJson": "={{ JSON.stringify({run_id: $node['start-run'].json.run_id, razon_social: $json.razon_social, tax_id: $json.rut, pais: $json.pais, tipo_proveedor: $json.tipo_proveedor, email_contacto: $json.email_contacto, email_facturacion: $json.email_facturacion, nivel_acceso: $json.nivel_acceso, criticidad: $json.criticidad}) }}"
       },
-      "id": "finnecto",
-      "name": "Finnecto: create provider form",
+      "id": "create-provider",
+      "name": "Supabase: create provider",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [1100, 460]
@@ -124,7 +122,7 @@
     "Trigger: form-webhook": { "main": [[{ "node": "Server: startRun → Supabase", "type": "main", "index": 0 }]] },
     "Server: startRun → Supabase": { "main": [[{ "node": "Download PDF", "type": "main", "index": 0 }, { "node": "Server: sanctions check", "type": "main", "index": 0 }]] },
     "Download PDF": { "main": [[{ "node": "Server: Claude extract", "type": "main", "index": 0 }]] },
-    "Server: Claude extract": { "main": [[{ "node": "Slack: Compliance", "type": "main", "index": 0 }, { "node": "Slack: Legal", "type": "main", "index": 0 }, { "node": "Slack: Admin", "type": "main", "index": 0 }, { "node": "Finnecto: create supplier", "type": "main", "index": 0 }]] }
+    "Server: Claude extract": { "main": [[{ "node": "Slack: Compliance", "type": "main", "index": 0 }, { "node": "Slack: Legal", "type": "main", "index": 0 }, { "node": "Slack: Admin", "type": "main", "index": 0 }, { "node": "Supabase: create provider", "type": "main", "index": 0 }]] }
   },
   "settings": { "executionOrder": "v1" },
   "active": false,

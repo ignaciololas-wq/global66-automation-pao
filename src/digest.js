@@ -2,7 +2,7 @@
 // Uso vía endpoint /digest (n8n cron) o `node src/digest.js`.
 
 import { sb } from './supabase_audit.js';
-import { listExpiringContracts } from './finnecto.js';
+import { listExpiringContracts } from './providers.js';
 
 export async function buildDigest() {
   const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();

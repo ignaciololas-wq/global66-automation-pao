@@ -90,15 +90,13 @@
     },
     {
       "parameters": {
-        "url": "={{ $env.FINNECTO_BASE_URL }}/v1.0/contracts/{{ $json.contract_id }}",
-        "method": "PATCH",
-        "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "=Bearer {{ $env.FINNECTO_API_KEY }}" }] },
+        "url": "={{ $env.SERVER_BASE }}/contracts/sign",
+        "method": "POST",
         "jsonParameters": true,
-        "bodyParametersJson": "={{ JSON.stringify({status: 'signed', signed_pdf_url: $node['drive-upload'].json.webViewLink, signed_at: new Date().toISOString()}) }}"
+        "bodyParametersJson": "={{ JSON.stringify({contract_id: $json.contract_id, signed_pdf_url: $node['drive-upload'].json.webViewLink, signnow_document_id: $json.document_id, run_id: $json.run_id}) }}"
       },
-      "id": "finnecto-update",
-      "name": "Finnecto: mark signed",
+      "id": "mark-signed",
+      "name": "Supabase: mark contract signed",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [880, 540]
@@ -110,7 +108,7 @@
     "SignNow: copy template": { "main": [[{ "node": "SignNow: send invite", "type": "main", "index": 0 }]] },
     "Callback: signed": { "main": [[{ "node": "Download signed PDF", "type": "main", "index": 0 }]] },
     "Download signed PDF": { "main": [[{ "node": "Drive: upload signed PDF", "type": "main", "index": 0 }]] },
-    "Drive: upload signed PDF": { "main": [[{ "node": "Finnecto: mark signed", "type": "main", "index": 0 }]] }
+    "Drive: upload signed PDF": { "main": [[{ "node": "Supabase: mark contract signed", "type": "main", "index": 0 }]] }
   },
   "settings": { "executionOrder": "v1" },
   "active": false,
