@@ -1,0 +1,30 @@
+{
+  "eventType": "FORM_RESPONSE",
+  "createdAt": "2026-05-26T12:00:00Z",
+  "data": {
+    "responseId": "test-merged-pao-1",
+    "fields": [
+      { "label": "Tu nombre completo", "type": "INPUT_TEXT", "value": "Test Pao" },
+      { "label": "Tu email", "type": "INPUT_EMAIL", "value": "test@global66.com" },
+      { "label": "Tu área o equipo", "type": "INPUT_TEXT", "value": "Admin" },
+      { "label": "¿Serás el Owner del contrato?", "type": "MULTIPLE_CHOICE", "value": ["Sí, seré el responsable"] },
+      { "label": "Email del Owner", "type": "INPUT_EMAIL", "value": "test@global66.com" },
+      { "label": "Email del responsable backup", "type": "INPUT_EMAIL", "value": "backup@global66.com" },
+      { "label": "Sociedad contratante", "type": "MULTIPLE_CHOICE", "value": ["Global 81 SpA (Chile)"] },
+      { "label": "Razón social del proveedor", "type": "INPUT_TEXT", "value": "Proveedor Test Merged" },
+      { "label": "RUT / Tax ID del proveedor", "type": "INPUT_TEXT", "value": "test-merged-rut-XYZ" },
+      { "label": "País donde está constituido el proveedor", "type": "DROPDOWN", "value": ["Chile"] },
+      { "label": "Representante legal o contacto principal", "type": "INPUT_TEXT", "value": "Juan Repr" },
+      { "label": "Email de contacto del proveedor", "type": "INPUT_EMAIL", "value": "contact@prov.cl" },
+      { "label": "Tipo de contrato", "type": "DROPDOWN", "value": ["Prestación de servicios"] },
+      { "label": "Monto estimado", "type": "INPUT_NUMBER", "value": "12000" },
+      { "label": "Moneda", "type": "DROPDOWN", "value": ["USD"] },
+      { "label": "Periodicidad", "type": "MULTIPLE_CHOICE", "value": ["Anual"] },
+      { "label": "Duración del contrato", "type": "MULTIPLE_CHOICE", "value": ["Plazo fijo"] },
+      { "label": "Justificación de negocio", "type": "TEXTAREA", "value": "Test piloto Pao" },
+      { "label": "Nivel de acceso a datos/sistemas Global66", "type": "MULTIPLE_CHOICE", "value": ["PII no sensible"] },
+      { "label": "Criticidad para la operación", "type": "MULTIPLE_CHOICE", "value": ["Media"] },
+      { "label": "Borrador del contrato (PDF)", "type": "FILE_UPLOAD", "value": [{"url": "https://files.tally.so/test.pdf"}] }
+    ]
+  }
+}

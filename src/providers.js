@@ -25,23 +25,24 @@ export async function createProvider(input, { runId } = {}) {
     throw e;
   }
 
-  const { data, error } = await sb
-    .from('providers')
-    .insert({
-      razon_social: input.razon_social,
-      tax_id: input.tax_id,
-      pais: input.pais,
-      tipo_proveedor: input.tipo_proveedor,
-      email_contacto: input.email_contacto,
-      email_facturacion: input.email_facturacion,
-      domicilio: input.domicilio,
-      representante_legal: input.representante_legal,
-      nivel_acceso: input.nivel_acceso,
-      criticidad: input.criticidad,
-      status: 'pendiente_revision',
-    })
-    .select()
-    .single();
+  const insert = {
+    razon_social: input.razon_social,
+    tax_id: input.tax_id,
+    pais: input.pais,
+    tipo_proveedor: input.tipo_proveedor,
+    email_contacto: input.email_contacto,
+    email_facturacion: input.email_facturacion,
+    domicilio: input.domicilio,
+    representante_legal: input.representante_legal,
+    nivel_acceso: input.nivel_acceso,
+    criticidad: input.criticidad,
+    sociedad_contratante: input.sociedad_contratante,
+    servicio_descripcion: input.servicio_descripcion,
+    status: 'pendiente_revision',
+  };
+  for (const k of Object.keys(insert)) if (insert[k] === undefined || insert[k] === null) delete insert[k];
+
+  const { data, error } = await sb.from('providers').insert(insert).select().single();
   if (error) throw error;
   await logAudit(runId ?? null, 'system', 'provider.created', 'provider', data.id, { tax_id: input.tax_id });
   return data;

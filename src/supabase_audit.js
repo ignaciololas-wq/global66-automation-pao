@@ -38,25 +38,41 @@ export async function startRun(formResponse, { allowDuplicate = false } = {}) {
       throw e;
     }
   }
-  const { data, error } = await sb
-    .from('workflow_runs')
-    .insert({
-      form_response_id: formResponse.id,
-      owner_email: formResponse.owner_email,
-      razon_social: formResponse.razon_social,
-      tax_id: formResponse.rut,
-      pais: formResponse.pais,
-      tipo_contrato: formResponse.tipo_contrato,
-      monto: formResponse.monto,
-      moneda: formResponse.moneda,
-      vigencia_meses: typeof formResponse.vigencia === 'number' ? formResponse.vigencia : null,
-      is_adhesion: formResponse.adhesion === 'Sí',
-      criticidad: formResponse.criticidad,
-      nivel_acceso: formResponse.nivel_acceso,
-      draft_url: formResponse.link_drive,
-    })
-    .select()
-    .single();
+  const insert = {
+    form_response_id: formResponse.id,
+    owner_email: formResponse.owner_email,
+    razon_social: formResponse.razon_social,
+    tax_id: formResponse.rut,
+    pais: formResponse.pais,
+    tipo_contrato: formResponse.tipo_contrato,
+    monto: formResponse.monto,
+    moneda: formResponse.moneda,
+    vigencia_meses: typeof formResponse.vigencia === 'number' ? formResponse.vigencia : null,
+    is_adhesion: formResponse.adhesion === 'Sí',
+    criticidad: formResponse.criticidad,
+    nivel_acceso: formResponse.nivel_acceso,
+    draft_url: formResponse.link_drive,
+    // Campos nuevos del form unificado (migración 005)
+    solicitante_nombre: formResponse.solicitante_nombre ?? null,
+    solicitante_email: formResponse.solicitante_email ?? null,
+    solicitante_area: formResponse.solicitante_area ?? null,
+    owner_es_solicitante: formResponse.owner_es_solicitante ?? null,
+    owner_nombre: formResponse.owner_nombre ?? null,
+    responsable_backup_email: formResponse.responsable_backup_email ?? null,
+    sociedad_contratante: formResponse.sociedad_contratante ?? null,
+    representante_legal: formResponse.representante_legal ?? null,
+    servicio_descripcion: formResponse.servicio_descripcion ?? null,
+    proveedor_existente: formResponse.proveedor_existente ?? null,
+    periodicidad: formResponse.periodicidad ?? null,
+    tipo_duracion: formResponse.tipo_duracion ?? null,
+    fecha_inicio: formResponse.fecha_inicio ?? null,
+    fecha_fin: formResponse.fecha_fin ?? null,
+    justificacion: formResponse.justificacion ?? null,
+  };
+  // Quitar `null`s para tolerar pre-migración 005
+  for (const k of Object.keys(insert)) if (insert[k] === null) delete insert[k];
+
+  const { data, error } = await sb.from('workflow_runs').insert(insert).select().single();
   if (error) throw error;
   await logAudit(data.id, 'system', 'workflow.started', 'workflow_run', data.id, { form_response_id: formResponse.id });
   return data;
