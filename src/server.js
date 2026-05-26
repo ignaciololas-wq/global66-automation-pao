@@ -416,15 +416,6 @@ export async function handleRequest(req, res) {
     } catch (e) { return json(res, 500, { error: e.message }); }
   }
 
-  // Root
-  if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '')) {
-    try {
-      const html = await readStatic('public/dashboard.html');
-      res.statusCode = 200; res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      return res.end(html);
-    } catch (e) { return json(res, 500, { error: e.message }); }
-  }
-
   const handler = routes[key];
   if (!handler || handler === null) return json(res, 404, { error: 'not found', path: key });
   try { await handler(req, res, url); }

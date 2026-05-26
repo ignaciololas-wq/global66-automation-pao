@@ -9,7 +9,6 @@
     { "source": "/admin", "destination": "/admin.html" },
     { "source": "/dashboard", "destination": "/dashboard.html" },
     { "source": "/p/:token*", "destination": "/provider.html" },
-    { "source": "/", "destination": "/dashboard.html" },
     { "source": "/health", "destination": "/api" },
     { "source": "/digest", "destination": "/api" },
     { "source": "/run", "destination": "/api" },
