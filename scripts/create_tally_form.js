@@ -28,21 +28,20 @@ const sections = [
   { type: 'INPUT_EMAIL', label: 'Email de contacto del proveedor', required: true, placeholder: 'contacto@proveedor.com' },
   { type: 'INPUT_EMAIL', label: 'Email de facturación del proveedor', required: true, placeholder: 'billing@proveedor.com' },
   { type: 'MULTIPLE_CHOICE', label: '¿Proveedor nuevo o ya existe en el sistema?', required: true, options: ['Proveedor nuevo','Ya existe — renovación o contrato adicional'] },
-  { type: 'DROPDOWN', label: 'Tipo de proveedor', required: true, options: ['Servicios profesionales','Plataformas SaaS','Marketing y Publicidad','Consultoría/Asesoría'] },
+  { type: 'DROPDOWN', label: 'Tipo de proveedor', required: true, options: ['Servicios profesionales','Plataformas SaaS','Marketing y Publicidad','Consultoría/Asesoría','Otro'] },
 
   { heading: '3. Datos del contrato' },
   { type: 'TEXTAREA', label: 'Descripción del servicio', required: true, placeholder: 'Ej: Desarrollo de software, consultoría legal, hosting...' },
-  { type: 'DROPDOWN', label: 'Tipo de contrato', required: true, options: ['Prestación de servicios','Suscripción SaaS','NDA','Master Services Agreement (MSA)','Statement of Work (SOW)','Adhesión','Otro'] },
-  { type: 'MULTIPLE_CHOICE', label: '¿Es contrato de adhesión (términos del proveedor sin negociación)?', required: true, options: ['Sí','No'] },
-  { type: 'INPUT_NUMBER', label: 'Monto estimado', required: true, placeholder: 'Solo número, ej: 12000' },
-  { type: 'DROPDOWN', label: 'Moneda', required: true, options: ['USD','CLP','PEN','MXN','COP','ARS','BRL','EUR','UF','PAB','Otra'] },
   { type: 'MULTIPLE_CHOICE', label: 'Periodicidad', required: true, options: ['Único','Mensual','Anual','Otro'] },
+  { type: 'INPUT_NUMBER', label: 'Monto estimado', required: true, help: 'Indica el valor según la periodicidad elegida (ej: si es mensual, el monto mensual; si es anual, el monto anual; si es único, el total).', placeholder: 'Solo número, ej: 12000' },
+  { type: 'DROPDOWN', label: 'Moneda', required: true, options: ['USD','CLP','PEN','MXN','COP','ARS','BRL','EUR','UF','PAB','Otra'] },
   { type: 'MULTIPLE_CHOICE', label: 'Duración del contrato', required: true, options: ['Indefinido','Plazo fijo','Por proyecto o entregable'] },
   { type: 'INPUT_TEXT', label: 'Fecha inicio (solo si plazo fijo)', required: false, placeholder: 'DD/MM/AAAA' },
   { type: 'INPUT_TEXT', label: 'Fecha fin (solo si plazo fijo)', required: false, placeholder: 'DD/MM/AAAA' },
 
   { heading: '4. Adjuntos' },
   { type: 'FILE_UPLOAD', label: 'Borrador del contrato (PDF)', required: true, help: 'Documento del proveedor o borrador interno.' },
+  { type: 'FILE_UPLOAD', label: 'Archivos adicionales (opcional)', required: false, help: 'Cualquier otro documento relevante: cotizaciones, NDAs previos, presentaciones, etc.' },
   { type: 'TEXTAREA', label: 'Notas adicionales (opcional)', required: false },
 ];
 
