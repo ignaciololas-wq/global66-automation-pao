@@ -426,19 +426,22 @@ async function doLogin(ev) {
       $('#login-err').hidden = false;
       return;
     }
-    visualLog('OK tokens received, setting session');
-    const setResult = await supabase.auth.setSession({
+    visualLog('OK tokens received, persisting + reload');
+    // Bypass setSession (cuelga). Guardar manual en localStorage con formato Supabase-js.
+    const projectRef = 'kdhpbrpeneokvhwyxmwn';
+    const storageKey = `sb-${projectRef}-auth-token`;
+    const session = {
       access_token: data.access_token,
       refresh_token: data.refresh_token,
-    });
-    if (setResult.error) {
-      visualLog('setSession error: ' + setResult.error.message);
-      $('#login-err').textContent = setResult.error.message;
-      $('#login-err').hidden = false;
-      return;
-    }
-    visualLog('session set, checking auth');
-    checkAuth();
+      expires_in: data.expires_in,
+      expires_at: data.expires_at,
+      token_type: 'bearer',
+      user: data.user,
+    };
+    localStorage.setItem(storageKey, JSON.stringify(session));
+    visualLog('session stored, reloading');
+    // Reload para que supabase-js levante la sesión nueva
+    setTimeout(() => location.reload(), 200);
   } catch (e) {
     visualLog('EXCEPTION: ' + (e.message || e.toString()));
     $('#login-err').textContent = 'Excepción: ' + e.message;
