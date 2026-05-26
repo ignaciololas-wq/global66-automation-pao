@@ -374,9 +374,8 @@ window.__session = null;
 
 async function checkAuth() {
   let session = readSession();
-  // BYPASS temporal: si URL tiene ?dev=1 o no hay session, mostrar app igual
-  const bypass = new URLSearchParams(location.search).get('dev') === '1' || !session;
-  if (bypass && !session) {
+  // BYPASS TOTAL temporal: siempre muestra la app, login deshabilitado
+  if (!session) {
     session = {
       access_token: 'dev-bypass',
       user: { email: 'dev@global66.com', app_metadata: { role: 'admin' } },
