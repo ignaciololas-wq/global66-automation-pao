@@ -240,6 +240,10 @@
 
     <div class="nav-section">Gestión</div>
     <nav>
+      <a href="#intake/new" style="background:rgba(255,255,255,0.06);color:white">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Nueva solicitud
+      </a>
       <a href="#workflows">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
         Solicitudes
@@ -332,9 +336,12 @@ window.addEventListener('hashchange', route);
 async function route() {
   const hash = location.hash.slice(1) || 'dashboard';
   const [page, ...params] = hash.split('/');
-  document.querySelectorAll('#nav a, aside nav a').forEach((a) => a.classList.toggle('active', a.getAttribute('href') === '#' + page));
+  document.querySelectorAll('#nav a, aside nav a').forEach((a) => a.classList.toggle('active', a.getAttribute('href').slice(1).split('/')[0] === page));
   loading.hidden = false; view.innerHTML = '';
-  try { await (pages[page] ?? pages.dashboard)(params); }
+  try {
+    if (page === 'intake') return await intakeForm(params);
+    await (pages[page] ?? pages.dashboard)(params);
+  }
   catch (e) { view.innerHTML = `<div class="err">${e.message}</div>`; }
   finally { loading.hidden = true; }
 }
@@ -660,6 +667,189 @@ const pages = {
     `;
   },
 };
+
+// ─── Intake (new request) ───────────────────────────────────────────────────
+
+async function intakeForm() {
+  view.innerHTML = `
+    <div class="breadcrumb"><a href="#workflows">← Solicitudes</a></div>
+    <div class="header-row">
+      <div>
+        <h2>Nueva solicitud de contrato</h2>
+        <p style="color:var(--muted);margin-top:4px">Iniciamos el flujo de alta. Si el proveedor es nuevo, le mandamos un email para que complete su perfil.</p>
+      </div>
+    </div>
+
+    <form id="intake-form" style="max-width:760px">
+      <div class="card" style="margin-bottom:20px">
+        <h3 style="margin-bottom:6px">1. Quién solicita</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:18px">Tus datos quedan asociados a la solicitud para seguimiento.</p>
+        <div class="grid grid-2">
+          <div><label>Tu nombre completo *</label><input type="text" name="solicitante_nombre" required></div>
+          <div><label>Tu email *</label><input type="email" name="solicitante_email" required></div>
+          <div><label>Tu área o equipo *</label><input type="text" name="solicitante_area" placeholder="Ej: Finanzas, Tech" required></div>
+          <div>
+            <label>¿Serás el Owner del contrato? *</label>
+            <select name="owner_es_solicitante" id="owner-toggle" required>
+              <option value="">—</option><option value="true">Sí</option><option value="false">No, otro responsable</option>
+            </select>
+          </div>
+          <div id="owner-name-wrap" hidden><label>Nombre del Owner</label><input type="text" name="owner_nombre"></div>
+          <div><label>Email del Owner *</label><input type="email" name="owner_email" required></div>
+          <div><label>Email backup responsable *</label><input type="email" name="responsable_backup_email" required></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px">
+        <h3 style="margin-bottom:18px">2. Proveedor</h3>
+        <div class="grid grid-2">
+          <div><label>Razón social *</label><input type="text" name="razon_social" required></div>
+          <div><label>RUT / Tax ID *</label><input type="text" name="rut" required placeholder="76.000.000-K"></div>
+          <div>
+            <label>País *</label>
+            <select name="pais" required>
+              <option value="">—</option>
+              ${['Chile','Perú','México','Colombia','Argentina','Panamá','Ecuador','Brasil','Uruguay','Estados Unidos','Otro'].map(p => `<option>${p}</option>`).join('')}
+            </select>
+          </div>
+          <div><label>Representante legal / contacto *</label><input type="text" name="representante_legal" required></div>
+          <div><label>Email de contacto del proveedor *</label><input type="email" name="email_contacto" required></div>
+          <div><label>Email de facturación *</label><input type="email" name="email_facturacion" required></div>
+          <div>
+            <label>¿Proveedor nuevo o existente? *</label>
+            <select name="proveedor_existente" required>
+              <option value="">—</option><option value="false">Nuevo</option><option value="true">Existe — renovación</option>
+            </select>
+          </div>
+          <div>
+            <label>Tipo de proveedor *</label>
+            <select name="tipo_proveedor" required>
+              <option value="">—</option>
+              ${['Servicios profesionales','Plataformas SaaS','Marketing y Publicidad','Consultoría/Asesoría','Otro'].map(t => `<option>${t}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px">
+        <h3 style="margin-bottom:18px">3. Contrato</h3>
+        <div class="grid grid-2">
+          <div style="grid-column:1/-1"><label>Descripción del servicio *</label><textarea name="servicio_descripcion" rows="3" placeholder="Ej: Desarrollo de software, consultoría legal, hosting..." required></textarea></div>
+          <div>
+            <label>Periodicidad *</label>
+            <select name="periodicidad" required>
+              <option value="">—</option><option value="unico">Único</option><option value="mensual">Mensual</option><option value="anual">Anual</option><option value="otro">Otro</option>
+            </select>
+          </div>
+          <div>
+            <label>Monto estimado *</label>
+            <input type="number" name="monto" required placeholder="12000" step="any">
+            <p style="font-size:12px;color:var(--muted);margin-top:4px">Indica el valor según la periodicidad. Si es mensual, monto mensual; si es anual, monto anual.</p>
+          </div>
+          <div>
+            <label>Moneda *</label>
+            <select name="moneda" required>
+              <option value="">—</option>${['USD','CLP','PEN','MXN','COP','ARS','BRL','EUR','UF','PAB','Otra'].map(m => `<option>${m}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label>Duración del contrato *</label>
+            <select name="tipo_duracion" id="duracion-toggle" required>
+              <option value="">—</option>
+              <option value="indefinido">Indefinido</option>
+              <option value="plazo_fijo">Plazo fijo</option>
+              <option value="por_proyecto">Por proyecto o entregable</option>
+            </select>
+          </div>
+          <div id="fechas-wrap" hidden style="display:contents">
+            <div><label>Fecha inicio *</label><input type="date" name="fecha_inicio" id="fecha-inicio"></div>
+            <div><label>Fecha fin *</label><input type="date" name="fecha_fin" id="fecha-fin"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px">
+        <h3 style="margin-bottom:18px">4. Adjuntos</h3>
+        <div class="question">
+          <label>Link al borrador del contrato (PDF en Drive) *</label>
+          <input type="url" name="link_drive" placeholder="https://drive.google.com/..." required>
+          <p style="font-size:12px;color:var(--muted);margin-top:4px">Subí el PDF a Drive (compartido con tu equipo) y pegá el link.</p>
+        </div>
+        <div class="question">
+          <label>Notas adicionales</label>
+          <textarea name="notas" rows="2" placeholder="Cualquier contexto adicional"></textarea>
+        </div>
+      </div>
+
+      <div id="intake-err" class="err" hidden></div>
+      <div id="intake-ok" class="ok" hidden></div>
+      <div style="display:flex;justify-content:flex-end;gap:10px">
+        <button type="button" class="secondary" onclick="location.hash='workflows'">Cancelar</button>
+        <button type="submit" class="primary" id="submit-intake">Crear solicitud →</button>
+      </div>
+    </form>
+  `;
+
+  // Conditional: Owner name aparece solo si "No"
+  document.querySelector('#owner-toggle').addEventListener('change', (e) => {
+    const wrap = document.querySelector('#owner-name-wrap');
+    wrap.hidden = e.target.value !== 'false';
+  });
+
+  // Conditional: Fechas aparecen solo si plazo_fijo
+  const durToggle = document.querySelector('#duracion-toggle');
+  durToggle.addEventListener('change', (e) => {
+    const wrap = document.querySelector('#fechas-wrap');
+    const show = e.target.value === 'plazo_fijo';
+    wrap.hidden = !show;
+    document.querySelector('#fecha-inicio').required = show;
+    document.querySelector('#fecha-fin').required = show;
+  });
+
+  // Auto: si soy Owner, prefill email
+  document.querySelector('#owner-toggle').addEventListener('change', (e) => {
+    if (e.target.value === 'true') {
+      const oe = document.querySelector('[name=owner_email]');
+      const se = document.querySelector('[name=solicitante_email]').value;
+      if (!oe.value && se) oe.value = se;
+    }
+  });
+
+  document.querySelector('#intake-form').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const data = Object.fromEntries(new FormData(ev.target));
+    data.monto = data.monto ? Number(data.monto) : null;
+    data.owner_es_solicitante = data.owner_es_solicitante === 'true';
+    data.proveedor_existente = data.proveedor_existente === 'true';
+    data.id = `intake-${Date.now()}`;
+
+    const btn = document.querySelector('#submit-intake');
+    btn.disabled = true; btn.textContent = 'Enviando…';
+    document.querySelector('#intake-err').hidden = true;
+
+    try {
+      const r = await fetch('/api/intake', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      const result = await r.json();
+      if (!r.ok) throw new Error(result.error ?? 'Error');
+
+      const ok = document.querySelector('#intake-ok');
+      ok.innerHTML = `
+        ✓ Solicitud creada · <code>${result.run_id.slice(0, 8)}</code><br>
+        ${result.provider_new ? `📨 Email enviado al proveedor con link para completar perfil` : `📂 Proveedor existente — perfil reusado`}
+        <div style="margin-top:12px"><a href="#workflows/${result.run_id}">Ver detalle →</a></div>
+      `;
+      ok.hidden = false;
+      btn.textContent = 'Crear otra';
+      btn.disabled = false;
+      ev.target.reset();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e) {
+      document.querySelector('#intake-err').textContent = e.message;
+      document.querySelector('#intake-err').hidden = false;
+      btn.disabled = false; btn.textContent = 'Crear solicitud →';
+    }
+  });
+}
 
 checkAuth();
 </script>

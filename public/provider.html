@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tu perfil de proveedor — Global66</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --blue-50:#f5f7fe; --blue-100:#E9EDF8; --blue-500:#1F49B6; --blue-600:#003eea;
+    --blue-700:#102a97; --blue-800:#0b1f4b; --blue-900:#132046;
+    --green:#02A757; --mint:#33d9b2; --red:#e64a4a; --yellow:#f0b429;
+    --text:#132046; --muted:#565656; --border:#E9EDF8;
+    --shadow-lg:0 4px 12px rgba(19,32,70,0.08), 0 20px 60px rgba(19,32,70,0.10);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0 }
+  body { font: 15px/1.6 'Inter', -apple-system, system-ui, sans-serif; color: var(--text); background: var(--blue-50); -webkit-font-smoothing: antialiased }
+  h1, h2, h3 { font-family: 'Montserrat', sans-serif; font-weight: 700; letter-spacing: -0.02em }
+
+  .banner {
+    background: linear-gradient(135deg, var(--blue-500), #3F5EDF);
+    color: white;
+    padding: 48px 24px 80px;
+    text-align: center;
+  }
+  .banner .logo { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 16px }
+  .banner .logo-mark { width: 44px; height: 44px; border-radius: 10px; background: rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; font-weight: 800; font-family: 'Montserrat'; font-size: 22px }
+  .banner .logo-text { font-family: 'Montserrat'; font-weight: 800; font-size: 18px; text-align: left }
+  .banner .logo-text small { display: block; opacity: 0.8; font-weight: 500; font-size: 12px }
+  .banner h1 { font-size: 34px; margin-bottom: 8px }
+  .banner p { opacity: 0.92; font-size: 16px; max-width: 560px; margin: 0 auto }
+
+  .container { max-width: 680px; margin: -50px auto 60px; padding: 0 20px; position: relative; z-index: 1 }
+  .card {
+    background: white; border-radius: 20px; box-shadow: var(--shadow-lg);
+    padding: 32px 36px;
+  }
+
+  .section { padding: 18px 0; border-bottom: 1px solid var(--border) }
+  .section:last-child { border-bottom: none }
+  .section h2 { font-size: 18px; margin-bottom: 4px }
+  .section p.help { color: var(--muted); font-size: 13px; margin-bottom: 18px }
+
+  .question { margin: 18px 0 }
+  .question label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; color: var(--text) }
+  .question label .req { color: var(--red); margin-left: 4px }
+  .question .help { color: var(--muted); font-size: 12.5px; margin-bottom: 8px }
+
+  input[type=text], input[type=email], input[type=number], input[type=date], input[type=tel], textarea, select {
+    width: 100%; padding: 12px 14px;
+    border: 1.5px solid var(--border); border-radius: 10px;
+    font: inherit; color: var(--text); background: white;
+    transition: all .15s ease;
+  }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--blue-500); box-shadow: 0 0 0 4px rgba(31,73,182,0.08) }
+  textarea { resize: vertical; min-height: 90px }
+
+  .preview {
+    background: var(--blue-50); border: 1px solid var(--blue-100); border-radius: 12px;
+    padding: 16px 18px; margin-bottom: 28px;
+  }
+  .preview h3 { font-family: 'Inter'; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; margin-bottom: 8px }
+  .preview-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px }
+  .preview-row span:first-child { color: var(--muted) }
+  .preview-row span:last-child { font-weight: 600 }
+
+  .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border) }
+  button.primary {
+    background: var(--blue-500); color: white; border: none;
+    padding: 14px 32px; border-radius: 999px; font: 600 15px 'Inter';
+    cursor: pointer; box-shadow: 0 4px 14px rgba(31,73,182,0.3);
+    transition: all .15s ease;
+  }
+  button.primary:hover { background: var(--blue-600); transform: translateY(-1px); box-shadow: 0 8px 22px rgba(31,73,182,0.4) }
+  button.primary:disabled { background: var(--blue-100); color: var(--muted); cursor: not-allowed; box-shadow: none; transform: none }
+
+  .err { background: rgba(230,74,74,0.08); border: 1px solid rgba(230,74,74,0.3); color: var(--red); padding: 12px 14px; border-radius: 10px; margin: 12px 0; font-size: 14px }
+  .ok  { background: rgba(2,167,87,0.08); border: 1px solid rgba(2,167,87,0.3); color: var(--green); padding: 18px 20px; border-radius: 12px; font-size: 15px; text-align: center }
+
+  .footer { text-align: center; color: var(--muted); font-size: 12px; padding: 24px }
+
+  @media (max-width: 600px) {
+    .banner { padding: 36px 20px 80px }
+    .banner h1 { font-size: 26px }
+    .card { padding: 24px 20px; border-radius: 16px }
+  }
+</style>
+</head>
+<body>
+
+<div class="banner">
+  <div class="logo">
+    <div class="logo-mark">G</div>
+    <div class="logo-text">global66<small>contratos</small></div>
+  </div>
+  <h1>Completá tu perfil</h1>
+  <p>Datos del proveedor para que podamos avanzar con el contrato.</p>
+</div>
+
+<div class="container">
+  <div class="card" id="content">
+    <div id="loading" style="text-align:center;padding:40px;color:var(--muted)">Cargando…</div>
+    <div id="form-area" hidden></div>
+    <div id="done-area" hidden>
+      <div class="ok">
+        ✓ <b>Recibimos tus datos.</b><br>
+        El equipo de Global66 va a continuar el proceso de revisión. Te avisaremos cuando esté listo para firmar.
+      </div>
+    </div>
+    <div id="err-area" hidden>
+      <div class="err" id="err-msg">Error</div>
+    </div>
+  </div>
+  <div class="footer">Global66 · G81-PRO-005</div>
+</div>
+
+<script>
+const token = location.pathname.split('/p/')[1];
+const $ = (s) => document.querySelector(s);
+
+async function load() {
+  if (!token) return showErr('Link inválido');
+  try {
+    const r = await fetch('/api/provider?token=' + encodeURIComponent(token));
+    if (r.status === 404) return showErr('Este link no es válido o expiró. Pedile uno nuevo al equipo de Global66.');
+    if (!r.ok) return showErr('Error: ' + r.status);
+    const p = await r.json();
+    if (p.profile_completed_at) {
+      $('#loading').hidden = true;
+      $('#done-area').hidden = false;
+      return;
+    }
+    renderForm(p);
+  } catch (e) { showErr(e.message); }
+}
+
+function showErr(msg) {
+  $('#loading').hidden = true;
+  $('#err-msg').textContent = msg;
+  $('#err-area').hidden = false;
+}
+
+function renderForm(p) {
+  $('#loading').hidden = true;
+  const fa = $('#form-area');
+  fa.hidden = false;
+
+  fa.innerHTML = `
+    <div class="preview">
+      <h3>Datos ya registrados</h3>
+      <div class="preview-row"><span>Razón social</span><span>${p.razon_social}</span></div>
+      <div class="preview-row"><span>Tax ID</span><span>${p.tax_id}</span></div>
+      <div class="preview-row"><span>País</span><span>${p.pais}</span></div>
+      ${p.tipo_proveedor ? `<div class="preview-row"><span>Tipo</span><span>${p.tipo_proveedor}</span></div>` : ''}
+    </div>
+
+    <form id="form">
+      <div class="section">
+        <h2>1. Información de la empresa</h2>
+        <p class="help">Confirmá o completá los datos legales.</p>
+        <div class="question">
+          <label>Domicilio fiscal completo <span class="req">*</span></label>
+          <input type="text" name="domicilio" required placeholder="Calle, número, comuna, ciudad" value="${esc(p.profile_data?.domicilio)}">
+        </div>
+        <div class="question">
+          <label>Sitio web</label>
+          <input type="text" name="website" placeholder="https://..." value="${esc(p.profile_data?.website)}">
+        </div>
+        <div class="question">
+          <label>Año de fundación</label>
+          <input type="number" name="fundacion_year" min="1900" max="2026" placeholder="2010" value="${esc(p.profile_data?.fundacion_year)}">
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>2. Representante legal</h2>
+        <div class="question">
+          <label>Nombre completo del representante legal <span class="req">*</span></label>
+          <input type="text" name="representante_legal" required value="${esc(p.representante_legal ?? p.profile_data?.representante_legal)}">
+        </div>
+        <div class="question">
+          <label>Documento de identidad (RUT/DNI/INE...) <span class="req">*</span></label>
+          <input type="text" name="representante_doc" required value="${esc(p.profile_data?.representante_doc)}">
+        </div>
+        <div class="question">
+          <label>Email del representante <span class="req">*</span></label>
+          <input type="email" name="representante_email" required value="${esc(p.profile_data?.representante_email)}">
+        </div>
+        <div class="question">
+          <label>Teléfono</label>
+          <input type="tel" name="representante_tel" value="${esc(p.profile_data?.representante_tel)}">
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>3. Contacto comercial</h2>
+        <p class="help">Persona con quien coordinamos día a día (puede ser distinto al representante legal).</p>
+        <div class="question">
+          <label>Nombre</label>
+          <input type="text" name="contacto_comercial_nombre" value="${esc(p.profile_data?.contacto_comercial_nombre)}">
+        </div>
+        <div class="question">
+          <label>Email <span class="req">*</span></label>
+          <input type="email" name="contacto_comercial_email" required value="${esc(p.email_contacto ?? p.profile_data?.contacto_comercial_email)}">
+        </div>
+        <div class="question">
+          <label>Teléfono</label>
+          <input type="tel" name="contacto_comercial_tel" value="${esc(p.profile_data?.contacto_comercial_tel)}">
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>4. Facturación</h2>
+        <div class="question">
+          <label>Email de facturación <span class="req">*</span></label>
+          <input type="email" name="email_facturacion" required value="${esc(p.email_facturacion ?? p.profile_data?.email_facturacion)}">
+        </div>
+        <div class="question">
+          <label>Datos bancarios (banco, cuenta, titular)</label>
+          <textarea name="datos_bancarios" placeholder="Banco: ...&#10;Tipo cuenta: ...&#10;Número: ...&#10;Titular: ...">${esc(p.profile_data?.datos_bancarios)}</textarea>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>5. Compliance</h2>
+        <p class="help">Esta info nos ayuda a procesar tu alta más rápido.</p>
+        <div class="question">
+          <label>¿Tiene certificación de seguridad? (ISO 27001, SOC2, etc.)</label>
+          <input type="text" name="certificaciones" placeholder="Ej: ISO 27001 vigente hasta 2027" value="${esc(p.profile_data?.certificaciones)}">
+        </div>
+        <div class="question">
+          <label>¿Tiene programa anti-corrupción / anti-lavado de activos?</label>
+          <select name="anticorrupcion">
+            <option value="">— Elegí —</option>
+            <option ${p.profile_data?.anticorrupcion === 'si' ? 'selected' : ''} value="si">Sí</option>
+            <option ${p.profile_data?.anticorrupcion === 'no' ? 'selected' : ''} value="no">No</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>6. Email que está completando</h2>
+        <div class="question">
+          <label>Tu email <span class="req">*</span></label>
+          <input type="email" name="filled_by_email" required placeholder="tu.email@empresa.com" value="${esc(p.profile_data?.filled_by_email)}">
+        </div>
+      </div>
+
+      <div id="form-err" class="err" hidden></div>
+      <div class="actions">
+        <button type="submit" class="primary" id="submit-btn">Enviar y continuar</button>
+      </div>
+    </form>
+  `;
+
+  $('#form').addEventListener('submit', submit);
+}
+
+async function submit(e) {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(e.target));
+  const filledBy = data.filled_by_email;
+  delete data.filled_by_email;
+  $('#submit-btn').disabled = true;
+  $('#submit-btn').textContent = 'Enviando…';
+  try {
+    const r = await fetch('/api/provider/fill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, profile_data: data, by_email: filledBy }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    $('#form-area').hidden = true;
+    $('#done-area').hidden = false;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch (err) {
+    $('#form-err').textContent = err.message;
+    $('#form-err').hidden = false;
+    $('#submit-btn').disabled = false;
+    $('#submit-btn').textContent = 'Enviar y continuar';
+  }
+}
+
+function esc(s) { return s == null ? '' : String(s).replace(/"/g, '&quot;') }
+
+load();
+</script>
+</body>
+</html>

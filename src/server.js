@@ -176,6 +176,84 @@ const routes = {
     }
   },
 
+  'POST /api/intake': async (req, res) => {
+    // Internal user submits intake form natively from admin UI.
+    const body = JSON.parse(await readBody(req));
+    const { upsertProviderFromIntake, buildProfileUrl } = await import('./provider_profile.js');
+    const { sendEmail, providerInvitation } = await import('./email.js');
+
+    try {
+      const run = await startRun(body, { allowDuplicate: body.allow_duplicate === true });
+      const { provider, isNew } = await upsertProviderFromIntake(body, { runId: run.id });
+
+      // Invite provider only if proveedor_existente=false and email_contacto present
+      let inviteSent = false;
+      if (isNew && body.email_contacto && provider.public_token) {
+        const url = buildProfileUrl(provider.public_token);
+        const tpl = providerInvitation({
+          providerName: body.representante_legal ?? body.razon_social,
+          profileUrl: url,
+          sociedadContratante: body.sociedad_contratante,
+          solicitanteNombre: body.solicitante_nombre,
+        });
+        sendEmail({ to: body.email_contacto, ...tpl })
+          .then(() => sb.from('providers').update({ profile_invited_at: new Date().toISOString() }).eq('id', provider.id))
+          .catch((e) => console.error('Provider invitation failed:', e.message));
+        inviteSent = true;
+      }
+
+      // Email confirmación al solicitante interno
+      const to = body.solicitante_email ?? body.owner_email;
+      if (to) {
+        const tpl = (await import('./email.js')).intakeConfirmation({
+          runId: run.id,
+          solicitanteNombre: body.solicitante_nombre,
+          razonSocial: body.razon_social,
+          taxId: body.rut,
+          pais: body.pais,
+          monto: body.monto,
+          moneda: body.moneda,
+        });
+        sendEmail({ to, ...tpl }).catch((e) => console.error('Confirmation email failed:', e.message));
+      }
+
+      json(res, 200, {
+        run_id: run.id,
+        provider_id: provider.id,
+        provider_new: isNew,
+        provider_profile_url: provider.public_token ? buildProfileUrl(provider.public_token) : null,
+        provider_invite_sent: inviteSent,
+      });
+    } catch (e) {
+      if (e.code === 'DUPLICATE_ACTIVE_RUN') return json(res, 409, { error: e.message, existing: e.existing });
+      throw e;
+    }
+  },
+
+  'GET /api/provider': async (req, res, url) => {
+    const token = url.searchParams.get('token');
+    if (!token) return json(res, 400, { error: 'token required' });
+    const { findByToken } = await import('./provider_profile.js');
+    const p = await findByToken(token);
+    if (!p) return json(res, 404, { error: 'token invalid' });
+    json(res, 200, p);
+  },
+
+  'POST /api/provider/fill': async (req, res) => {
+    const body = JSON.parse(await readBody(req));
+    if (!body.token) return json(res, 400, { error: 'token required' });
+    const { fillProfile } = await import('./provider_profile.js');
+    try {
+      const p = await fillProfile(body.token, body.profile_data ?? {}, { byEmail: body.by_email });
+      json(res, 200, { ok: true, provider_id: p.id });
+    } catch (e) {
+      if (e.code === 'INVALID_TOKEN') return json(res, 404, { error: 'token invalid' });
+      throw e;
+    }
+  },
+
+  'GET /p/:token': null, // handled below via custom routing
+
   'GET /admin': async (req, res) => {
     try {
       const html = await import('node:fs/promises').then((fs) => fs.readFile('public/admin.html', 'utf-8'));
@@ -262,8 +340,21 @@ function matchDocId(filename) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const key = `${req.method} ${url.pathname}`;
+
+  // Custom: provider self-service page /p/:token serves public HTML
+  if (req.method === 'GET' && url.pathname.startsWith('/p/')) {
+    try {
+      const html = await import('node:fs/promises').then((fs) => fs.readFile('public/provider.html', 'utf-8'));
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.end(html);
+    } catch (e) {
+      return json(res, 500, { error: e.message });
+    }
+  }
+
   const handler = routes[key];
-  if (!handler) return json(res, 404, { error: 'not found', path: key });
+  if (!handler || handler === null) return json(res, 404, { error: 'not found', path: key });
   try {
     await handler(req, res, url);
   } catch (e) {
