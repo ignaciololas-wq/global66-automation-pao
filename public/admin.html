@@ -362,14 +362,25 @@ async function checkAuth() {
   }
 }
 
+async function sendMagicLinkViaServer(email) {
+  const r = await fetch('/api/auth/magic-link', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) return { error: data.error ?? `HTTP ${r.status}` };
+  return { ok: true };
+}
+
 $('#login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   $('#login-err').hidden = true; $('#login-ok').hidden = true;
   const email = $('#login-email').value;
   const password = $('#login-password').value;
   if (!password) {
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + '/admin' } });
-    if (error) { $('#login-err').textContent = error.message; $('#login-err').hidden = false; }
+    const r = await sendMagicLinkViaServer(email);
+    if (r.error) { $('#login-err').textContent = r.error; $('#login-err').hidden = false; }
     else { $('#login-ok').textContent = 'Revisá tu email — te mandamos un link de acceso'; $('#login-ok').hidden = false; }
     return;
   }
@@ -381,8 +392,8 @@ $('#login-form').addEventListener('submit', async (e) => {
 $('#magic-link').addEventListener('click', async () => {
   const email = $('#login-email').value;
   if (!email) { $('#login-err').textContent = 'Ingresá tu email primero'; $('#login-err').hidden = false; return; }
-  const { error } = await supabase.auth.signInWithOtp({ email });
-  if (error) { $('#login-err').textContent = error.message; $('#login-err').hidden = false; }
+  const r = await sendMagicLinkViaServer(email);
+  if (r.error) { $('#login-err').textContent = r.error; $('#login-err').hidden = false; }
   else { $('#login-ok').textContent = 'Revisá tu email — te mandamos un link'; $('#login-ok').hidden = false; }
 });
 
