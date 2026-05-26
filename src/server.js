@@ -416,6 +416,18 @@ export async function handleRequest(req, res) {
     } catch (e) { return json(res, 500, { error: e.message }); }
   }
 
+  // Root → landing
+  if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '')) {
+    try {
+      const html = await readStatic('public/index.html');
+      res.statusCode = 200; res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.end(html);
+    } catch (e) {
+      // Fallback redirect
+      res.statusCode = 302; res.setHeader('Location', '/admin'); return res.end();
+    }
+  }
+
   const handler = routes[key];
   if (!handler || handler === null) return json(res, 404, { error: 'not found', path: key });
   try { await handler(req, res, url); }
