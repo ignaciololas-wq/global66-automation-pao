@@ -18,8 +18,10 @@ function hashBuffer(buf) {
   return crypto.createHash('sha256').update(buf).digest('hex');
 }
 
+// Resolver path relativo al archivo (funciona en Vercel + local).
+const __dirname = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
 const SYSTEM_FILE = await fs.readFile(
-  path.resolve('prompts/extraccion_contrato.md'),
+  path.resolve(__dirname, '../prompts/extraccion_contrato.md'),
   'utf-8',
 );
 

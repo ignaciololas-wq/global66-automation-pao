@@ -7,13 +7,19 @@ const URL = process.env.SUPABASE_URL;
 // Prefiere service_role (server-side, bypasses RLS). Fallback a SUPABASE_KEY legacy.
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_KEY;
 
-if (!URL || !KEY) {
-  throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_KEY)');
+// No throwear en module load — Vercel cold start sin env vars rompe TODO el handler.
+// Lazy proxy: si falta config, falla solo al USAR sb (no al importar).
+function makeMissingProxy() {
+  return new Proxy({}, {
+    get() {
+      throw new Error('Supabase no configurado: setea SUPABASE_URL + SUPABASE_KEY/SUPABASE_SERVICE_ROLE_KEY en .env');
+    },
+  });
 }
 
-export const sb = createClient(URL, KEY, {
-  auth: { persistSession: false },
-});
+export const sb = (URL && KEY)
+  ? createClient(URL, KEY, { auth: { persistSession: false } })
+  : makeMissingProxy();
 
 export async function findActiveRunByTaxId(taxId) {
   const { data, error } = await sb

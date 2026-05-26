@@ -5,8 +5,9 @@ import { google } from 'googleapis';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+const __dirname = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
 const CHECKLISTS = JSON.parse(
-  await fs.readFile(path.resolve('checklists/docs_por_pais.json'), 'utf-8'),
+  await fs.readFile(path.resolve(__dirname, '../checklists/docs_por_pais.json'), 'utf-8'),
 );
 
 function authClient() {

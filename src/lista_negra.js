@@ -54,8 +54,9 @@ export async function checkSanctions({ razon_social, tax_id, pais }) {
   };
 }
 
+const __dirname = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
 const TEMPLATE = await fs.readFile(
-  path.resolve('prompts/validacion_apoderados.md'),
+  path.resolve(__dirname, '../prompts/validacion_apoderados.md'),
   'utf-8',
 );
 
