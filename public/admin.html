@@ -326,14 +326,23 @@ async function processUrlSession() {
   const refresh_token = params.get('refresh_token');
   if (!access_token) return;
 
-  console.log('[auth] setSession with token starting:', access_token.slice(0, 20));
-  const { data, error } = await supabase.auth.setSession({ access_token, refresh_token: refresh_token ?? '' });
-  if (error) {
-    console.error('[auth] setSession error:', error);
-    document.body.insertAdjacentHTML('afterbegin', `<div style="position:fixed;top:0;left:0;right:0;background:#e64a4a;color:white;padding:14px;text-align:center;z-index:9999;font-family:system-ui">setSession failed: ${error.message}</div>`);
-    return;
-  }
-  console.log('[auth] setSession OK, user:', data.session?.user?.email);
+  console.log('[auth] persisting token from URL hash');
+  // Fetch user via REST (no supabase-js que cuelga)
+  let user = null;
+  try {
+    const r = await fetch(SB_URL + '/auth/v1/user', { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + access_token } });
+    if (r.ok) user = await r.json();
+  } catch {}
+  const expiresIn = parseInt(params.get('expires_in') ?? '3600', 10);
+  const session = {
+    access_token,
+    refresh_token: refresh_token ?? '',
+    expires_in: expiresIn,
+    expires_at: Math.floor(Date.now() / 1000) + expiresIn,
+    token_type: 'bearer',
+    user,
+  };
+  localStorage.setItem('sb-kdhpbrpeneokvhwyxmwn-auth-token', JSON.stringify(session));
   history.replaceState(null, '', location.pathname);
 }
 
@@ -341,22 +350,48 @@ const $ = (s) => document.querySelector(s);
 const view = $('#view');
 const loading = $('#loading');
 
+// Lee session directo de localStorage (bypass supabase-js que cuelga en algunos browsers).
+function readSession() {
+  try {
+    const raw = localStorage.getItem('sb-kdhpbrpeneokvhwyxmwn-auth-token');
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (!s.access_token) return null;
+    // Check expiry (Supabase access tokens duran 1h)
+    if (s.expires_at && s.expires_at * 1000 < Date.now()) {
+      visualLog && visualLog('session expired, clearing');
+      localStorage.removeItem('sb-kdhpbrpeneokvhwyxmwn-auth-token');
+      return null;
+    }
+    return s;
+  } catch (e) {
+    visualLog && visualLog('readSession error: ' + e.message);
+    return null;
+  }
+}
+
+window.__session = null;
+
 async function checkAuth() {
-  const { data: { session } } = await supabase.auth.getSession();
+  const session = readSession();
+  window.__session = session;
   if (session) {
+    visualLog && visualLog('session found: ' + session.user?.email);
     $('#login-screen').hidden = true;
     $('#app-shell').hidden = false;
-    const e = session.user.email ?? '';
+    const e = session.user?.email ?? '';
     $('#user-email').textContent = e;
     const name = e.split('@')[0].replace(/\./g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     $('#user-name').textContent = name;
     $('#avatar').textContent = (e[0] ?? '?').toUpperCase();
-    // Show Usuarios nav only if admin
-    const role = session.user.app_metadata?.role ?? 'user';
+    const role = session.user?.app_metadata?.role ?? 'user';
     if (role === 'admin') $('#nav-users').hidden = false;
     window.__role = role;
+    // Hide visual-log box una vez logueado
+    document.getElementById('visual-log')?.style?.setProperty('display', 'none');
     route();
   } else {
+    visualLog && visualLog('no session, showing login');
     $('#login-screen').hidden = false;
     $('#app-shell').hidden = true;
   }
@@ -426,10 +461,7 @@ async function doLogin(ev) {
       $('#login-err').hidden = false;
       return;
     }
-    visualLog('OK tokens received, persisting + reload');
-    // Bypass setSession (cuelga). Guardar manual en localStorage con formato Supabase-js.
-    const projectRef = 'kdhpbrpeneokvhwyxmwn';
-    const storageKey = `sb-${projectRef}-auth-token`;
+    visualLog('OK tokens received, persisting');
     const session = {
       access_token: data.access_token,
       refresh_token: data.refresh_token,
@@ -438,10 +470,9 @@ async function doLogin(ev) {
       token_type: 'bearer',
       user: data.user,
     };
-    localStorage.setItem(storageKey, JSON.stringify(session));
-    visualLog('session stored, reloading');
-    // Reload para que supabase-js levante la sesión nueva
-    setTimeout(() => location.reload(), 200);
+    localStorage.setItem('sb-kdhpbrpeneokvhwyxmwn-auth-token', JSON.stringify(session));
+    visualLog('session stored → checkAuth');
+    checkAuth();
   } catch (e) {
     visualLog('EXCEPTION: ' + (e.message || e.toString()));
     $('#login-err').textContent = 'Excepción: ' + e.message;
@@ -463,8 +494,12 @@ $('#magic-link').addEventListener('click', async () => {
   else { $('#login-ok').textContent = 'Revisá tu email — te mandamos un link'; $('#login-ok').hidden = false; }
 });
 
-$('#logout').addEventListener('click', async () => { await supabase.auth.signOut(); checkAuth(); });
-supabase.auth.onAuthStateChange(() => checkAuth());
+$('#logout').addEventListener('click', () => {
+  localStorage.removeItem('sb-kdhpbrpeneokvhwyxmwn-auth-token');
+  try { supabase.auth.signOut(); } catch {}
+  checkAuth();
+});
+try { supabase.auth.onAuthStateChange(() => checkAuth()); } catch {}
 
 window.addEventListener('hashchange', route);
 
@@ -483,7 +518,7 @@ async function route() {
 }
 
 async function q(table, qs = '') {
-  const sess = (await supabase.auth.getSession()).data.session;
+  const sess = window.__session ?? readSession();
   const r = await fetch(`${SB_URL}/rest/v1/${table}?${qs}`, {
     headers: { apikey: SB_KEY, Authorization: `Bearer ${sess?.access_token ?? SB_KEY}` },
   });
@@ -900,7 +935,7 @@ function renderApprovalPanel(r) {
 // ─── Users management (admin only) ──────────────────────────────────────────
 
 async function authedFetch(path, opts = {}) {
-  const session = (await supabase.auth.getSession()).data.session;
+  const session = window.__session ?? readSession();
   if (!session) throw new Error('No session');
   return fetch(path, {
     ...opts,
@@ -948,7 +983,7 @@ async function usersPage() {
         <tbody>${users.map(u => `<tr data-id="${u.id}" data-email="${u.email}">
           <td><b>${u.email}</b></td>
           <td>
-            <select class="role-select" data-id="${u.id}" ${u.email === supabase.auth.getSession().data?.session?.user?.email ? 'disabled' : ''}>
+            <select class="role-select" data-id="${u.id}" ${u.email === window.__session?.user?.email ? 'disabled' : ''}>
               <option value="user" ${u.role === 'user' ? 'selected' : ''}>user</option>
               <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
             </select>
@@ -1008,11 +1043,11 @@ window.submitApproval = async function (runId, decision) {
     document.getElementById('approve-err').hidden = false;
     return;
   }
-  const session = (await supabase.auth.getSession()).data.session;
+  const session = window.__session ?? readSession();
   try {
     const r = await fetch('/api/intake/approve', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (session?.access_token ?? '') },
       body: JSON.stringify({
         run_id: runId,
         decision,
