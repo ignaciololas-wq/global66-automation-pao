@@ -20,10 +20,7 @@ const sections = [
   { type: 'INPUT_EMAIL', label: 'Email del Owner', required: true, placeholder: 'owner@global66.com' },
   { type: 'INPUT_EMAIL', label: 'Email del responsable backup', required: true, placeholder: 'Persona que decide si el owner no está' },
 
-  { heading: '2. ¿Qué sociedad contrata?' },
-  { type: 'MULTIPLE_CHOICE', label: 'Sociedad contratante', required: true, options: ['Global 81 SpA (Chile)','Global Card S.A. (Chile)','100X (Panamá)','Global Colombia 81 (Colombia)'] },
-
-  { heading: '3. ¿Con qué proveedor?' },
+  { heading: '2. ¿Con qué proveedor?' },
   { type: 'INPUT_TEXT', label: 'Razón social del proveedor', required: true, placeholder: 'Nombre legal completo' },
   { type: 'INPUT_TEXT', label: 'RUT / Tax ID del proveedor', required: true, placeholder: 'Sin puntos. Ej: 76.000.000-K' },
   { type: 'DROPDOWN', label: 'País donde está constituido el proveedor', required: true, options: ['Chile','Perú','México','Colombia','Argentina','Panamá','Ecuador','Brasil','Uruguay','Estados Unidos','Otro'] },
@@ -31,9 +28,9 @@ const sections = [
   { type: 'INPUT_EMAIL', label: 'Email de contacto del proveedor', required: true, placeholder: 'contacto@proveedor.com' },
   { type: 'INPUT_EMAIL', label: 'Email de facturación del proveedor', required: true, placeholder: 'billing@proveedor.com' },
   { type: 'MULTIPLE_CHOICE', label: '¿Proveedor nuevo o ya existe en el sistema?', required: true, options: ['Proveedor nuevo','Ya existe — renovación o contrato adicional'] },
-  { type: 'DROPDOWN', label: 'Tipo de proveedor', required: true, options: ['Servicios profesionales','Software/SaaS','Infraestructura cloud','Marketing/Publicidad','Logística','Insumos físicos','Consultoría','Otro'] },
+  { type: 'DROPDOWN', label: 'Tipo de proveedor', required: true, options: ['Servicios profesionales','Plataformas SaaS','Marketing y Publicidad','Consultoría/Asesoría'] },
 
-  { heading: '4. Datos del contrato' },
+  { heading: '3. Datos del contrato' },
   { type: 'TEXTAREA', label: 'Descripción del servicio', required: true, placeholder: 'Ej: Desarrollo de software, consultoría legal, hosting...' },
   { type: 'DROPDOWN', label: 'Tipo de contrato', required: true, options: ['Prestación de servicios','Suscripción SaaS','NDA','Master Services Agreement (MSA)','Statement of Work (SOW)','Adhesión','Otro'] },
   { type: 'MULTIPLE_CHOICE', label: '¿Es contrato de adhesión (términos del proveedor sin negociación)?', required: true, options: ['Sí','No'] },
@@ -43,13 +40,8 @@ const sections = [
   { type: 'MULTIPLE_CHOICE', label: 'Duración del contrato', required: true, options: ['Indefinido','Plazo fijo','Por proyecto o entregable'] },
   { type: 'INPUT_TEXT', label: 'Fecha inicio (solo si plazo fijo)', required: false, placeholder: 'DD/MM/AAAA' },
   { type: 'INPUT_TEXT', label: 'Fecha fin (solo si plazo fijo)', required: false, placeholder: 'DD/MM/AAAA' },
-  { type: 'TEXTAREA', label: 'Justificación de negocio', required: true, placeholder: '¿Por qué necesitamos este proveedor? Impacto esperado.' },
 
-  { heading: '5. Compliance' },
-  { type: 'MULTIPLE_CHOICE', label: 'Nivel de acceso a datos/sistemas Global66', required: true, options: ['Ninguno','Acceso público / sin PII','PII no sensible','PII sensible o financiera','Acceso a producción / infraestructura crítica'] },
-  { type: 'MULTIPLE_CHOICE', label: 'Criticidad para la operación', required: true, options: ['Baja','Media','Alta','Crítica (afecta core business)'] },
-
-  { heading: '6. Adjuntos' },
+  { heading: '4. Adjuntos' },
   { type: 'FILE_UPLOAD', label: 'Borrador del contrato (PDF)', required: true, help: 'Documento del proveedor o borrador interno.' },
   { type: 'TEXTAREA', label: 'Notas adicionales (opcional)', required: false },
 ];
