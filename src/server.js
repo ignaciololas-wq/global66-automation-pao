@@ -13,6 +13,7 @@ import http from 'node:http';
 import { URL } from 'node:url';
 import { computeSemaphore } from './hito1_semaforo.js';
 import {
+  sb,
   startRun,
   setPhase,
   recordApproval,
@@ -146,35 +147,28 @@ const routes = {
   },
 
   'POST /api/intake': async (req, res) => {
-    // Internal user submits intake form natively from admin UI.
+    // Internal user submits intake. Provider NOT invited yet — espera aprobación interna.
     const body = JSON.parse(await readBody(req));
-    const { upsertProviderFromIntake, buildProfileUrl } = await import('./provider_profile.js');
-    const { sendEmail, providerInvitation } = await import('./email.js');
+    const { upsertProviderFromIntake } = await import('./provider_profile.js');
+    const { sendEmail, intakeConfirmation } = await import('./email.js');
+    const { suggestSociedad } = await import('./sociedad.js');
 
     try {
+      // Sugerir sociedad si no vino (auto por país)
+      if (!body.sociedad_contratante) {
+        body.sociedad_contratante = suggestSociedad({ pais: body.pais });
+      }
+
       const run = await startRun(body, { allowDuplicate: body.allow_duplicate === true });
       const { provider, isNew } = await upsertProviderFromIntake(body, { runId: run.id });
 
-      // Invite provider only if proveedor_existente=false and email_contacto present
-      let inviteSent = false;
-      if (isNew && body.email_contacto && provider.public_token) {
-        const url = buildProfileUrl(provider.public_token);
-        const tpl = providerInvitation({
-          providerName: body.representante_legal ?? body.razon_social,
-          profileUrl: url,
-          sociedadContratante: body.sociedad_contratante,
-          solicitanteNombre: body.solicitante_nombre,
-        });
-        sendEmail({ to: body.email_contacto, ...tpl })
-          .then(() => sb.from('providers').update({ profile_invited_at: new Date().toISOString() }).eq('id', provider.id))
-          .catch((e) => console.error('Provider invitation failed:', e.message));
-        inviteSent = true;
-      }
+      // Marcar run en estado pendiente de aprobación interna
+      await sb.from('workflow_runs').update({ internal_approval_status: 'pending' }).eq('id', run.id);
 
-      // Email confirmación al solicitante interno
+      // Email confirmación al solicitante interno (avisa que está en revisión)
       const to = body.solicitante_email ?? body.owner_email;
       if (to) {
-        const tpl = (await import('./email.js')).intakeConfirmation({
+        const tpl = intakeConfirmation({
           runId: run.id,
           solicitanteNombre: body.solicitante_nombre,
           razonSocial: body.razon_social,
@@ -190,13 +184,100 @@ const routes = {
         run_id: run.id,
         provider_id: provider.id,
         provider_new: isNew,
-        provider_profile_url: provider.public_token ? buildProfileUrl(provider.public_token) : null,
-        provider_invite_sent: inviteSent,
+        sociedad_sugerida: body.sociedad_contratante,
+        internal_approval_status: 'pending',
+        next_step: 'Aprobador interno revisa en /admin#workflows/' + run.id,
       });
     } catch (e) {
       if (e.code === 'DUPLICATE_ACTIVE_RUN') return json(res, 409, { error: e.message, existing: e.existing });
       throw e;
     }
+  },
+
+  'POST /api/intake/approve': async (req, res) => {
+    // Aprobador interno aprueba/rechaza la solicitud. Si aprueba → manda email al proveedor.
+    const body = JSON.parse(await readBody(req));
+    const { run_id, decision, sociedad_contratante, sociedad_apoderado_email, comment, approver_email } = body;
+    if (!run_id || !decision) return json(res, 400, { error: 'run_id and decision required' });
+    if (!['approved', 'rejected', 'requested_changes'].includes(decision))
+      return json(res, 400, { error: 'invalid decision' });
+
+    const { buildProfileUrl, findByToken } = await import('./provider_profile.js');
+    const { sendEmail, providerInvitation } = await import('./email.js');
+    const { getDocsForSociedad } = await import('./sociedad.js');
+
+    const patch = {
+      internal_approval_status: decision,
+      internal_approver_email: approver_email,
+      internal_approved_at: new Date().toISOString(),
+      internal_approval_comment: comment ?? null,
+    };
+    if (sociedad_contratante) patch.sociedad_contratante = sociedad_contratante;
+    if (sociedad_apoderado_email) patch.sociedad_apoderado_email = sociedad_apoderado_email;
+    if (decision === 'rejected') patch.current_phase = 'rejected';
+
+    await sb.from('workflow_runs').update(patch).eq('id', run_id);
+    await logAudit(run_id, approver_email ?? 'admin', `intake.${decision}`, 'workflow_run', run_id, { sociedad_contratante, comment });
+
+    if (decision !== 'approved') return json(res, 200, { ok: true, decision });
+
+    // Buscar provider asociado para mandar email
+    const { data: run } = await sb.from('workflow_runs').select('*').eq('id', run_id).single();
+    const { data: provider } = await sb.from('providers').select('*').eq('tax_id', run.tax_id).maybeSingle();
+    if (!provider) return json(res, 200, { ok: true, decision, warning: 'provider not found, no email sent' });
+
+    // Persist sociedad en provider también
+    if (sociedad_contratante) await sb.from('providers').update({ sociedad_contratante }).eq('id', provider.id);
+
+    const sociedadDocs = getDocsForSociedad(sociedad_contratante ?? run.sociedad_contratante);
+    const profileUrl = buildProfileUrl(provider.public_token);
+    const tpl = providerInvitation({
+      providerName: run.representante_legal ?? provider.razon_social,
+      profileUrl,
+      sociedadContratante: sociedad_contratante ?? run.sociedad_contratante,
+      solicitanteNombre: run.solicitante_nombre,
+      sociedadDocs,
+    });
+
+    if (provider.email_contacto) {
+      sendEmail({ to: provider.email_contacto, ...tpl })
+        .then(() => sb.from('providers').update({ profile_invited_at: new Date().toISOString() }).eq('id', provider.id))
+        .catch((e) => console.error('Provider invitation failed:', e.message));
+    }
+
+    json(res, 200, { ok: true, decision, provider_invited: !!provider.email_contacto, profile_url: profileUrl });
+  },
+
+  'POST /api/provider/upload': async (req, res) => {
+    // Provider sube documento. file_url ya en Drive/Vercel Blob; aquí solo registramos + RAG.
+    const body = JSON.parse(await readBody(req));
+    if (!body.token || !body.doc_type || !body.file_url)
+      return json(res, 400, { error: 'token, doc_type, file_url required' });
+    const { findByToken } = await import('./provider_profile.js');
+    const provider = await findByToken(body.token);
+    if (!provider) return json(res, 404, { error: 'token invalid' });
+
+    const { data, error } = await sb.from('provider_uploads').insert({
+      provider_id: provider.id,
+      doc_type: body.doc_type,
+      doc_filename: body.doc_filename ?? body.file_url.split('/').pop(),
+      file_url: body.file_url,
+      file_size: body.file_size,
+      uploaded_by_email: body.by_email,
+    }).select().single();
+    if (error) return json(res, 500, { error: error.message });
+
+    // Trigger RAG async
+    import('./rag_extract.js').then(({ extractAndValidate }) =>
+      extractAndValidate(data.id, provider).catch((e) => console.error('RAG failed:', e.message)),
+    );
+
+    json(res, 200, { upload_id: data.id, rag_status: 'pending' });
+  },
+
+  'GET /api/sociedades': async (req, res) => {
+    const { SOCIEDADES, getDocsForSociedad } = await import('./sociedad.js');
+    json(res, 200, SOCIEDADES.map((s) => ({ id: s, ...getDocsForSociedad(s) })));
   },
 
   'GET /api/provider': async (req, res, url) => {

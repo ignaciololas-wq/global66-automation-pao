@@ -122,6 +122,21 @@
   button.ghost { background: transparent; color: var(--muted); border: none; padding: 8px 12px; border-radius: var(--radius-sm); font-weight: 500; font-size: 13px }
   button.ghost:hover { color: var(--text); background: var(--surface) }
 
+  /* ─── Stepper ───────────────────────────────────────── */
+  .stepper { display: flex; gap: 0; margin: 8px 0 24px; align-items: stretch; flex-wrap: wrap }
+  .step { flex: 1; min-width: 130px; display: flex; flex-direction: column; align-items: center; padding: 14px 8px; position: relative; background: white; border: 1px solid var(--border); border-radius: var(--radius); margin-right: -1px }
+  .step:first-child { border-radius: var(--radius) 0 0 var(--radius) }
+  .step:last-child { border-radius: 0 var(--radius) var(--radius) 0; margin-right: 0 }
+  .step .num { width: 30px; height: 30px; border-radius: 50%; background: var(--blue-100); color: var(--blue-700); display: flex; align-items: center; justify-content: center; font-weight: 700; font-family: 'Montserrat'; font-size: 13px; margin-bottom: 6px }
+  .step .label { font-size: 12px; font-weight: 600; text-align: center; color: var(--text) }
+  .step .who { font-size: 10px; color: var(--muted); margin-top: 3px; text-align: center }
+  .step.done { background: var(--blue-50); border-color: var(--blue-200) }
+  .step.done .num { background: var(--green); color: white }
+  .step.active { background: white; border-color: var(--blue-500); border-width: 2px; box-shadow: 0 4px 14px rgba(31,73,182,0.15) }
+  .step.active .num { background: var(--blue-500); color: white; box-shadow: 0 0 0 4px rgba(31,73,182,0.15) }
+  .step.rejected { background: rgba(230,74,74,0.05); border-color: var(--red) }
+  .step.rejected .num { background: var(--red); color: white }
+
   /* ─── Cards ─────────────────────────────────────────── */
   .grid { display: grid; gap: 16px; margin-bottom: 24px }
   .grid-4 { grid-template-columns: repeat(auto-fit, minmax(220px,1fr)) }
@@ -486,12 +501,13 @@ const pages = {
   },
 
   async workflowDetail(runId) {
-    const [runs, apps, audits, extraction, sanctions] = await Promise.all([
+    const [runs, apps, audits, extraction, sanctions, uploads] = await Promise.all([
       q('workflow_runs', `id=eq.${runId}`),
       q('approvals', `workflow_run_id=eq.${runId}&order=decided_at.asc`),
       q('audit_log', `workflow_run_id=eq.${runId}&order=created_at.asc`),
       q('extractions', `workflow_run_id=eq.${runId}&order=created_at.desc&limit=1`),
       q('sanctions_checks', `workflow_run_id=eq.${runId}&order=created_at.desc&limit=1`),
+      q('provider_uploads', `workflow_run_id=eq.${runId}&order=created_at.desc`).catch(() => []),
     ]);
     const r = runs[0];
     if (!r) { view.innerHTML = '<div class="err">Solicitud no encontrada</div>'; return; }
@@ -512,10 +528,14 @@ const pages = {
         </div>
       </div>
 
+      ${renderStepper(r)}
+
+      ${r.internal_approval_status === 'pending' ? renderApprovalPanel(r) : ''}
+
       <div class="grid grid-4">
         <div class="card"><div class="stat-label">Monto</div><div class="stat-num" style="font-size:22px">${money(r.monto, r.moneda)}</div></div>
         <div class="card"><div class="stat-label">Vigencia</div><div class="stat-num" style="font-size:22px">${r.vigencia_meses ?? '—'}<small>${r.vigencia_meses ? 'meses' : ''}</small></div></div>
-        <div class="card"><div class="stat-label">Criticidad</div><div class="stat-num" style="font-size:22px">${r.criticidad ?? '—'}</div></div>
+        <div class="card"><div class="stat-label">Sociedad</div><div class="stat-num" style="font-size:14px;font-weight:600">${r.sociedad_contratante ?? '—'}</div></div>
         <div class="card"><div class="stat-label">Periodicidad</div><div class="stat-num" style="font-size:22px">${r.periodicidad ?? '—'}</div></div>
       </div>
 
@@ -572,6 +592,20 @@ const pages = {
       ${sanct ? `<div class="card" style="margin-bottom:16px">
         <h3 style="margin-bottom:12px">Sanciones</h3>
         ${sanct.hit ? `<div class="err">⚠️ Match en lista de sanciones</div><pre>${JSON.stringify(sanct.matches, null, 2)}</pre>` : `<div class="ok">✓ Sin matches</div>`}
+      </div>` : ''}
+
+      ${uploads.length ? `<div class="card" style="margin-bottom:16px">
+        <h3 style="margin-bottom:16px">Documentos subidos por el proveedor</h3>
+        <table>
+          <thead><tr><th>Tipo</th><th>Archivo</th><th>RAG</th><th>Validación</th><th>Notas</th></tr></thead>
+          <tbody>${uploads.map(u => `<tr>
+            <td><b>${u.doc_type}</b></td>
+            <td><a href="${u.file_url}" target="_blank" class="muted">${u.doc_filename}</a></td>
+            <td>${dotPill(u.rag_status, u.rag_status === 'done' ? 'green' : u.rag_status === 'failed' ? 'red' : 'yellow')}</td>
+            <td>${dotPill(u.validation_status, u.validation_status === 'match' ? 'green' : u.validation_status === 'mismatch' ? 'red' : 'yellow')}</td>
+            <td class="muted" style="font-size:12px">${u.validation_notes ?? '—'}</td>
+          </tr>`).join('')}</tbody>
+        </table>
       </div>` : ''}
 
       <div class="card">
@@ -666,6 +700,117 @@ const pages = {
       </div>
     `;
   },
+};
+
+// ─── Stepper visual + Approval panel ────────────────────────────────────────
+
+function renderStepper(r) {
+  const phase = r.current_phase;
+  const intApproved = r.internal_approval_status === 'approved';
+  const intRejected = r.internal_approval_status === 'rejected';
+  const stages = [
+    { num: 1, label: 'Solicitud', who: 'Solicitante interno' },
+    { num: 2, label: 'Aprobación interna', who: 'Aprobador Global66' },
+    { num: 3, label: 'Datos proveedor', who: 'Proveedor' },
+    { num: 4, label: 'Validación docs', who: 'IA + Compliance' },
+    { num: 5, label: 'Firma', who: 'Apoderado + Proveedor' },
+    { num: 6, label: 'Cerrado', who: '—' },
+  ];
+
+  // Determine current step index 0..5
+  let cur = 0;
+  if (intRejected || phase === 'rejected') cur = 1;
+  else if (!intApproved && phase === 'fase1') cur = 1;
+  else if (intApproved && phase === 'fase1') cur = 2;
+  else if (phase === 'hito1') cur = 3;
+  else if (phase === 'fase2') cur = 3;
+  else if (phase === 'fase3') cur = 4;
+  else if (phase === 'signed') cur = 5;
+
+  const rejected = intRejected || phase === 'rejected';
+
+  return `<div class="stepper">${stages.map((s, i) => {
+    const cls = rejected && i === cur ? 'rejected' : i < cur ? 'done' : i === cur ? 'active' : '';
+    return `<div class="step ${cls}">
+      <div class="num">${i < cur ? '✓' : s.num}</div>
+      <div class="label">${s.label}</div>
+      <div class="who">${s.who}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderApprovalPanel(r) {
+  return `<div class="card" style="margin-bottom:16px;border-left:4px solid var(--blue-500)">
+    <h3 style="margin-bottom:6px">🕒 Solicitud pendiente de aprobación interna</h3>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:18px">Revisá los datos. Si está OK, asignamos sociedad y mandamos al proveedor para que complete su info.</p>
+
+    <div class="grid grid-2" style="margin-bottom:16px">
+      <div>
+        <label>Sociedad contratante</label>
+        <select id="approve-sociedad">
+          <option value="">— Elegí —</option>
+          <option ${r.sociedad_contratante === 'Global 81 SpA (Chile)' ? 'selected' : ''} value="Global 81 SpA (Chile)">Global 81 SpA (Chile)</option>
+          <option ${r.sociedad_contratante === 'Global Card S.A. (Chile)' ? 'selected' : ''} value="Global Card S.A. (Chile)">Global Card S.A. (Chile)</option>
+          <option ${r.sociedad_contratante === '100X (Panamá)' ? 'selected' : ''} value="100X (Panamá)">100X (Panamá)</option>
+          <option ${r.sociedad_contratante === 'Global Colombia 81 (Colombia)' ? 'selected' : ''} value="Global Colombia 81 (Colombia)">Global Colombia 81 (Colombia)</option>
+        </select>
+      </div>
+      <div>
+        <label>Email apoderado Global66 (firmante)</label>
+        <input type="email" id="approve-apoderado" placeholder="apoderado@global66.com" value="${r.sociedad_apoderado_email ?? ''}">
+      </div>
+      <div style="grid-column:1/-1">
+        <label>Comentario</label>
+        <textarea id="approve-comment" rows="2" placeholder="Opcional"></textarea>
+      </div>
+    </div>
+
+    <div id="approve-err" class="err" hidden></div>
+    <div id="approve-ok" class="ok" hidden></div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="secondary" onclick="submitApproval('${r.id}','rejected')">Rechazar</button>
+      <button class="secondary" onclick="submitApproval('${r.id}','requested_changes')">Pedir cambios</button>
+      <button class="primary" onclick="submitApproval('${r.id}','approved')">Aprobar e invitar proveedor →</button>
+    </div>
+  </div>`;
+}
+
+window.submitApproval = async function (runId, decision) {
+  const sociedad = document.getElementById('approve-sociedad').value;
+  const apoderado = document.getElementById('approve-apoderado').value;
+  const comment = document.getElementById('approve-comment').value;
+  if (decision === 'approved' && !sociedad) {
+    document.getElementById('approve-err').textContent = 'Asigná la sociedad contratante antes de aprobar';
+    document.getElementById('approve-err').hidden = false;
+    return;
+  }
+  const session = (await supabase.auth.getSession()).data.session;
+  try {
+    const r = await fetch('/api/intake/approve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        run_id: runId,
+        decision,
+        sociedad_contratante: sociedad || undefined,
+        sociedad_apoderado_email: apoderado || undefined,
+        comment,
+        approver_email: session?.user?.email,
+      }),
+    });
+    const result = await r.json();
+    if (!r.ok) throw new Error(result.error ?? 'Error');
+    const ok = document.getElementById('approve-ok');
+    ok.innerHTML = decision === 'approved'
+      ? `✓ Aprobado. ${result.provider_invited ? 'Email enviado al proveedor.' : 'Proveedor sin email.'} <a href="${result.profile_url}" target="_blank">Link perfil</a>`
+      : `Decisión registrada: ${decision}`;
+    ok.hidden = false;
+    setTimeout(() => location.reload(), 1500);
+  } catch (e) {
+    document.getElementById('approve-err').textContent = e.message;
+    document.getElementById('approve-err').hidden = false;
+  }
 };
 
 // ─── Intake (new request) ───────────────────────────────────────────────────

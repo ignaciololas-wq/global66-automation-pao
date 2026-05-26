@@ -1,0 +1,67 @@
+{
+  "Global 81 SpA (Chile)": {
+    "name": "Global 81 SpA",
+    "country": "CL",
+    "base_docs": [
+      { "id": "cotizacion_c_level", "name": "Cotización/propuesta comercial con OK de C-Level", "required": true, "valid_months": null },
+      { "id": "escritura_constitucion", "name": "Escritura de constitución de la empresa", "required": true, "valid_months": null },
+      { "id": "poderes_vigentes", "name": "Poderes vigentes de los firmantes", "required": true, "valid_months": 6 },
+      { "id": "id_fiscal", "name": "Identificación fiscal de la empresa (e-RUT)", "required": true, "valid_months": 3 },
+      { "id": "id_personal_firmantes", "name": "Identificación personal de Representantes Legales y/o firmantes (cédula/pasaporte)", "required": true, "valid_months": 60 }
+    ],
+    "documents_to_sign": [
+      { "id": "ley_20393", "name": "Adhesión al Modelo de Prevención de Delitos Ley 20.393", "template": "ley_20393.pdf" },
+      { "id": "nda", "name": "NDA — Acuerdo de Confidencialidad y No Divulgación", "template": "nda.pdf" },
+      { "id": "declaracion_beneficiarios", "name": "Declaración jurada de Beneficiarios Finales", "template": "declaracion_beneficiarios.pdf" }
+    ]
+  },
+  "Global Card S.A. (Chile)": {
+    "name": "Global Card S.A.",
+    "country": "CL",
+    "base_docs": [
+      { "id": "cotizacion_c_level", "name": "Cotización/propuesta comercial con OK de C-Level", "required": true },
+      { "id": "escritura_constitucion", "name": "Escritura de constitución de la empresa", "required": true },
+      { "id": "poderes_vigentes", "name": "Poderes vigentes de los firmantes", "required": true, "valid_months": 6 },
+      { "id": "id_fiscal", "name": "Identificación fiscal de la empresa (e-RUT)", "required": true, "valid_months": 3 },
+      { "id": "id_personal_firmantes", "name": "Identificación personal de Representantes Legales y/o firmantes", "required": true },
+      { "id": "politica_seguridad_info", "name": "Política de Seguridad de la Información y Ciberseguridad del proveedor", "required": true }
+    ],
+    "documents_to_sign": [
+      { "id": "ley_20393", "name": "Adhesión al Modelo de Prevención de Delitos Ley 20.393", "template": "ley_20393.pdf" },
+      { "id": "nda", "name": "NDA — Acuerdo de Confidencialidad y No Divulgación", "template": "nda.pdf" },
+      { "id": "declaracion_beneficiarios", "name": "Declaración jurada de Beneficiarios Finales", "template": "declaracion_beneficiarios.pdf" }
+    ]
+  },
+  "100X (Panamá)": {
+    "name": "100x Corp",
+    "country": "PA",
+    "base_docs": [
+      { "id": "cotizacion_c_level", "name": "Cotización/propuesta comercial con OK de C-Level", "required": true },
+      { "id": "escritura_constitucion", "name": "Escritura de constitución de la empresa", "required": true },
+      { "id": "poderes_vigentes", "name": "Poderes vigentes de los firmantes", "required": true, "valid_months": 6 },
+      { "id": "id_fiscal", "name": "Identificación fiscal de la empresa", "required": true, "valid_months": 3 },
+      { "id": "id_personal_firmantes", "name": "Identificación personal de Representantes Legales y/o firmantes", "required": true }
+    ],
+    "documents_to_sign": []
+  },
+  "Global Colombia 81 (Colombia)": {
+    "name": "Global Colombia 81 / Sedpe",
+    "country": "CO",
+    "base_docs": [
+      { "id": "cotizacion_c_level", "name": "Cotización/propuesta comercial con OK de C-Level", "required": true },
+      { "id": "formato_registro_proveedores", "name": "Formato de Registro de Proveedores", "required": true },
+      { "id": "camara_comercio", "name": "Certificado reciente de Cámara de Comercio", "required": true, "valid_months": 1 },
+      { "id": "certificacion_bancaria", "name": "Certificación bancaria", "required": true, "valid_months": 3 },
+      { "id": "escritura_constitucion", "name": "Escritura de constitución de la empresa", "required": true },
+      { "id": "poderes_vigentes", "name": "Poderes vigentes de los firmantes", "required": true, "valid_months": 6 },
+      { "id": "id_fiscal", "name": "Identificación fiscal (RUT DIAN)", "required": true, "valid_months": 6 },
+      { "id": "id_personal_firmantes", "name": "Identificación personal de Representantes Legales y/o firmantes", "required": true },
+      { "id": "sarlaft", "name": "Certificación SARLAFT", "required": true, "valid_months": 12 },
+      { "id": "balance_general", "name": "Balance General de los últimos 2 años", "required": true },
+      { "id": "politica_seguridad_info", "name": "Política de Seguridad de la Información y Ciberseguridad del proveedor", "required": true }
+    ],
+    "documents_to_sign": [
+      { "id": "declaracion_beneficiarios", "name": "Declaración jurada de Beneficiarios Finales", "template": "declaracion_beneficiarios.pdf" }
+    ]
+  }
+}

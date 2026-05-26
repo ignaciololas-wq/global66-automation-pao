@@ -1,7 +1,24 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls \"C:/Users/julio.lolas/Desktop\" 2>&1 | head -30)"
+      "Bash(ls \"C:/Users/julio.lolas/Desktop\" 2>&1 | head -30)",
+      "Bash(git config *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git add *)",
+      "Bash(git merge *)",
+      "Bash(npx --yes vercel@latest ls)",
+      "Bash(npx --yes vercel@latest logs https://global66-automation-afjmno7ug-ignaciololas-wqs-projects.vercel.app)",
+      "Bash(npx --yes vercel@latest logs https://global66-automation-afjmno7ug-ignaciololas-wqs-projects.vercel.app --json)",
+      "Bash(curl -sS -o /dev/null -w \"HTTP %{http_code}\\\\n\" https://global66-automation-73i0mrk0c-ignaciololas-wqs-projects.vercel.app/)",
+      "Bash(curl -sS https://global66-automation-73i0mrk0c-ignaciololas-wqs-projects.vercel.app/)",
+      "Bash(npx --yes vercel@latest logs https://global66-automation-73i0mrk0c-ignaciololas-wqs-projects.vercel.app --json)",
+      "Bash(npx --yes vercel@latest inspect https://global66-automation-73i0mrk0c-ignaciololas-wqs-projects.vercel.app --logs)",
+      "Bash(npx --yes vercel@latest inspect https://global66-automation-5hxf9t687-ignaciololas-wqs-projects.vercel.app --logs)",
+      "Bash(curl *)",
+      "Bash(npx --yes vercel@latest logs https://global66-automation-5hxf9t687-ignaciololas-wqs-projects.vercel.app --json)",
+      "Bash(npx --yes vercel@latest inspect https://global66-automation-5hxf9t687-ignaciololas-wqs-projects.vercel.app)",
+      "Bash(npx --yes vercel@latest logs https://global66-automation-gx9hfmftb-ignaciololas-wqs-projects.vercel.app --json)"
     ]
   }
 }
