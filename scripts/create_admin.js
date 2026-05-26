@@ -27,11 +27,14 @@ async function main() {
 
   if (user) {
     console.log(`✓ User exists: ${email} (${user.id})`);
-    const { error: upErr } = await sb.auth.admin.updateUserById(user.id, {
+    const updatePayload = {
       app_metadata: { ...(user.app_metadata ?? {}), role },
-    });
+    };
+    if (password) updatePayload.password = password;
+    const { error: upErr } = await sb.auth.admin.updateUserById(user.id, updatePayload);
     if (upErr) { console.error('updateUser error:', upErr.message); process.exit(1); }
     console.log(`✓ Role set: ${role}`);
+    if (password) console.log('✓ Password updated');
   } else {
     const createPayload = {
       email,
