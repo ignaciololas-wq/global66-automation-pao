@@ -3,11 +3,18 @@
 
 import { MOCK } from './mock_mode.js';
 
-const KEY = process.env.RESEND_API_KEY;
-const FROM = process.env.RESEND_FROM ?? 'Global66 Contratos <contratos@global66.com>';
+// Email backends, en orden de preferencia:
+// 1. N8N_EMAIL_WEBHOOK_URL (workflow Gmail centralizado)
+// 2. RESEND_API_KEY (Resend SaaS)
+// 3. MOCK → console.log
 
-export async function sendEmail({ to, subject, html, text, replyTo }) {
-  if (MOCK || !KEY) {
+const N8N_WEBHOOK = process.env.N8N_EMAIL_WEBHOOK_URL;
+const N8N_SECRET = process.env.N8N_EMAIL_WEBHOOK_SECRET; // header opcional
+const RESEND_KEY = process.env.RESEND_API_KEY;
+const FROM = process.env.EMAIL_FROM ?? process.env.RESEND_FROM ?? 'Global66 Contratos <contratos@global66.com>';
+
+export async function sendEmail({ to, subject, html, text, replyTo, tags }) {
+  if (MOCK || (!N8N_WEBHOOK && !RESEND_KEY)) {
     console.log('\n📧 [MOCK email]');
     console.log('  to:', to);
     console.log('  subject:', subject);
@@ -15,9 +22,32 @@ export async function sendEmail({ to, subject, html, text, replyTo }) {
     return { id: 'mock-email-' + Date.now(), mocked: true };
   }
 
+  if (N8N_WEBHOOK) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (N8N_SECRET) headers['X-Webhook-Secret'] = N8N_SECRET;
+    const r = await fetch(N8N_WEBHOOK, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        to: Array.isArray(to) ? to : [to],
+        from: FROM,
+        subject,
+        html,
+        text,
+        replyTo,
+        tags,
+        sentAt: new Date().toISOString(),
+      }),
+    });
+    if (!r.ok) throw new Error(`n8n email webhook ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    const body = await r.text();
+    try { return JSON.parse(body); } catch { return { ok: true, body }; }
+  }
+
+  // Resend fallback
   const r = await fetch('https://api.resend.com/emails', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       from: FROM,
       to: Array.isArray(to) ? to : [to],
@@ -29,6 +59,35 @@ export async function sendEmail({ to, subject, html, text, replyTo }) {
   });
   if (!r.ok) throw new Error(`Resend ${r.status}: ${await r.text()}`);
   return r.json();
+}
+
+export function magicLinkEmail({ email, magicLink, role }) {
+  const subject = `Tu acceso a la plataforma Global66 Contratos`;
+  const html = `<!doctype html>
+<html><body style="font-family:'Inter',system-ui,Arial;background:#f5f7fe;margin:0;padding:0">
+<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(19,32,70,0.06)">
+  <div style="background:linear-gradient(135deg,#1F49B6,#3F5EDF);padding:32px;color:white;text-align:center">
+    <div style="display:inline-flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="width:38px;height:38px;border-radius:9px;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-weight:800;font-family:'Montserrat',sans-serif;font-size:20px">G</div>
+      <div style="font-family:'Montserrat',sans-serif;font-weight:800;font-size:18px;letter-spacing:-0.02em">global66 · contratos</div>
+    </div>
+    <h1 style="font-family:'Montserrat',sans-serif;font-size:24px;font-weight:700;margin:6px 0;letter-spacing:-0.02em">Tu link de acceso</h1>
+  </div>
+  <div style="padding:32px;text-align:center">
+    <p style="margin:0 0 20px;color:#132046;font-size:15px;line-height:1.6">
+      Click el botón para entrar a la plataforma. Link válido por 1 hora.
+    </p>
+    <a href="${magicLink}" style="display:inline-block;background:#1F49B6;color:white;padding:14px 40px;border-radius:999px;text-decoration:none;font-weight:600;box-shadow:0 4px 14px rgba(31,73,182,0.3)">Entrar →</a>
+    <p style="margin:28px 0 0;color:#565656;font-size:11px;word-break:break-all">
+      ¿No funciona? Copiá: <br><span style="color:#1F49B6">${magicLink}</span>
+    </p>
+    ${role === 'admin' ? '<div style="margin-top:24px;padding:12px;background:rgba(2,167,87,0.08);border-radius:8px;font-size:12px;color:#02A757"><b>Rol:</b> admin · podés gestionar usuarios</div>' : ''}
+  </div>
+  <div style="background:#f5f7fe;padding:14px;text-align:center;color:#565656;font-size:11px">Si no pediste este link, ignorá este mail. Global66</div>
+</div>
+</body></html>`;
+  const text = `Link de acceso Global66 Contratos:\n${magicLink}\n\nVálido por 1 hora.`;
+  return { subject, html, text };
 }
 
 export function providerInvitation({ providerName, profileUrl, sociedadContratante, solicitanteNombre, sociedadDocs }) {

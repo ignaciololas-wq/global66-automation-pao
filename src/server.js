@@ -385,6 +385,47 @@ const routes = {
     json(res, 200, { ok: true });
   },
 
+  // ── Auth: magic link via n8n (bypass Supabase rate limit) ─────────────
+  'POST /api/auth/magic-link': async (req, res) => {
+    const body = JSON.parse(await readBody(req));
+    const email = (body.email ?? '').trim().toLowerCase();
+    if (!email) return json(res, 400, { error: 'email required' });
+
+    // Buscar usuario para confirmar que existe y obtener rol
+    const { data: { users } } = await sb.auth.admin.listUsers();
+    const user = users.find((u) => (u.email ?? '').toLowerCase() === email);
+    if (!user) {
+      // No revelar que el email no existe (anti-enumeration)
+      return json(res, 200, { ok: true, sent: false, info: 'Si el email existe, recibirás un link en breve.' });
+    }
+
+    const redirectTo = (process.env.SERVER_PUBLIC_URL ?? 'https://global66-automation-pao.vercel.app') + '/admin';
+    const { data, error } = await sb.auth.admin.generateLink({
+      type: 'magiclink',
+      email,
+      options: { redirectTo },
+    });
+    if (error) return json(res, 500, { error: error.message });
+
+    const magicLink = data?.properties?.action_link;
+    if (!magicLink) return json(res, 500, { error: 'no action_link generated' });
+
+    const { sendEmail, magicLinkEmail } = await import('./email.js');
+    try {
+      await sendEmail({
+        to: email,
+        ...magicLinkEmail({ email, magicLink, role: user.app_metadata?.role ?? 'user' }),
+        tags: ['magic-link', 'auth'],
+      });
+    } catch (e) {
+      console.error('[magic-link] sendEmail failed:', e.message);
+      return json(res, 500, { error: 'failed to deliver email', detail: e.message });
+    }
+
+    await logAudit(null, email, 'auth.magic_link_sent', 'auth_user', user.id, { redirectTo });
+    json(res, 200, { ok: true, sent: true });
+  },
+
   'POST /api/provider/fill': async (req, res) => {
     const body = JSON.parse(await readBody(req));
     if (!body.token) return json(res, 400, { error: 'token required' });
