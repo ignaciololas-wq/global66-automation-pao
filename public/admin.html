@@ -407,18 +407,40 @@ async function doLogin(ev) {
   }
 
   visualLog('calling signInWithPassword');
+  // Bypass supabase-js: llamada directa a Auth REST API (más diagnostic-friendly).
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      visualLog('ERROR: ' + error.message + ' status=' + (error.status ?? '?'));
-      $('#login-err').textContent = error.message;
+    const t0 = Date.now();
+    const r = await fetch(SB_URL + '/auth/v1/token?grant_type=password', {
+      method: 'POST',
+      headers: {
+        apikey: SB_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    });
+    visualLog('REST response: ' + r.status + ' in ' + (Date.now() - t0) + 'ms');
+    const data = await r.json();
+    if (!r.ok) {
+      visualLog('ERROR body: ' + JSON.stringify(data).slice(0, 200));
+      $('#login-err').textContent = data.msg || data.error_description || data.error || 'Login fallido';
       $('#login-err').hidden = false;
-    } else {
-      visualLog('OK user=' + data.user?.email + ' role=' + (data.user?.app_metadata?.role ?? 'user'));
-      checkAuth();
+      return;
     }
+    visualLog('OK tokens received, setting session');
+    const setResult = await supabase.auth.setSession({
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+    });
+    if (setResult.error) {
+      visualLog('setSession error: ' + setResult.error.message);
+      $('#login-err').textContent = setResult.error.message;
+      $('#login-err').hidden = false;
+      return;
+    }
+    visualLog('session set, checking auth');
+    checkAuth();
   } catch (e) {
-    visualLog('EXCEPTION: ' + e.message);
+    visualLog('EXCEPTION: ' + (e.message || e.toString()));
     $('#login-err').textContent = 'Excepción: ' + e.message;
     $('#login-err').hidden = false;
   }
