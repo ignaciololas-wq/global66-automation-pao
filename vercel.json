@@ -34,5 +34,20 @@
     { "source": "/api/admin/users/role", "destination": "/api" },
     { "source": "/api/auth/magic-link", "destination": "/api" },
     { "source": "/api/auth/login", "destination": "/api" }
+  ],
+  "headers": [
+    {
+      "source": "/admin",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, max-age=0" },
+        { "key": "Pragma", "value": "no-cache" }
+      ]
+    },
+    {
+      "source": "/admin.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, max-age=0" }
+      ]
+    }
   ]
 }
