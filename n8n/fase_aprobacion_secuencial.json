@@ -1,0 +1,332 @@
+{
+  "name": "Aprobación secuencial — Form plataforma interna → Legal+Admin → Proveedor",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "contract-approval-submit",
+        "httpMethod": "POST",
+        "responseMode": "responseNode"
+      },
+      "id": "wh-submit",
+      "name": "Webhook: form submit",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [220, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/contract_approvals",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ JSON.stringify({ run_id: $json.run_id, stage: 'internal_review', submitter_email: $json.submitter_email, razon_social: $json.razon_social, monto: $json.monto, moneda: $json.moneda, link_drive: $json.link_drive, provider_email: $json.provider_email, payload: $json, legal_status: 'pending', admin_status: 'pending', created_at: new Date().toISOString() }) }}"
+      },
+      "id": "sb-insert",
+      "name": "Supabase: insert run",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [440, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://slack.com/api/chat.postMessage",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.SLACK_BOT_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ JSON.stringify({ channel: $env.SLACK_LEGAL_CHANNEL, text: 'Nueva solicitud contrato — revisión Legal', blocks: [ { type: 'header', text: { type: 'plain_text', text: 'Solicitud contrato — Legal' } }, { type: 'section', fields: [ { type: 'mrkdwn', text: '*Proveedor:*\\n' + $json.razon_social }, { type: 'mrkdwn', text: '*Monto:*\\n' + $json.monto + ' ' + $json.moneda }, { type: 'mrkdwn', text: '*Solicitante:*\\n' + $json.submitter_email }, { type: 'mrkdwn', text: '*Run:*\\n' + $json.run_id } ] }, { type: 'section', text: { type: 'mrkdwn', text: '<' + $json.link_drive + '|Ver borrador en Drive>' } }, { type: 'actions', block_id: 'legal_decision', elements: [ { type: 'button', style: 'primary', text: { type: 'plain_text', text: 'Aprobar' }, action_id: 'legal_approve', value: $json.run_id }, { type: 'button', style: 'danger', text: { type: 'plain_text', text: 'Rechazar' }, action_id: 'legal_reject', value: $json.run_id } ] } ] }) }}"
+      },
+      "id": "slack-legal",
+      "name": "Slack: DM Legal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [660, 120]
+    },
+    {
+      "parameters": {
+        "url": "https://slack.com/api/chat.postMessage",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.SLACK_BOT_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ JSON.stringify({ channel: $env.SLACK_ADMIN_CHANNEL, text: 'Nueva solicitud contrato — revisión Administración', blocks: [ { type: 'header', text: { type: 'plain_text', text: 'Solicitud contrato — Administración' } }, { type: 'section', fields: [ { type: 'mrkdwn', text: '*Proveedor:*\\n' + $json.razon_social }, { type: 'mrkdwn', text: '*Monto:*\\n' + $json.monto + ' ' + $json.moneda }, { type: 'mrkdwn', text: '*Solicitante:*\\n' + $json.submitter_email }, { type: 'mrkdwn', text: '*Run:*\\n' + $json.run_id } ] }, { type: 'section', text: { type: 'mrkdwn', text: '<' + $json.link_drive + '|Ver borrador en Drive>' } }, { type: 'actions', block_id: 'admin_decision', elements: [ { type: 'button', style: 'primary', text: { type: 'plain_text', text: 'Aprobar' }, action_id: 'admin_approve', value: $json.run_id }, { type: 'button', style: 'danger', text: { type: 'plain_text', text: 'Rechazar' }, action_id: 'admin_reject', value: $json.run_id } ] } ] }) }}"
+      },
+      "id": "slack-admin",
+      "name": "Slack: DM Admin",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [660, 280]
+    },
+    {
+      "parameters": {
+        "url": "https://api.resend.com/emails",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.RESEND_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ JSON.stringify({ from: $env.RESEND_FROM, to: [$env.LEGAL_EMAIL], subject: 'Aprobación contrato pendiente — ' + $json.razon_social, html: '<p>Solicitud de aprobación Legal.</p><ul><li>Proveedor: ' + $json.razon_social + '</li><li>Monto: ' + $json.monto + ' ' + $json.moneda + '</li><li>Solicitante: ' + $json.submitter_email + '</li></ul><p><a href=\"' + $json.link_drive + '\">Ver borrador</a></p><p>Aprueba o rechaza desde Slack (DM enviado).</p>' }) }}"
+      },
+      "id": "mail-legal",
+      "name": "Mail: Legal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [880, 120]
+    },
+    {
+      "parameters": {
+        "url": "https://api.resend.com/emails",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.RESEND_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ JSON.stringify({ from: $env.RESEND_FROM, to: [$env.ADMIN_EMAIL], subject: 'Aprobación contrato pendiente — ' + $json.razon_social, html: '<p>Solicitud de aprobación Administración.</p><ul><li>Proveedor: ' + $json.razon_social + '</li><li>Monto: ' + $json.monto + ' ' + $json.moneda + '</li><li>Solicitante: ' + $json.submitter_email + '</li></ul><p><a href=\"' + $json.link_drive + '\">Ver borrador</a></p><p>Aprueba o rechaza desde Slack (DM enviado).</p>' }) }}"
+      },
+      "id": "mail-admin",
+      "name": "Mail: Admin",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [880, 280]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, run_id: $json.run_id, stage: 'internal_review' }) }}"
+      },
+      "id": "resp-submit",
+      "name": "Respond: submit ok",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1100, 200]
+    },
+
+    {
+      "parameters": {
+        "path": "contract-approval-action",
+        "httpMethod": "POST",
+        "responseMode": "responseNode"
+      },
+      "id": "wh-action",
+      "name": "Webhook: slack action",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [220, 600]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Slack envía payload como form-urlencoded con campo `payload` = JSON string.\nconst raw = $json.body?.payload || $json.payload;\nconst payload = typeof raw === 'string' ? JSON.parse(raw) : raw;\nconst action = payload.actions?.[0];\nconst [role, decision] = action.action_id.split('_'); // legal_approve → ['legal','approve']\nreturn [{ json: {\n  run_id: action.value,\n  role,\n  decision,\n  approver_slack: payload.user?.id,\n  approver_name: payload.user?.username,\n  response_url: payload.response_url,\n  ts: new Date().toISOString()\n}}];"
+      },
+      "id": "parse-action",
+      "name": "Parse Slack action",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [440, 600]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/contract_approvals?run_id=eq.{{ $json.run_id }}",
+        "method": "PATCH",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ JSON.stringify( $json.role === 'legal' ? { legal_status: $json.decision === 'approve' ? 'approved' : 'rejected', legal_by: $json.approver_name, legal_ts: $json.ts } : { admin_status: $json.decision === 'approve' ? 'approved' : 'rejected', admin_by: $json.approver_name, admin_ts: $json.ts } ) }}"
+      },
+      "id": "sb-update",
+      "name": "Supabase: update decision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [660, 600]
+    },
+    {
+      "parameters": {
+        "functionCode": "const row = Array.isArray($json) ? $json[0] : $json;\nconst bothApproved = row.legal_status === 'approved' && row.admin_status === 'approved';\nconst anyRejected = row.legal_status === 'rejected' || row.admin_status === 'rejected';\nlet next_stage = row.stage;\nif (anyRejected) next_stage = 'returned_to_submitter';\nelse if (bothApproved) next_stage = 'provider_action';\nreturn [{ json: { ...row, bothApproved, anyRejected, next_stage } }];"
+      },
+      "id": "decide-next",
+      "name": "Decide next stage",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [880, 600]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/contract_approvals?run_id=eq.{{ $json.run_id }}",
+        "method": "PATCH",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ JSON.stringify({ stage: $json.next_stage }) }}"
+      },
+      "id": "sb-stage",
+      "name": "Supabase: set stage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1100, 600]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            { "value1": "={{ $json.next_stage }}", "operation": "equal", "value2": "provider_action" }
+          ]
+        }
+      },
+      "id": "if-provider",
+      "name": "If: both approved",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1320, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            { "value1": "={{ $json.next_stage }}", "operation": "equal", "value2": "returned_to_submitter" }
+          ]
+        }
+      },
+      "id": "if-reject",
+      "name": "If: rejected",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1320, 700]
+    },
+    {
+      "parameters": {
+        "url": "https://api.resend.com/emails",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.RESEND_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ JSON.stringify({ from: $env.RESEND_FROM, to: [$json.provider_email], cc: [$json.submitter_email], subject: 'Contrato aprobado internamente — acción requerida proveedor', html: '<p>Hola,</p><p>El contrato con ' + $json.razon_social + ' fue aprobado internamente (Legal + Administración Global66).</p><p>Por favor continúa con la firma desde el siguiente enlace:</p><p><a href=\"' + ($env.PLATFORM_BASE_URL + '/provider/' + $json.run_id) + '\">Continuar firma</a></p><p>Saludos,<br/>Global66</p>' }) }}"
+      },
+      "id": "mail-provider",
+      "name": "Mail: proveedor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1540, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://slack.com/api/chat.postMessage",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.SLACK_BOT_TOKEN }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ JSON.stringify({ channel: $json.submitter_email, text: 'Tu contrato con ' + $json.razon_social + ' fue rechazado. Revisa motivo en plataforma: ' + $env.PLATFORM_BASE_URL + '/run/' + $json.run_id }) }}"
+      },
+      "id": "slack-reject-submitter",
+      "name": "Slack: notify submitter (reject)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1540, 700]
+    },
+    {
+      "parameters": {
+        "url": "https://api.resend.com/emails",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.RESEND_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ JSON.stringify({ from: $env.RESEND_FROM, to: [$json.submitter_email], subject: 'Solicitud contrato rechazada — corrección requerida', html: '<p>Tu solicitud para el contrato con ' + $json.razon_social + ' fue rechazada.</p><ul><li>Legal: ' + $json.legal_status + '</li><li>Administración: ' + $json.admin_status + '</li></ul><p>Edita y reenvía desde: <a href=\"' + ($env.PLATFORM_BASE_URL + '/run/' + $json.run_id) + '\">' + $json.run_id + '</a></p>' }) }}"
+      },
+      "id": "mail-reject-submitter",
+      "name": "Mail: notify submitter (reject)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1540, 820]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, run_id: $json.run_id, next_stage: $json.next_stage }) }}"
+      },
+      "id": "resp-action",
+      "name": "Respond: action ok",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1760, 600]
+    }
+  ],
+  "connections": {
+    "Webhook: form submit": { "main": [[{ "node": "Supabase: insert run", "type": "main", "index": 0 }]] },
+    "Supabase: insert run": { "main": [[
+      { "node": "Slack: DM Legal", "type": "main", "index": 0 },
+      { "node": "Slack: DM Admin", "type": "main", "index": 0 }
+    ]] },
+    "Slack: DM Legal": { "main": [[{ "node": "Mail: Legal", "type": "main", "index": 0 }]] },
+    "Slack: DM Admin": { "main": [[{ "node": "Mail: Admin", "type": "main", "index": 0 }]] },
+    "Mail: Legal": { "main": [[{ "node": "Respond: submit ok", "type": "main", "index": 0 }]] },
+    "Mail: Admin": { "main": [[{ "node": "Respond: submit ok", "type": "main", "index": 0 }]] },
+
+    "Webhook: slack action": { "main": [[{ "node": "Parse Slack action", "type": "main", "index": 0 }]] },
+    "Parse Slack action": { "main": [[{ "node": "Supabase: update decision", "type": "main", "index": 0 }]] },
+    "Supabase: update decision": { "main": [[{ "node": "Decide next stage", "type": "main", "index": 0 }]] },
+    "Decide next stage": { "main": [[{ "node": "Supabase: set stage", "type": "main", "index": 0 }]] },
+    "Supabase: set stage": { "main": [[
+      { "node": "If: both approved", "type": "main", "index": 0 },
+      { "node": "If: rejected", "type": "main", "index": 0 }
+    ]] },
+    "If: both approved": { "main": [[{ "node": "Mail: proveedor", "type": "main", "index": 0 }]] },
+    "If: rejected": { "main": [[
+      { "node": "Slack: notify submitter (reject)", "type": "main", "index": 0 },
+      { "node": "Mail: notify submitter (reject)", "type": "main", "index": 0 }
+    ]] },
+    "Mail: proveedor": { "main": [[{ "node": "Respond: action ok", "type": "main", "index": 0 }]] },
+    "Mail: notify submitter (reject)": { "main": [[{ "node": "Respond: action ok", "type": "main", "index": 0 }]] }
+  }
+}

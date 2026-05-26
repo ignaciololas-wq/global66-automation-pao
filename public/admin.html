@@ -271,6 +271,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
         Contratos
       </a>
+      <a href="#users" id="nav-users" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6m3-3v6"/></svg>
+        Usuarios
+      </a>
     </nav>
 
     <div class="nav-bottom">
@@ -312,6 +316,10 @@ async function checkAuth() {
     const name = e.split('@')[0].replace(/\./g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     $('#user-name').textContent = name;
     $('#avatar').textContent = (e[0] ?? '?').toUpperCase();
+    // Show Usuarios nav only if admin
+    const role = session.user.app_metadata?.role ?? 'user';
+    if (role === 'admin') $('#nav-users').hidden = false;
+    window.__role = role;
     route();
   } else {
     $('#login-screen').hidden = false;
@@ -355,6 +363,7 @@ async function route() {
   loading.hidden = false; view.innerHTML = '';
   try {
     if (page === 'intake') return await intakeForm(params);
+    if (page === 'users') return await usersPage();
     await (pages[page] ?? pages.dashboard)(params);
   }
   catch (e) { view.innerHTML = `<div class="err">${e.message}</div>`; }
@@ -774,6 +783,108 @@ function renderApprovalPanel(r) {
       <button class="primary" onclick="submitApproval('${r.id}','approved')">Aprobar e invitar proveedor →</button>
     </div>
   </div>`;
+}
+
+// ─── Users management (admin only) ──────────────────────────────────────────
+
+async function authedFetch(path, opts = {}) {
+  const session = (await supabase.auth.getSession()).data.session;
+  if (!session) throw new Error('No session');
+  return fetch(path, {
+    ...opts,
+    headers: { ...(opts.headers ?? {}), Authorization: `Bearer ${session.access_token}` },
+  });
+}
+
+async function usersPage() {
+  if (window.__role !== 'admin') {
+    view.innerHTML = '<div class="err">Solo administradores pueden ver esta sección.</div>';
+    return;
+  }
+  const r = await authedFetch('/api/admin/users');
+  if (!r.ok) { view.innerHTML = `<div class="err">${await r.text()}</div>`; return; }
+  const users = await r.json();
+
+  view.innerHTML = `
+    <div class="header-row">
+      <h2>Usuarios</h2>
+      <span class="muted" style="font-size:13px">${users.length} activos</span>
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <h3 style="margin-bottom:14px">Invitar nuevo usuario</h3>
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div style="flex:1;min-width:240px">
+          <label>Email corporativo</label>
+          <input type="email" id="new-user-email" placeholder="nombre.apellido@global66.com">
+        </div>
+        <div style="min-width:160px">
+          <label>Rol</label>
+          <select id="new-user-role">
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <button class="primary" id="invite-btn">Invitar →</button>
+      </div>
+      <div id="invite-result" style="margin-top:12px"></div>
+    </div>
+
+    <div class="table-card">
+      <table>
+        <thead><tr><th>Email</th><th>Rol</th><th>Confirmado</th><th>Último login</th><th>Creado</th><th></th></tr></thead>
+        <tbody>${users.map(u => `<tr data-id="${u.id}" data-email="${u.email}">
+          <td><b>${u.email}</b></td>
+          <td>
+            <select class="role-select" data-id="${u.id}" ${u.email === supabase.auth.getSession().data?.session?.user?.email ? 'disabled' : ''}>
+              <option value="user" ${u.role === 'user' ? 'selected' : ''}>user</option>
+              <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
+            </select>
+          </td>
+          <td>${u.confirmed ? '✓' : '—'}</td>
+          <td class="muted">${dt(u.last_sign_in_at) || '—'}</td>
+          <td class="muted">${dt(u.created_at)}</td>
+          <td><button class="ghost del-btn" data-id="${u.id}" data-email="${u.email}">Eliminar</button></td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>
+  `;
+
+  $('#invite-btn').addEventListener('click', async () => {
+    const email = $('#new-user-email').value.trim();
+    const role = $('#new-user-role').value;
+    if (!email) return;
+    const r = await authedFetch('/api/admin/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, role }),
+    });
+    const result = await r.json();
+    if (!r.ok) {
+      $('#invite-result').innerHTML = `<div class="err">${result.error}</div>`;
+    } else {
+      $('#invite-result').innerHTML = `<div class="ok">✓ Invitado ${result.email}<br><small class="muted">Magic link enviado al email${result.magic_link ? ' · <a href="' + result.magic_link + '" target="_blank">copiar link</a>' : ''}</small></div>`;
+      setTimeout(() => location.reload(), 1500);
+    }
+  });
+
+  document.querySelectorAll('.role-select').forEach((sel) => {
+    sel.addEventListener('change', async (e) => {
+      await authedFetch('/api/admin/users/role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: e.target.dataset.id, role: e.target.value }),
+      });
+    });
+  });
+
+  document.querySelectorAll('.del-btn').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      if (!confirm(`¿Eliminar usuario ${e.target.dataset.email}?`)) return;
+      await authedFetch('/api/admin/users?id=' + e.target.dataset.id, { method: 'DELETE' });
+      location.reload();
+    });
+  });
 }
 
 window.submitApproval = async function (runId, decision) {

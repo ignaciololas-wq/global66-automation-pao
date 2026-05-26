@@ -46,6 +46,27 @@ async function readBody(req) {
   return raw;
 }
 
+// Verifica JWT del header Authorization. Retorna { ok, email, role } o { error }.
+async function getUserFromRequest(req) {
+  const auth = req.headers.authorization ?? '';
+  const token = auth.replace(/^Bearer\s+/i, '');
+  if (!token) return { ok: false, status: 401, error: 'no token' };
+  try {
+    const { data: { user }, error } = await sb.auth.getUser(token);
+    if (error || !user) return { ok: false, status: 401, error: 'invalid token' };
+    return { ok: true, email: user.email, role: user.app_metadata?.role ?? 'user', user_id: user.id };
+  } catch (e) {
+    return { ok: false, status: 401, error: e.message };
+  }
+}
+
+async function requireAdmin(req) {
+  const r = await getUserFromRequest(req);
+  if (!r.ok) return r;
+  if (r.role !== 'admin') return { ok: false, status: 403, error: 'admin role required' };
+  return r;
+}
+
 function json(res, status, payload) {
   res.statusCode = status;
   res.setHeader('Content-Type', 'application/json');
@@ -287,6 +308,81 @@ const routes = {
     const p = await findByToken(token);
     if (!p) return json(res, 404, { error: 'token invalid' });
     json(res, 200, p);
+  },
+
+  // ── Admin: gestión usuarios (solo role=admin) ──────────────────────────
+  'GET /api/admin/users': async (req, res) => {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) return json(res, auth.status, { error: auth.error });
+    const { data, error } = await sb.auth.admin.listUsers();
+    if (error) return json(res, 500, { error: error.message });
+    json(res, 200, data.users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      role: u.app_metadata?.role ?? 'user',
+      created_at: u.created_at,
+      last_sign_in_at: u.last_sign_in_at,
+      confirmed: !!u.email_confirmed_at,
+    })));
+  },
+
+  'POST /api/admin/users': async (req, res) => {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) return json(res, auth.status, { error: auth.error });
+    const body = JSON.parse(await readBody(req));
+    if (!body.email) return json(res, 400, { error: 'email required' });
+    const role = body.role ?? 'user';
+
+    // Check if exists
+    const { data: { users } } = await sb.auth.admin.listUsers();
+    let user = users.find((u) => u.email === body.email);
+
+    if (user) {
+      await sb.auth.admin.updateUserById(user.id, {
+        app_metadata: { ...(user.app_metadata ?? {}), role },
+      });
+    } else {
+      const { data, error } = await sb.auth.admin.createUser({
+        email: body.email,
+        email_confirm: true,
+        app_metadata: { role },
+      });
+      if (error) return json(res, 400, { error: error.message });
+      user = data.user;
+    }
+
+    // Send magic link
+    const linkRes = await sb.auth.admin.generateLink({ type: 'magiclink', email: body.email });
+    await logAudit(null, auth.email, 'user.invited', 'auth_user', user.id, { role });
+    json(res, 200, {
+      id: user.id, email: user.email, role,
+      magic_link: linkRes.data?.properties?.action_link,
+    });
+  },
+
+  'POST /api/admin/users/role': async (req, res) => {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) return json(res, auth.status, { error: auth.error });
+    const body = JSON.parse(await readBody(req));
+    if (!body.user_id || !body.role) return json(res, 400, { error: 'user_id and role required' });
+    const { data: { user } } = await sb.auth.admin.getUserById(body.user_id);
+    if (!user) return json(res, 404, { error: 'user not found' });
+    await sb.auth.admin.updateUserById(body.user_id, {
+      app_metadata: { ...(user.app_metadata ?? {}), role: body.role },
+    });
+    await logAudit(null, auth.email, 'user.role_changed', 'auth_user', body.user_id, { role: body.role });
+    json(res, 200, { ok: true });
+  },
+
+  'DELETE /api/admin/users': async (req, res, url) => {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) return json(res, auth.status, { error: auth.error });
+    const id = url.searchParams.get('id');
+    if (!id) return json(res, 400, { error: 'id required' });
+    const { error } = await sb.auth.admin.deleteUser(id);
+    if (error) return json(res, 500, { error: error.message });
+    await logAudit(null, auth.email, 'user.deleted', 'auth_user', id, {});
+    json(res, 200, { ok: true });
   },
 
   'POST /api/provider/fill': async (req, res) => {
