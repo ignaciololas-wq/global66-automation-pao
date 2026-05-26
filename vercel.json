@@ -6,6 +6,7 @@
     }
   },
   "rewrites": [
+    { "source": "/", "destination": "/index.html" },
     { "source": "/admin", "destination": "/admin.html" },
     { "source": "/dashboard", "destination": "/dashboard.html" },
     { "source": "/p/:token*", "destination": "/provider.html" },
