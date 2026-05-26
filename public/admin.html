@@ -373,35 +373,52 @@ async function sendMagicLinkViaServer(email) {
   return { ok: true };
 }
 
+function visualLog(msg) {
+  console.log('[login]', msg);
+  let box = document.getElementById('visual-log');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'visual-log';
+    box.style.cssText = 'position:fixed;bottom:10px;right:10px;max-width:380px;background:#0b1f4b;color:#33d9b2;padding:10px;border-radius:8px;font:11px/1.4 monospace;z-index:9999;max-height:300px;overflow:auto;box-shadow:0 4px 20px rgba(0,0,0,0.3)';
+    document.body.appendChild(box);
+  }
+  const line = document.createElement('div');
+  line.textContent = new Date().toISOString().slice(11, 19) + ' › ' + msg;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+window.visualLog = visualLog;
+
 async function doLogin(ev) {
   if (ev) ev.preventDefault();
-  console.log('[login] submit fired');
+  visualLog('submit fired');
   $('#login-err').hidden = true; $('#login-ok').hidden = true;
   const email = ($('#login-email').value || '').trim();
   const password = $('#login-password').value;
+  visualLog('email=' + email + ' pw_len=' + password.length);
   if (!email) { $('#login-err').textContent = 'Email requerido'; $('#login-err').hidden = false; return; }
 
   if (!password) {
-    console.log('[login] no password → magic link');
+    visualLog('no password → magic link via server');
     const r = await sendMagicLinkViaServer(email);
-    if (r.error) { $('#login-err').textContent = r.error; $('#login-err').hidden = false; }
+    if (r.error) { visualLog('magic-link error: ' + r.error); $('#login-err').textContent = r.error; $('#login-err').hidden = false; }
     else { $('#login-ok').textContent = 'Revisá tu email — te mandamos un link de acceso'; $('#login-ok').hidden = false; }
     return;
   }
 
-  console.log('[login] signInWithPassword for', email);
+  visualLog('calling signInWithPassword');
   try {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      console.error('[login] error:', error);
+      visualLog('ERROR: ' + error.message + ' status=' + (error.status ?? '?'));
       $('#login-err').textContent = error.message;
       $('#login-err').hidden = false;
     } else {
-      console.log('[login] OK user:', data.user?.email);
+      visualLog('OK user=' + data.user?.email + ' role=' + (data.user?.app_metadata?.role ?? 'user'));
       checkAuth();
     }
   } catch (e) {
-    console.error('[login] exception:', e);
+    visualLog('EXCEPTION: ' + e.message);
     $('#login-err').textContent = 'Excepción: ' + e.message;
     $('#login-err').hidden = false;
   }
@@ -1178,7 +1195,8 @@ async function intakeForm() {
 }
 
 // Process URL session first (magic link callback), then check auth
-processUrlSession().then(checkAuth);
+visualLog('JS loaded');
+processUrlSession().then(() => { visualLog('processUrlSession done'); checkAuth(); }).catch(e => visualLog('init error: ' + e.message));
 </script>
 </body>
 </html>
