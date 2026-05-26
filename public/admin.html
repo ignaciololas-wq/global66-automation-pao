@@ -312,17 +312,29 @@ const supabase = createClient(SB_URL, SB_KEY, {
 // Procesar manualmente tokens del hash (failsafe si detectSessionInUrl no corre).
 async function processUrlSession() {
   const hash = location.hash.slice(1);
-  if (!hash || !hash.includes('access_token')) return;
+  console.log('[auth] processUrlSession hash:', hash.slice(0, 60));
+  if (!hash) return;
+
   const params = new URLSearchParams(hash);
+  if (params.get('error')) {
+    const msg = params.get('error_description') ?? params.get('error');
+    document.body.insertAdjacentHTML('afterbegin', `<div style="position:fixed;top:0;left:0;right:0;background:#e64a4a;color:white;padding:14px;text-align:center;z-index:9999;font-family:system-ui">Auth error: ${decodeURIComponent(msg)}</div>`);
+    return;
+  }
+
   const access_token = params.get('access_token');
   const refresh_token = params.get('refresh_token');
-  if (access_token && refresh_token) {
-    const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-    if (error) console.error('setSession error:', error.message);
-    history.replaceState(null, '', location.pathname);
-  } else if (params.get('error')) {
-    console.error('Auth error from URL:', params.get('error_description'));
+  if (!access_token) return;
+
+  console.log('[auth] setSession with token starting:', access_token.slice(0, 20));
+  const { data, error } = await supabase.auth.setSession({ access_token, refresh_token: refresh_token ?? '' });
+  if (error) {
+    console.error('[auth] setSession error:', error);
+    document.body.insertAdjacentHTML('afterbegin', `<div style="position:fixed;top:0;left:0;right:0;background:#e64a4a;color:white;padding:14px;text-align:center;z-index:9999;font-family:system-ui">setSession failed: ${error.message}</div>`);
+    return;
   }
+  console.log('[auth] setSession OK, user:', data.session?.user?.email);
+  history.replaceState(null, '', location.pathname);
 }
 
 const $ = (s) => document.querySelector(s);
