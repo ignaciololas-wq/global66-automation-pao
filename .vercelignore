@@ -1,0 +1,12 @@
+index.js
+src/slack.cjs
+scripts/
+test/
+n8n/
+docs/
+checklists/
+forms/
+prompts/
+Dockerfile
+docker-compose.yml
+.dockerignore
