@@ -10,3 +10,5 @@ test-*.png
 coverage/
 dist/
 proyecto pao/
+
+.vercel
