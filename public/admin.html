@@ -4,99 +4,273 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Global66 — Plataforma Contratos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0b1020; --bg2:#0f1530; --card:#151b30; --border:#2a3050;
-    --text:#e7eaf6; --muted:#8a94b8; --accent:#5b8def;
-    --green:#3ddc84; --yellow:#f0b429; --red:#e64a4a; --blue:#5b8def;
+    --blue-50:  #f5f7fe;
+    --blue-100: #E9EDF8;
+    --blue-200: #9ba9d0;
+    --blue-400: #3F5EDF;
+    --blue-500: #1F49B6;
+    --blue-600: #003eea;
+    --blue-700: #102a97;
+    --blue-800: #0b1f4b;
+    --blue-900: #132046;
+    --green:    #02A757;
+    --mint:     #33d9b2;
+    --red:      #e64a4a;
+    --yellow:   #f0b429;
+    --text:     #132046;
+    --muted:    #565656;
+    --bg:       #ffffff;
+    --surface:  #f5f7fe;
+    --border:   #E9EDF8;
+    --shadow-sm: 0 1px 2px rgba(19,32,70,0.04);
+    --shadow:    0 1px 3px rgba(19,32,70,0.04), 0 8px 24px rgba(19,32,70,0.06);
+    --shadow-lg: 0 4px 12px rgba(19,32,70,0.08), 0 20px 60px rgba(19,32,70,0.12);
+    --radius:    14px;
+    --radius-sm: 8px;
+    --radius-pill: 999px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0 }
-  body { background:var(--bg); color:var(--text); font:14px/1.5 system-ui,-apple-system,Segoe UI,Arial }
-  header { background:var(--bg2); padding:14px 24px; display:flex; align-items:center; gap:16px; border-bottom:1px solid var(--border) }
-  header h1 { font-size:16px; font-weight:600 }
-  nav { display:flex; gap:4px; flex:1 }
-  nav a { color:var(--muted); text-decoration:none; padding:8px 14px; border-radius:6px; font-size:13px }
-  nav a:hover { background:var(--card); color:var(--text) }
-  nav a.active { background:var(--accent); color:white }
-  .user { color:var(--muted); font-size:12px; display:flex; align-items:center; gap:8px }
-  .user button { background:transparent; color:var(--muted); border:1px solid var(--border); padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px }
-  .user button:hover { color:var(--text); border-color:var(--text) }
-  main { padding:24px; max-width:1400px; margin:0 auto }
-  h2 { font-size:22px; margin-bottom:16px; font-weight:600 }
-  .row { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin-bottom:20px }
-  .card { background:var(--card); border-radius:10px; padding:16px; border:1px solid var(--border) }
-  .card h3 { font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); margin-bottom:8px }
-  .card .num { font-size:26px; font-weight:600 }
-  .card .num small { font-size:13px; color:var(--muted); font-weight:400; margin-left:6px }
-  table { width:100%; border-collapse:collapse; font-size:13px; background:var(--card); border-radius:10px; overflow:hidden }
-  th,td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--border) }
-  th { background:var(--bg2); color:var(--muted); font-weight:500; text-transform:uppercase; font-size:11px; letter-spacing:0.05em }
-  tr:last-child td { border-bottom:none }
-  tr.clickable { cursor:pointer }
-  tr.clickable:hover td { background:#1a2240 }
-  .pill { display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:500 }
-  .pill.green { background:rgba(61,220,132,0.15); color:var(--green) }
-  .pill.yellow { background:rgba(240,180,41,0.15); color:var(--yellow) }
-  .pill.red { background:rgba(230,74,74,0.15); color:var(--red) }
-  .pill.blue { background:rgba(91,141,239,0.15); color:var(--blue) }
-  .pill.gray { background:rgba(138,148,184,0.15); color:var(--muted) }
-  .muted { color:var(--muted) }
-  .toolbar { display:flex; gap:10px; margin-bottom:14px; align-items:center; flex-wrap:wrap }
-  input,select { background:var(--bg2); color:var(--text); border:1px solid var(--border); padding:8px 12px; border-radius:6px; font-size:13px; font-family:inherit }
-  input:focus,select:focus { outline:none; border-color:var(--accent) }
-  button.primary { background:var(--accent); color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:500 }
-  button.primary:hover { opacity:0.9 }
-  button.secondary { background:transparent; color:var(--text); border:1px solid var(--border); padding:8px 16px; border-radius:6px; cursor:pointer; font-size:13px }
-  button.secondary:hover { border-color:var(--accent) }
-  .err { background:rgba(230,74,74,0.1); border:1px solid var(--red); border-radius:6px; padding:10px; color:var(--red); margin:10px 0 }
-  .ok { background:rgba(61,220,132,0.1); border:1px solid var(--green); border-radius:6px; padding:10px; color:var(--green); margin:10px 0 }
-  .login { max-width:400px; margin:80px auto; text-align:center }
-  .login form { background:var(--card); padding:24px; border-radius:10px; border:1px solid var(--border); display:flex; flex-direction:column; gap:12px; margin-top:20px }
-  .login input { font-size:14px }
-  #panel-detail { background:var(--card); padding:20px; border-radius:10px; margin-top:12px; border:1px solid var(--border) }
-  #panel-detail dl { display:grid; grid-template-columns:200px 1fr; gap:8px 16px; font-size:13px }
-  #panel-detail dt { color:var(--muted) }
-  .timeline { list-style:none; border-left:2px solid var(--border); margin-left:8px; padding-left:20px }
-  .timeline li { position:relative; padding:8px 0; font-size:13px }
-  .timeline li::before { content:''; position:absolute; left:-26px; top:14px; width:10px; height:10px; border-radius:50%; background:var(--accent) }
-  .timeline .ts { color:var(--muted); font-size:11px }
-  .actions { display:flex; gap:8px; margin:14px 0 }
-  #loading { padding:40px; text-align:center; color:var(--muted) }
+  html, body { background: var(--bg); color: var(--text); font: 14px/1.55 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif; -webkit-font-smoothing: antialiased }
+  h1, h2, h3, h4 { font-family: 'Montserrat', sans-serif; font-weight: 700; letter-spacing: -0.01em }
+  h1 { font-size: 22px }
+  h2 { font-size: 28px; letter-spacing: -0.02em }
+  h3 { font-size: 16px }
+  a { color: var(--blue-500); text-decoration: none }
+  a:hover { color: var(--blue-600) }
+  button { font-family: inherit; cursor: pointer }
+  input, select, textarea { font-family: inherit }
+
+  /* ─── Layout ─────────────────────────────────────────── */
+  .shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh }
+  aside {
+    background: var(--blue-900); color: white;
+    padding: 24px 16px; display: flex; flex-direction: column; gap: 4px;
+    position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; padding: 8px 12px 28px; }
+  .logo-mark {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--blue-400), var(--mint));
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; color: white; font-family: 'Montserrat'; font-size: 18px;
+  }
+  .logo-text { font-family: 'Montserrat'; font-weight: 800; font-size: 15px; letter-spacing: -0.02em; line-height: 1.1 }
+  .logo-text small { display: block; color: var(--blue-200); font-weight: 500; font-size: 11px; letter-spacing: 0 }
+
+  nav a {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px; border-radius: var(--radius-sm);
+    color: rgba(255,255,255,0.7); font-weight: 500; font-size: 13.5px;
+    transition: all .15s ease;
+  }
+  nav a:hover { background: rgba(255,255,255,0.06); color: white }
+  nav a.active { background: var(--blue-500); color: white; box-shadow: 0 4px 12px rgba(31,73,182,0.4) }
+  nav a svg { width: 18px; height: 18px; opacity: 0.85 }
+
+  .nav-section { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--blue-200); padding: 16px 12px 6px; font-weight: 600 }
+
+  .nav-bottom { margin-top: auto; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 12px; color: var(--blue-200) }
+  .nav-bottom .user-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--blue-500); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 13px; font-family: 'Montserrat' }
+  .nav-bottom button { width: 100%; margin-top: 8px; background: transparent; border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.8); padding: 8px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500 }
+  .nav-bottom button:hover { background: rgba(255,255,255,0.06); color: white }
+
+  main { padding: 32px 40px; max-width: 1400px; width: 100%ds }
+
+  /* ─── Login ─────────────────────────────────────────── */
+  .login-shell { min-height: 100vh; display: grid; place-items: center; background: linear-gradient(135deg, var(--blue-50), white) }
+  .login-card {
+    background: white; padding: 40px; border-radius: 20px;
+    box-shadow: var(--shadow-lg); width: 100%; max-width: 420px;
+    text-align: center;
+  }
+  .login-card .logo { justify-content: center; padding: 0 0 20px }
+  .login-card h1 { margin-bottom: 8px }
+  .login-card > p { color: var(--muted); margin-bottom: 28px; font-size: 14px }
+  .login-card form { display: flex; flex-direction: column; gap: 12px; text-align: left }
+
+  /* ─── Forms ─────────────────────────────────────────── */
+  input[type=text],input[type=email],input[type=password],input[type=search],select,textarea {
+    background: white; color: var(--text);
+    border: 1.5px solid var(--border); padding: 11px 14px;
+    border-radius: var(--radius-sm); font-size: 14px;
+    transition: all .15s ease; width: 100%;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--blue-500); box-shadow: 0 0 0 4px rgba(31,73,182,0.08) }
+  label { font-size: 12.5px; font-weight: 500; color: var(--muted); margin-bottom: 4px; display: block }
+
+  button.primary {
+    background: var(--blue-500); color: white; border: none;
+    padding: 11px 22px; border-radius: var(--radius-pill);
+    font-weight: 600; font-size: 14px; letter-spacing: -0.01em;
+    transition: all .15s ease;
+    box-shadow: 0 2px 6px rgba(31,73,182,0.25);
+  }
+  button.primary:hover { background: var(--blue-600); box-shadow: 0 4px 14px rgba(31,73,182,0.35); transform: translateY(-1px) }
+  button.secondary {
+    background: white; color: var(--blue-500);
+    border: 1.5px solid var(--blue-100);
+    padding: 11px 22px; border-radius: var(--radius-pill);
+    font-weight: 600; font-size: 14px;
+  }
+  button.secondary:hover { border-color: var(--blue-500); background: var(--blue-50) }
+  button.ghost { background: transparent; color: var(--muted); border: none; padding: 8px 12px; border-radius: var(--radius-sm); font-weight: 500; font-size: 13px }
+  button.ghost:hover { color: var(--text); background: var(--surface) }
+
+  /* ─── Cards ─────────────────────────────────────────── */
+  .grid { display: grid; gap: 16px; margin-bottom: 24px }
+  .grid-4 { grid-template-columns: repeat(auto-fit, minmax(220px,1fr)) }
+  .grid-2 { grid-template-columns: repeat(auto-fit, minmax(360px,1fr)) }
+
+  .card { background: white; border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow-sm); transition: box-shadow .2s ease }
+  .card.lift:hover { box-shadow: var(--shadow) }
+  .stat-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; margin-bottom: 8px }
+  .stat-num { font-family: 'Montserrat'; font-size: 32px; font-weight: 700; line-height: 1; letter-spacing: -0.025em; color: var(--blue-800) }
+  .stat-num small { font-size: 14px; color: var(--muted); font-weight: 500; margin-left: 6px; letter-spacing: 0 }
+  .stat-delta { color: var(--green); font-size: 12px; margin-top: 8px; font-weight: 500 }
+
+  /* ─── Tables ────────────────────────────────────────── */
+  .table-card { background: white; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm) }
+  table { width: 100%; border-collapse: collapse; font-size: 13px }
+  th, td { text-align: left; padding: 14px 18px; border-bottom: 1px solid var(--border) }
+  th { background: var(--surface); color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em }
+  tr:last-child td { border-bottom: none }
+  tr.clickable { cursor: pointer; transition: background .12s ease }
+  tr.clickable:hover td { background: var(--blue-50) }
+  td.muted { color: var(--muted) }
+  td.right { text-align: right; font-variant-numeric: tabular-nums }
+
+  /* ─── Pills ─────────────────────────────────────────── */
+  .pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: var(--radius-pill); font-size: 12px; font-weight: 600; line-height: 1.6 }
+  .pill.green  { background: rgba(2,167,87,0.1);   color: var(--green) }
+  .pill.yellow { background: rgba(240,180,41,0.12); color: #a8780a }
+  .pill.red    { background: rgba(230,74,74,0.1);  color: var(--red) }
+  .pill.blue   { background: var(--blue-100);       color: var(--blue-700) }
+  .pill.gray   { background: #f0f2f6;               color: var(--muted) }
+  .pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor }
+
+  /* ─── Misc ──────────────────────────────────────────── */
+  .toolbar { display: flex; gap: 12px; margin-bottom: 18px; align-items: center; flex-wrap: wrap }
+  .toolbar input, .toolbar select { max-width: 320px }
+  .breadcrumb { color: var(--muted); font-size: 13px; margin-bottom: 8px }
+  .breadcrumb a { color: var(--muted) }
+  .breadcrumb a:hover { color: var(--blue-500) }
+  .header-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap }
+
+  .timeline { list-style: none; border-left: 2px solid var(--border); padding-left: 24px; margin-left: 4px }
+  .timeline li { position: relative; padding: 10px 0; font-size: 13px }
+  .timeline li::before { content: ''; position: absolute; left: -31px; top: 16px; width: 12px; height: 12px; border-radius: 50%; background: var(--blue-500); border: 2px solid white; box-shadow: 0 0 0 1px var(--blue-100) }
+  .timeline .ts { color: var(--muted); font-size: 11px; margin-top: 2px; display: block }
+
+  dl.props { display: grid; grid-template-columns: 220px 1fr; gap: 12px 24px; font-size: 14px }
+  dl.props dt { color: var(--muted); font-weight: 500 }
+  dl.props dd { font-weight: 500; color: var(--text) }
+
+  .err { background: rgba(230,74,74,0.08); border: 1px solid rgba(230,74,74,0.3); border-radius: var(--radius-sm); padding: 12px 14px; color: var(--red); font-size: 13px; margin: 12px 0 }
+  .ok  { background: rgba(2,167,87,0.08); border: 1px solid rgba(2,167,87,0.3); border-radius: var(--radius-sm); padding: 12px 14px; color: var(--green); font-size: 13px; margin: 12px 0 }
+
+  #loading { padding: 60px; text-align: center; color: var(--muted) }
+  .empty { padding: 60px 20px; text-align: center; color: var(--muted) }
+  .empty p { margin-top: 8px; font-size: 13px }
+
+  pre { background: var(--surface); padding: 12px; border-radius: var(--radius-sm); font-size: 11px; overflow: auto; color: var(--text) }
+
+  /* Risk severity */
+  .risk { display: flex; gap: 10px; padding: 10px 0; align-items: flex-start; border-bottom: 1px solid var(--border) }
+  .risk:last-child { border-bottom: none }
+  .risk b { color: var(--text); font-weight: 600 }
+  .risk span.desc { color: var(--muted); font-size: 13px; display: block; margin-top: 2px }
+
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr }
+    aside { position: relative; height: auto; flex-direction: row; flex-wrap: wrap; gap: 6px; padding: 16px }
+    .logo, .nav-section, .nav-bottom { display: none }
+    main { padding: 20px }
+  }
 </style>
 </head>
 <body>
 
-<div id="login-screen" class="login" hidden>
-  <h1>Global66 — Plataforma Contratos</h1>
-  <p class="muted">Login con tu cuenta Global66</p>
-  <form id="login-form">
-    <input type="email" id="login-email" placeholder="email@global66.com" required>
-    <input type="password" id="login-password" placeholder="Password" required>
-    <button class="primary" type="submit">Entrar</button>
-    <button class="secondary" type="button" id="magic-link">Magic link (sin password)</button>
-    <div id="login-err" class="err" hidden></div>
-    <div id="login-ok" class="ok" hidden></div>
-  </form>
+<!-- Login -->
+<div id="login-screen" class="login-shell" hidden>
+  <div class="login-card">
+    <div class="logo">
+      <div class="logo-mark">G</div>
+      <div class="logo-text">global66<small>contratos</small></div>
+    </div>
+    <h1>Iniciar sesión</h1>
+    <p>Plataforma interna de gestión de contratos con proveedores</p>
+    <form id="login-form">
+      <div>
+        <label>Email corporativo</label>
+        <input type="email" id="login-email" placeholder="tu.nombre@global66.com" required autocomplete="email">
+      </div>
+      <div>
+        <label>Contraseña</label>
+        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="primary" type="submit">Entrar</button>
+      <button class="secondary" type="button" id="magic-link">Enviar magic link al email</button>
+      <div id="login-err" class="err" hidden></div>
+      <div id="login-ok" class="ok" hidden></div>
+    </form>
+  </div>
 </div>
 
-<header id="app-header" hidden>
-  <h1>📋 Contratos Global66</h1>
-  <nav id="nav">
-    <a href="#dashboard">Dashboard</a>
-    <a href="#workflows">Workflows</a>
-    <a href="#providers">Proveedores</a>
-    <a href="#contracts">Contratos</a>
-  </nav>
-  <div class="user">
-    <span id="user-email"></span>
-    <button id="logout">Salir</button>
-  </div>
-</header>
+<!-- App -->
+<div id="app-shell" class="shell" hidden>
+  <aside>
+    <div class="logo">
+      <div class="logo-mark">G</div>
+      <div class="logo-text">global66<small>contratos</small></div>
+    </div>
 
-<main id="app" hidden>
-  <div id="loading">Cargando…</div>
-  <div id="view"></div>
-</main>
+    <div class="nav-section">Resumen</div>
+    <nav id="nav">
+      <a href="#dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+        Dashboard
+      </a>
+    </nav>
+
+    <div class="nav-section">Gestión</div>
+    <nav>
+      <a href="#workflows">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+        Solicitudes
+      </a>
+      <a href="#providers">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        Proveedores
+      </a>
+      <a href="#contracts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Contratos
+      </a>
+    </nav>
+
+    <div class="nav-bottom">
+      <div class="user-row">
+        <div class="avatar" id="avatar">?</div>
+        <div>
+          <div id="user-name" style="color:white;font-size:13px;font-weight:500">—</div>
+          <div id="user-email" style="font-size:11px">—</div>
+        </div>
+      </div>
+      <button id="logout">Cerrar sesión</button>
+    </div>
+  </aside>
+
+  <main>
+    <div id="loading">Cargando…</div>
+    <div id="view"></div>
+  </main>
+</div>
 
 <script type="module">
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -109,96 +283,86 @@ const $ = (s) => document.querySelector(s);
 const view = $('#view');
 const loading = $('#loading');
 
-// ── Auth ───────────────────────────────────────────────────────────────────
-
 async function checkAuth() {
   const { data: { session } } = await supabase.auth.getSession();
   if (session) {
     $('#login-screen').hidden = true;
-    $('#app-header').hidden = false;
-    $('#app').hidden = false;
-    $('#user-email').textContent = session.user.email;
+    $('#app-shell').hidden = false;
+    const e = session.user.email ?? '';
+    $('#user-email').textContent = e;
+    const name = e.split('@')[0].replace(/\./g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    $('#user-name').textContent = name;
+    $('#avatar').textContent = (e[0] ?? '?').toUpperCase();
     route();
   } else {
     $('#login-screen').hidden = false;
-    $('#app-header').hidden = true;
-    $('#app').hidden = true;
+    $('#app-shell').hidden = true;
   }
 }
 
 $('#login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
+  $('#login-err').hidden = true; $('#login-ok').hidden = true;
   const email = $('#login-email').value;
   const password = $('#login-password').value;
+  if (!password) {
+    const { error } = await supabase.auth.signInWithOtp({ email });
+    if (error) { $('#login-err').textContent = error.message; $('#login-err').hidden = false; }
+    else { $('#login-ok').textContent = 'Revisá tu email — te mandamos un link de acceso'; $('#login-ok').hidden = false; }
+    return;
+  }
   const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) {
-    $('#login-err').textContent = error.message;
-    $('#login-err').hidden = false;
-  } else checkAuth();
+  if (error) { $('#login-err').textContent = error.message; $('#login-err').hidden = false; }
+  else checkAuth();
 });
 
 $('#magic-link').addEventListener('click', async () => {
   const email = $('#login-email').value;
   if (!email) { $('#login-err').textContent = 'Ingresá tu email primero'; $('#login-err').hidden = false; return; }
   const { error } = await supabase.auth.signInWithOtp({ email });
-  if (error) {
-    $('#login-err').textContent = error.message;
-    $('#login-err').hidden = false;
-  } else {
-    $('#login-ok').textContent = 'Revisá tu email — te mandamos un link';
-    $('#login-ok').hidden = false;
-  }
+  if (error) { $('#login-err').textContent = error.message; $('#login-err').hidden = false; }
+  else { $('#login-ok').textContent = 'Revisá tu email — te mandamos un link'; $('#login-ok').hidden = false; }
 });
 
-$('#logout').addEventListener('click', async () => {
-  await supabase.auth.signOut();
-  checkAuth();
-});
-
+$('#logout').addEventListener('click', async () => { await supabase.auth.signOut(); checkAuth(); });
 supabase.auth.onAuthStateChange(() => checkAuth());
-
-// ── Router ─────────────────────────────────────────────────────────────────
 
 window.addEventListener('hashchange', route);
 
 async function route() {
   const hash = location.hash.slice(1) || 'dashboard';
   const [page, ...params] = hash.split('/');
-  document.querySelectorAll('#nav a').forEach((a) => a.classList.toggle('active', a.getAttribute('href') === '#' + page));
-  loading.hidden = false;
-  view.innerHTML = '';
-  try {
-    const fn = pages[page] ?? pages.dashboard;
-    await fn(params);
-  } catch (e) {
-    view.innerHTML = `<div class="err">${e.message}</div>`;
-  } finally {
-    loading.hidden = true;
-  }
+  document.querySelectorAll('#nav a, aside nav a').forEach((a) => a.classList.toggle('active', a.getAttribute('href') === '#' + page));
+  loading.hidden = false; view.innerHTML = '';
+  try { await (pages[page] ?? pages.dashboard)(params); }
+  catch (e) { view.innerHTML = `<div class="err">${e.message}</div>`; }
+  finally { loading.hidden = true; }
 }
 
 async function q(table, qs = '') {
+  const sess = (await supabase.auth.getSession()).data.session;
   const r = await fetch(`${SB_URL}/rest/v1/${table}?${qs}`, {
-    headers: { apikey: SB_KEY, Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token ?? SB_KEY}` },
+    headers: { apikey: SB_KEY, Authorization: `Bearer ${sess?.access_token ?? SB_KEY}` },
   });
   if (!r.ok) throw new Error(`${table}: ${r.status} ${await r.text()}`);
   return r.json();
 }
 
-const pill = (txt, kind) => `<span class="pill ${kind ?? 'gray'}">${txt ?? '—'}</span>`;
+const dotPill = (txt, kind) => txt ? `<span class="pill ${kind ?? 'gray'}"><span class="dot"></span>${txt}</span>` : `<span class="pill gray">—</span>`;
+const pill = (txt, kind) => txt ? `<span class="pill ${kind ?? 'gray'}">${txt}</span>` : `<span class="pill gray">—</span>`;
 const semKind = (s) => s === 'green' ? 'green' : s === 'yellow' ? 'yellow' : s === 'red' ? 'red' : 'gray';
 const phaseKind = (p) => p === 'signed' ? 'green' : p === 'rejected' ? 'red' : p === 'cancelled' ? 'gray' : 'blue';
-const dt = (iso) => (iso ?? '').slice(0, 16).replace('T', ' ');
-
-// ── Pages ──────────────────────────────────────────────────────────────────
+const statusKind = (s) => s === 'aceptado' || s === 'signed' || s === 'active' ? 'green' : s === 'rechazado' || s === 'cancelled' || s === 'expired' ? 'red' : s === 'expiring' || s === 'pendiente_revision' ? 'yellow' : s === 'inactivo' ? 'gray' : 'blue';
+const dt = (iso) => (iso ?? '').slice(0, 16).replace('T', ' · ');
+const money = (n, c) => n != null ? new Intl.NumberFormat('es-CL').format(n) + (c ? ' ' + c : '') : '—';
 
 const pages = {
   async dashboard() {
     const [phases, approvals, costs, sanctions, runs, providers, contracts] = await Promise.all([
-      q('v_runs_by_phase'),
-      q('v_avg_approval_time'),
-      q('v_extraction_costs', 'limit=7'),
-      q('v_sanctions_hits', 'limit=4'),
+      q('v_runs_by_phase').catch(() => []),
+      q('v_avg_approval_time').catch(() => []),
+      q('v_extraction_costs', 'limit=7').catch(() => []),
+      q('v_sanctions_hits', 'limit=4').catch(() => []),
       q('workflow_runs', 'order=created_at.desc&limit=10'),
       q('v_providers_by_country').catch(() => []),
       q('v_contracts_by_status').catch(() => []),
@@ -210,31 +374,70 @@ const pages = {
     const totalCost = costs.reduce((a, c) => a + Number(c.cost_usd_total ?? 0), 0).toFixed(2);
 
     view.innerHTML = `
-      <h2>Dashboard</h2>
-      <div class="row">
-        <div class="card"><h3>Workflow runs</h3><div class="num">${totalRuns}</div></div>
-        <div class="card"><h3>Proveedores</h3><div class="num">${totalProv}</div></div>
-        <div class="card"><h3>Contratos</h3><div class="num">${totalContracts}</div></div>
-        <div class="card"><h3>Gasto Gemini 7d</h3><div class="num">$${totalCost}<small>USD</small></div></div>
+      <div class="header-row">
+        <div>
+          <h2>Buen día 👋</h2>
+          <p style="color:var(--muted);margin-top:4px">Resumen del estado de contratos y proveedores</p>
+        </div>
       </div>
 
-      <h2 style="font-size:16px">Workflows por fase</h2>
-      <table style="margin-bottom:20px">
-        <thead><tr><th>Fase</th><th>Total</th><th>🟢</th><th>🟡</th><th>🔴</th></tr></thead>
-        <tbody>${phases.map(p => `<tr><td>${pill(p.current_phase, phaseKind(p.current_phase))}</td><td>${p.total}</td><td>${p.green}</td><td>${p.yellow}</td><td>${p.red}</td></tr>`).join('')}</tbody>
-      </table>
+      <div class="grid grid-4">
+        <div class="card lift">
+          <div class="stat-label">Solicitudes</div>
+          <div class="stat-num">${totalRuns}</div>
+          <div class="stat-delta">workflow_runs totales</div>
+        </div>
+        <div class="card lift">
+          <div class="stat-label">Proveedores</div>
+          <div class="stat-num">${totalProv}</div>
+        </div>
+        <div class="card lift">
+          <div class="stat-label">Contratos</div>
+          <div class="stat-num">${totalContracts}</div>
+        </div>
+        <div class="card lift">
+          <div class="stat-label">Costo Gemini (7d)</div>
+          <div class="stat-num">$${totalCost}<small>USD</small></div>
+        </div>
+      </div>
 
-      <h2 style="font-size:16px">Últimos 10 runs</h2>
-      <table>
-        <thead><tr><th>Proveedor</th><th>Tax ID</th><th>País</th><th>Fase</th><th>Semáforo</th><th>Fecha</th></tr></thead>
-        <tbody>${runs.map(r => `
-          <tr class="clickable" onclick="location.hash='workflows/${r.id}'">
-            <td>${r.razon_social}</td><td class="muted">${r.tax_id}</td><td>${r.pais}</td>
-            <td>${pill(r.current_phase, phaseKind(r.current_phase))}</td>
-            <td>${pill(r.semaforo, semKind(r.semaforo))}</td>
-            <td class="muted">${dt(r.created_at)}</td>
-          </tr>`).join('')}</tbody>
-      </table>
+      <div class="grid grid-2">
+        <div class="table-card">
+          <div style="padding:16px 18px;border-bottom:1px solid var(--border)"><h3>Solicitudes por fase</h3></div>
+          <table>
+            <thead><tr><th>Fase</th><th>Total</th><th>🟢</th><th>🟡</th><th>🔴</th></tr></thead>
+            <tbody>${phases.length ? phases.map(p => `<tr><td>${dotPill(p.current_phase, phaseKind(p.current_phase))}</td><td>${p.total}</td><td>${p.green}</td><td>${p.yellow}</td><td>${p.red}</td></tr>`).join('') : '<tr><td colspan=5 class=muted style="text-align:center;padding:24px">Sin datos</td></tr>'}</tbody>
+          </table>
+        </div>
+
+        <div class="table-card">
+          <div style="padding:16px 18px;border-bottom:1px solid var(--border)"><h3>Tiempo aprobación por equipo</h3></div>
+          <table>
+            <thead><tr><th>Equipo</th><th>Horas avg</th><th>✅</th><th>❌</th></tr></thead>
+            <tbody>${approvals.length ? approvals.map(a => `<tr><td><b>${a.team}</b></td><td>${a.avg_hours_to_decide ?? '—'}h</td><td>${a.approved}</td><td>${a.rejected}</td></tr>`).join('') : '<tr><td colspan=4 class=muted style="text-align:center;padding:24px">Aún sin decisiones</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="table-card" style="margin-top:8px">
+        <div style="padding:16px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <h3>Últimas solicitudes</h3>
+          <a href="#workflows" style="font-size:13px;font-weight:500">Ver todas →</a>
+        </div>
+        <table>
+          <thead><tr><th>Proveedor</th><th>Tax ID</th><th>País</th><th>Sociedad</th><th>Fase</th><th>Semáforo</th><th>Fecha</th></tr></thead>
+          <tbody>${runs.length ? runs.map(r => `
+            <tr class="clickable" onclick="location.hash='workflows/${r.id}'">
+              <td><b>${r.razon_social}</b></td>
+              <td class="muted">${r.tax_id}</td>
+              <td>${r.pais}</td>
+              <td class="muted">${r.sociedad_contratante ?? '—'}</td>
+              <td>${dotPill(r.current_phase, phaseKind(r.current_phase))}</td>
+              <td>${dotPill(r.semaforo, semKind(r.semaforo))}</td>
+              <td class="muted">${dt(r.created_at)}</td>
+            </tr>`).join('') : '<tr><td colspan=7 class="empty">Sin solicitudes todavía</td></tr>'}</tbody>
+        </table>
+      </div>
     `;
   },
 
@@ -242,27 +445,35 @@ const pages = {
     if (params[0]) return pages.workflowDetail(params[0]);
     const runs = await q('workflow_runs', 'order=created_at.desc&limit=100');
     view.innerHTML = `
-      <h2>Workflow Runs</h2>
-      <div class="toolbar">
-        <input type="search" id="filter" placeholder="Filtrar por razón social / RUT...">
+      <div class="header-row">
+        <h2>Solicitudes</h2>
+        <span class="muted" style="font-size:13px">${runs.length} workflow runs</span>
       </div>
-      <table>
-        <thead><tr><th>Proveedor</th><th>Tax ID</th><th>País</th><th>Monto</th><th>Fase</th><th>Semáforo</th><th>Owner</th><th>Fecha</th></tr></thead>
-        <tbody id="rows">${runs.map(r => `
-          <tr class="clickable" data-search="${(r.razon_social + ' ' + r.tax_id).toLowerCase()}" onclick="location.hash='workflows/${r.id}'">
-            <td>${r.razon_social}</td><td class="muted">${r.tax_id}</td><td>${r.pais}</td>
-            <td>${r.monto ?? '-'} ${r.moneda ?? ''}</td>
-            <td>${pill(r.current_phase, phaseKind(r.current_phase))}</td>
-            <td>${pill(r.semaforo, semKind(r.semaforo))}</td>
-            <td class="muted">${r.owner_email ?? '-'}</td>
-            <td class="muted">${dt(r.created_at)}</td>
-          </tr>`).join('')}</tbody>
-      </table>
+      <div class="toolbar">
+        <input type="search" id="filter" placeholder="🔍 Buscar por proveedor o RUT…">
+      </div>
+      <div class="table-card">
+        <table>
+          <thead><tr><th>Proveedor</th><th>Tax ID</th><th>País</th><th>Sociedad</th><th>Monto</th><th>Fase</th><th>Semáforo</th><th>Owner</th><th>Fecha</th></tr></thead>
+          <tbody id="rows">${runs.length ? runs.map(r => `
+            <tr class="clickable" data-search="${(r.razon_social + ' ' + r.tax_id).toLowerCase()}" onclick="location.hash='workflows/${r.id}'">
+              <td><b>${r.razon_social}</b></td>
+              <td class="muted">${r.tax_id}</td>
+              <td>${r.pais}</td>
+              <td class="muted">${r.sociedad_contratante ?? '—'}</td>
+              <td class="right">${money(r.monto, r.moneda)}</td>
+              <td>${dotPill(r.current_phase, phaseKind(r.current_phase))}</td>
+              <td>${dotPill(r.semaforo, semKind(r.semaforo))}</td>
+              <td class="muted">${r.owner_email ?? '—'}</td>
+              <td class="muted">${dt(r.created_at)}</td>
+            </tr>`).join('') : '<tr><td colspan=9 class="empty">Sin solicitudes todavía<p>Las nuevas solicitudes aparecerán aquí cuando alguien complete el form.</p></td></tr>'}</tbody>
+        </table>
+      </div>
     `;
-    $('#filter').addEventListener('input', (e) => {
+    $('#filter')?.addEventListener('input', (e) => {
       const v = e.target.value.toLowerCase();
       document.querySelectorAll('#rows tr').forEach((tr) => {
-        tr.style.display = tr.dataset.search.includes(v) ? '' : 'none';
+        if (tr.dataset.search) tr.style.display = tr.dataset.search.includes(v) ? '' : 'none';
       });
     });
   },
@@ -276,108 +487,138 @@ const pages = {
       q('sanctions_checks', `workflow_run_id=eq.${runId}&order=created_at.desc&limit=1`),
     ]);
     const r = runs[0];
-    if (!r) { view.innerHTML = '<div class="err">Run no encontrado</div>'; return; }
-
+    if (!r) { view.innerHTML = '<div class="err">Solicitud no encontrada</div>'; return; }
     const ext = extraction[0]?.extracted_json;
     const risks = ext?.riesgos_detectados ?? [];
     const sanct = sanctions[0];
 
     view.innerHTML = `
-      <a href="#workflows" class="muted">← Volver</a>
-      <h2 style="margin-top:10px">${r.razon_social} <span class="muted" style="font-size:14px">${r.tax_id}</span></h2>
-
-      <div class="row">
-        <div class="card"><h3>Fase</h3><div>${pill(r.current_phase, phaseKind(r.current_phase))}</div></div>
-        <div class="card"><h3>Semáforo</h3><div>${pill(r.semaforo, semKind(r.semaforo))}</div></div>
-        <div class="card"><h3>País</h3><div class="num" style="font-size:18px">${r.pais}</div></div>
-        <div class="card"><h3>Monto</h3><div class="num" style="font-size:18px">${r.monto} ${r.moneda}</div></div>
+      <div class="breadcrumb"><a href="#workflows">← Volver a solicitudes</a></div>
+      <div class="header-row">
+        <div>
+          <h2>${r.razon_social}</h2>
+          <p style="color:var(--muted);margin-top:4px">${r.tax_id} · ${r.pais} · ${r.sociedad_contratante ?? 'sin sociedad'}</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          ${dotPill(r.current_phase, phaseKind(r.current_phase))}
+          ${dotPill(r.semaforo, semKind(r.semaforo))}
+        </div>
       </div>
 
-      <div id="panel-detail">
-        <h2 style="font-size:14px;margin-bottom:10px">Datos del proveedor</h2>
-        <dl>
-          <dt>Owner</dt><dd>${r.owner_email}</dd>
-          <dt>Tipo contrato</dt><dd>${r.tipo_contrato ?? '-'}</dd>
-          <dt>Vigencia</dt><dd>${r.vigencia_meses ?? '-'} meses</dd>
-          <dt>Criticidad</dt><dd>${r.criticidad ?? '-'}</dd>
-          <dt>Nivel acceso</dt><dd>${r.nivel_acceso ?? '-'}</dd>
-          <dt>Borrador</dt><dd>${r.draft_url ? `<a href="${r.draft_url}" target="_blank">${r.draft_url}</a>` : '-'}</dd>
-        </dl>
+      <div class="grid grid-4">
+        <div class="card"><div class="stat-label">Monto</div><div class="stat-num" style="font-size:22px">${money(r.monto, r.moneda)}</div></div>
+        <div class="card"><div class="stat-label">Vigencia</div><div class="stat-num" style="font-size:22px">${r.vigencia_meses ?? '—'}<small>${r.vigencia_meses ? 'meses' : ''}</small></div></div>
+        <div class="card"><div class="stat-label">Criticidad</div><div class="stat-num" style="font-size:22px">${r.criticidad ?? '—'}</div></div>
+        <div class="card"><div class="stat-label">Periodicidad</div><div class="stat-num" style="font-size:22px">${r.periodicidad ?? '—'}</div></div>
       </div>
 
-      <div id="panel-detail">
-        <h2 style="font-size:14px;margin-bottom:10px">Aprobaciones</h2>
+      <div class="grid grid-2">
+        <div class="card">
+          <h3 style="margin-bottom:16px">Solicitante & Owner</h3>
+          <dl class="props">
+            <dt>Solicitante</dt><dd>${r.solicitante_nombre ?? '—'} <span class="muted">${r.solicitante_email ? '<' + r.solicitante_email + '>' : ''}</span></dd>
+            <dt>Área</dt><dd>${r.solicitante_area ?? '—'}</dd>
+            <dt>Owner</dt><dd>${r.owner_nombre ?? r.solicitante_nombre ?? '—'} <span class="muted">${r.owner_email ? '<' + r.owner_email + '>' : ''}</span></dd>
+            <dt>Backup</dt><dd>${r.responsable_backup_email ?? '—'}</dd>
+          </dl>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom:16px">Proveedor</h3>
+          <dl class="props">
+            <dt>Razón social</dt><dd><b>${r.razon_social}</b></dd>
+            <dt>Tax ID</dt><dd>${r.tax_id}</dd>
+            <dt>País</dt><dd>${r.pais}</dd>
+            <dt>Tipo</dt><dd>${r.tipo_proveedor ?? '—'}</dd>
+            <dt>Representante</dt><dd>${r.representante_legal ?? '—'}</dd>
+            <dt>Servicio</dt><dd>${r.servicio_descripcion ?? '—'}</dd>
+            <dt>Nivel acceso</dt><dd>${r.nivel_acceso ?? '—'}</dd>
+          </dl>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <h3 style="margin-bottom:16px">Aprobaciones</h3>
         ${['compliance','legal','admin'].map(team => {
           const a = apps.find(x => x.team === team);
-          const status = a?.decision ?? 'pendiente';
-          const kind = status === 'approved' ? 'green' : status === 'rejected' ? 'red' : status === 'requested_changes' ? 'yellow' : 'gray';
-          return `<div style="margin:6px 0"><b>${team}:</b> ${pill(status, kind)} ${a?.comment ? `<span class="muted">— ${a.comment}</span>` : ''} <span class="muted" style="font-size:11px">${a ? dt(a.decided_at) : ''}</span></div>`;
+          const st = a?.decision ?? 'pendiente';
+          const k = st === 'approved' ? 'green' : st === 'rejected' ? 'red' : st === 'requested_changes' ? 'yellow' : 'gray';
+          return `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+            <span><b style="text-transform:capitalize">${team}</b> ${a?.comment ? `<span class="muted"> — ${a.comment}</span>` : ''}</span>
+            <span>${dotPill(st, k)} ${a ? `<span class="muted" style="font-size:11px;margin-left:8px">${dt(a.decided_at)}</span>` : ''}</span>
+          </div>`;
         }).join('')}
       </div>
 
-      ${ext ? `<div id="panel-detail">
-        <h2 style="font-size:14px;margin-bottom:10px">Extracción Gemini</h2>
-        <dl>
-          <dt>Tipo contrato</dt><dd>${ext.tipo_contrato ?? '-'}</dd>
-          <dt>Vigencia</dt><dd>${ext.vigencia?.duracion_meses ?? '-'} meses</dd>
-          <dt>Renovación automática</dt><dd>${ext.vigencia?.renovacion_automatica ?? '-'}</dd>
+      ${ext ? `<div class="card" style="margin-bottom:16px">
+        <h3 style="margin-bottom:16px">Análisis IA del contrato</h3>
+        <dl class="props">
+          <dt>Tipo</dt><dd>${ext.tipo_contrato ?? '—'}</dd>
+          <dt>Renovación tácita</dt><dd>${ext.vigencia?.renovacion_automatica ? '⚠️ Sí' : 'No'}</dd>
           <dt>Anti-corrupción</dt><dd>${ext.anti_corrupcion ? '✓' : '✗'}</dd>
           <dt>Protección datos</dt><dd>${ext.proteccion_datos ? '✓' : '✗'}</dd>
         </dl>
-        ${risks.length ? `<h3 style="font-size:12px;color:var(--muted);margin-top:14px;margin-bottom:6px">Riesgos detectados</h3>
-          <ul style="list-style:none">${risks.map(r => `<li style="margin:4px 0">${pill(r.severidad, r.severidad === 'alta' ? 'red' : r.severidad === 'media' ? 'yellow' : 'gray')} <b>${r.tipo}:</b> ${r.descripcion}</li>`).join('')}</ul>` : ''}
+        ${risks.length ? `<h4 style="margin:20px 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-family:'Inter';font-weight:600">Riesgos detectados</h4>
+          <div>${risks.map(r => `<div class="risk">${pill(r.severidad, r.severidad === 'alta' ? 'red' : r.severidad === 'media' ? 'yellow' : 'gray')}<div><b>${r.tipo}</b><span class="desc">${r.descripcion}</span></div></div>`).join('')}</div>` : ''}
       </div>` : ''}
 
-      ${sanct ? `<div id="panel-detail">
-        <h2 style="font-size:14px;margin-bottom:10px">Sanciones</h2>
-        <div>${sanct.hit ? pill('hit', 'red') + ' Match detectado' : pill('clean', 'green') + ' Sin match'}</div>
-        ${sanct.matches?.length ? `<pre class="muted" style="font-size:11px;margin-top:8px;overflow:auto">${JSON.stringify(sanct.matches, null, 2)}</pre>` : ''}
+      ${sanct ? `<div class="card" style="margin-bottom:16px">
+        <h3 style="margin-bottom:12px">Sanciones</h3>
+        ${sanct.hit ? `<div class="err">⚠️ Match en lista de sanciones</div><pre>${JSON.stringify(sanct.matches, null, 2)}</pre>` : `<div class="ok">✓ Sin matches</div>`}
       </div>` : ''}
 
-      <div id="panel-detail">
-        <h2 style="font-size:14px;margin-bottom:10px">Timeline (audit log)</h2>
+      <div class="card">
+        <h3 style="margin-bottom:16px">Timeline</h3>
         <ul class="timeline">${audits.map(a => `<li>
           <b>${a.action}</b> <span class="muted">por ${a.actor}</span>
           ${a.payload && Object.keys(a.payload).length ? `<span class="muted"> — ${JSON.stringify(a.payload).slice(0, 100)}</span>` : ''}
-          <br><span class="ts">${dt(a.created_at)}</span>
-        </li>`).join('')}</ul>
+          <span class="ts">${dt(a.created_at)}</span>
+        </li>`).join('') || '<li class="muted">Sin eventos</li>'}</ul>
       </div>
     `;
   },
 
   async providers() {
-    const list = await q('providers', 'order=created_at.desc&limit=200');
+    const list = await q('providers', 'order=created_at.desc&limit=200').catch(() => []);
     view.innerHTML = `
-      <h2>Proveedores</h2>
+      <div class="header-row">
+        <h2>Proveedores</h2>
+        <span class="muted" style="font-size:13px">${list.length} registrados</span>
+      </div>
       <div class="toolbar">
-        <input type="search" id="filter" placeholder="Filtrar...">
+        <input type="search" id="filter" placeholder="🔍 Buscar…">
         <select id="status-filter">
           <option value="">Todos los estados</option>
-          <option value="pendiente_revision">Pendiente revisión</option>
-          <option value="aceptado">Aceptado</option>
-          <option value="rechazado">Rechazado</option>
-          <option value="inactivo">Inactivo</option>
+          <option value="pendiente_revision">Pendientes</option>
+          <option value="aceptado">Aceptados</option>
+          <option value="rechazado">Rechazados</option>
+          <option value="inactivo">Inactivos</option>
         </select>
       </div>
-      <table>
-        <thead><tr><th>Razón social</th><th>Tax ID</th><th>País</th><th>Tipo</th><th>Status</th><th>Criticidad</th><th>Creado</th></tr></thead>
-        <tbody id="rows">${list.map(p => `
-          <tr class="clickable" data-search="${(p.razon_social + ' ' + p.tax_id + ' ' + p.pais).toLowerCase()}" data-status="${p.status}">
-            <td>${p.razon_social}</td><td class="muted">${p.tax_id}</td><td>${p.pais}</td>
-            <td>${p.tipo_proveedor ?? '-'}</td>
-            <td>${pill(p.status, p.status === 'aceptado' ? 'green' : p.status === 'rechazado' ? 'red' : p.status === 'inactivo' ? 'gray' : 'yellow')}</td>
-            <td>${p.criticidad ?? '-'}</td>
-            <td class="muted">${dt(p.created_at)}</td>
-          </tr>`).join('')}</tbody>
-      </table>
+      <div class="table-card">
+        <table>
+          <thead><tr><th>Razón social</th><th>Tax ID</th><th>País</th><th>Tipo</th><th>Status</th><th>Criticidad</th><th>Sociedad</th><th>Creado</th></tr></thead>
+          <tbody id="rows">${list.length ? list.map(p => `
+            <tr class="clickable" data-search="${(p.razon_social + ' ' + p.tax_id + ' ' + p.pais).toLowerCase()}" data-status="${p.status}">
+              <td><b>${p.razon_social}</b></td>
+              <td class="muted">${p.tax_id}</td>
+              <td>${p.pais}</td>
+              <td class="muted">${p.tipo_proveedor ?? '—'}</td>
+              <td>${dotPill(p.status, statusKind(p.status))}</td>
+              <td>${p.criticidad ?? '—'}</td>
+              <td class="muted">${p.sociedad_contratante ?? '—'}</td>
+              <td class="muted">${dt(p.created_at)}</td>
+            </tr>`).join('') : '<tr><td colspan=8 class="empty">Sin proveedores todavía<p>Aparecerán cuando se aprueben solicitudes nuevas.</p></td></tr>'}</tbody>
+        </table>
+      </div>
     `;
     const apply = () => {
       const v = $('#filter').value.toLowerCase();
       const s = $('#status-filter').value;
       document.querySelectorAll('#rows tr').forEach((tr) => {
-        const okText = tr.dataset.search.includes(v);
-        const okStatus = !s || tr.dataset.status === s;
-        tr.style.display = (okText && okStatus) ? '' : 'none';
+        if (!tr.dataset.search) return;
+        const ok = tr.dataset.search.includes(v) && (!s || tr.dataset.status === s);
+        tr.style.display = ok ? '' : 'none';
       });
     };
     $('#filter').addEventListener('input', apply);
@@ -385,30 +626,37 @@ const pages = {
   },
 
   async contracts() {
-    const list = await q('contracts', 'order=created_at.desc&limit=200');
+    const list = await q('contracts', 'order=created_at.desc&limit=200').catch(() => []);
     const providersMap = {};
     if (list.length) {
       const ids = [...new Set(list.map(c => c.provider_id))].slice(0, 100);
-      const provs = await q('providers', `id=in.(${ids.join(',')})`);
-      provs.forEach(p => providersMap[p.id] = p);
+      if (ids.length) {
+        const provs = await q('providers', `id=in.(${ids.join(',')})`).catch(() => []);
+        provs.forEach(p => providersMap[p.id] = p);
+      }
     }
     view.innerHTML = `
-      <h2>Contratos</h2>
-      <table>
-        <thead><tr><th>Proveedor</th><th>Tipo</th><th>Monto</th><th>Vigencia</th><th>Status</th><th>Vence</th><th>Firmado</th></tr></thead>
-        <tbody>${list.map(c => {
-          const p = providersMap[c.provider_id];
-          return `<tr>
-            <td>${p?.razon_social ?? c.provider_id.slice(0, 8)}</td>
-            <td>${c.tipo_contrato ?? '-'}</td>
-            <td>${c.monto ?? '-'} ${c.moneda ?? ''}</td>
-            <td>${c.vigencia_meses ?? '-'} m</td>
-            <td>${pill(c.status, c.status === 'signed' || c.status === 'active' ? 'green' : c.status === 'cancelled' || c.status === 'expired' ? 'red' : c.status === 'expiring' ? 'yellow' : 'blue')}</td>
-            <td class="muted">${c.end_date ?? '-'}</td>
-            <td class="muted">${dt(c.signed_at)}</td>
-          </tr>`;
-        }).join('')}</tbody>
-      </table>
+      <div class="header-row">
+        <h2>Contratos</h2>
+        <span class="muted" style="font-size:13px">${list.length} contratos</span>
+      </div>
+      <div class="table-card">
+        <table>
+          <thead><tr><th>Proveedor</th><th>Tipo</th><th>Monto</th><th>Periodicidad</th><th>Vence</th><th>Status</th><th>Firmado</th></tr></thead>
+          <tbody>${list.length ? list.map(c => {
+            const p = providersMap[c.provider_id];
+            return `<tr>
+              <td><b>${p?.razon_social ?? c.provider_id.slice(0, 8)}</b></td>
+              <td class="muted">${c.tipo_contrato ?? '—'}</td>
+              <td class="right">${money(c.monto, c.moneda)}</td>
+              <td class="muted">${c.periodicidad ?? '—'}</td>
+              <td class="muted">${c.end_date ?? '—'}</td>
+              <td>${dotPill(c.status, statusKind(c.status))}</td>
+              <td class="muted">${dt(c.signed_at)}</td>
+            </tr>`;
+          }).join('') : '<tr><td colspan=7 class="empty">Sin contratos todavía<p>Aparecerán cuando se firmen vía SignNow.</p></td></tr>'}</tbody>
+        </table>
+      </div>
     `;
   },
 };
