@@ -58,6 +58,22 @@ const routes = {
     const body = isTallyPayload(raw) ? adaptTally(raw) : raw;
     try {
       const run = await startRun(body, { allowDuplicate: body.allow_duplicate === true });
+      // Email confirmación al solicitante (fire-and-forget)
+      const to = body.solicitante_email ?? body.owner_email;
+      if (to) {
+        import('./email.js').then(({ sendEmail, intakeConfirmation }) => {
+          const tpl = intakeConfirmation({
+            runId: run.id,
+            solicitanteNombre: body.solicitante_nombre,
+            razonSocial: body.razon_social,
+            taxId: body.rut,
+            pais: body.pais,
+            monto: body.monto,
+            moneda: body.moneda,
+          });
+          return sendEmail({ to, ...tpl });
+        }).catch((e) => console.error('Confirmation email failed:', e.message));
+      }
       json(res, 200, { run_id: run.id, source: isTallyPayload(raw) ? 'tally' : 'google' });
     } catch (e) {
       if (e.code === 'DUPLICATE_ACTIVE_RUN') {
