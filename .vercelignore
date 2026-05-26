@@ -1,5 +1,5 @@
-index.js
-src/slack.cjs
+/index.js
+/src/slack.cjs
 scripts/
 test/
 n8n/
