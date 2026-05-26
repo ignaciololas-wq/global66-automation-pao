@@ -373,20 +373,44 @@ async function sendMagicLinkViaServer(email) {
   return { ok: true };
 }
 
-$('#login-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
+async function doLogin(ev) {
+  if (ev) ev.preventDefault();
+  console.log('[login] submit fired');
   $('#login-err').hidden = true; $('#login-ok').hidden = true;
-  const email = $('#login-email').value;
+  const email = ($('#login-email').value || '').trim();
   const password = $('#login-password').value;
+  if (!email) { $('#login-err').textContent = 'Email requerido'; $('#login-err').hidden = false; return; }
+
   if (!password) {
+    console.log('[login] no password → magic link');
     const r = await sendMagicLinkViaServer(email);
     if (r.error) { $('#login-err').textContent = r.error; $('#login-err').hidden = false; }
     else { $('#login-ok').textContent = 'Revisá tu email — te mandamos un link de acceso'; $('#login-ok').hidden = false; }
     return;
   }
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) { $('#login-err').textContent = error.message; $('#login-err').hidden = false; }
-  else checkAuth();
+
+  console.log('[login] signInWithPassword for', email);
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      console.error('[login] error:', error);
+      $('#login-err').textContent = error.message;
+      $('#login-err').hidden = false;
+    } else {
+      console.log('[login] OK user:', data.user?.email);
+      checkAuth();
+    }
+  } catch (e) {
+    console.error('[login] exception:', e);
+    $('#login-err').textContent = 'Excepción: ' + e.message;
+    $('#login-err').hidden = false;
+  }
+}
+
+$('#login-form').addEventListener('submit', doLogin);
+// Backup: handler directo en el botón por si el form submit no se attach
+document.querySelector('#login-form button[type=submit]')?.addEventListener('click', (ev) => {
+  if (!ev.defaultPrevented) doLogin(ev);
 });
 
 $('#magic-link').addEventListener('click', async () => {
