@@ -212,7 +212,7 @@
 <body>
 
 <!-- Login -->
-<div id="login-screen" class="login-shell" hidden>
+<div id="login-screen" class="login-shell" style="display:none" hidden>
   <div class="login-card">
     <div class="logo">
       <div class="logo-mark">G</div>
@@ -238,7 +238,7 @@
 </div>
 
 <!-- App -->
-<div id="app-shell" class="shell" hidden>
+<div id="app-shell" class="shell">
   <aside>
     <div class="logo">
       <div class="logo-mark">G</div>
@@ -382,6 +382,9 @@ async function checkAuth() {
     };
   }
   window.__session = session;
+  // Force show app, hide login (defensive)
+  const ls = $('#login-screen'); if (ls) { ls.hidden = true; ls.style.display = 'none'; }
+  const as = $('#app-shell'); if (as) { as.hidden = false; as.style.display = ''; }
   if (session) {
     visualLog && visualLog('session found: ' + session.user?.email);
     $('#login-screen').hidden = true;
