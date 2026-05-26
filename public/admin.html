@@ -305,15 +305,24 @@ const supabase = createClient(SB_URL, SB_KEY, {
     persistSession: true,
     detectSessionInUrl: true,
     autoRefreshToken: true,
-    flowType: 'pkce',
+    flowType: 'implicit',
   },
 });
 
-// Si llegamos con tokens en hash o code en query, supabase-js los procesa automáticamente.
-// Limpio la URL después para evitar refresh con tokens visibles.
-if (location.hash.includes('access_token') || location.hash.includes('error') || location.search.includes('code=')) {
-  // dar tiempo a supabase-js a procesar antes de limpiar
-  setTimeout(() => history.replaceState(null, '', location.pathname), 1500);
+// Procesar manualmente tokens del hash (failsafe si detectSessionInUrl no corre).
+async function processUrlSession() {
+  const hash = location.hash.slice(1);
+  if (!hash || !hash.includes('access_token')) return;
+  const params = new URLSearchParams(hash);
+  const access_token = params.get('access_token');
+  const refresh_token = params.get('refresh_token');
+  if (access_token && refresh_token) {
+    const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+    if (error) console.error('setSession error:', error.message);
+    history.replaceState(null, '', location.pathname);
+  } else if (params.get('error')) {
+    console.error('Auth error from URL:', params.get('error_description'));
+  }
 }
 
 const $ = (s) => document.querySelector(s);
@@ -1121,7 +1130,8 @@ async function intakeForm() {
   });
 }
 
-checkAuth();
+// Process URL session first (magic link callback), then check auth
+processUrlSession().then(checkAuth);
 </script>
 </body>
 </html>
