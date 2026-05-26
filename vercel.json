@@ -1,0 +1,44 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": null,
+  "outputDirectory": "public",
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 30,
+      "memory": 512
+    }
+  },
+  "rewrites": [
+    { "source": "/admin", "destination": "/api" },
+    { "source": "/dashboard", "destination": "/api" },
+    { "source": "/health", "destination": "/api" },
+    { "source": "/form-webhook", "destination": "/api" },
+    { "source": "/extract", "destination": "/api" },
+    { "source": "/sanctions", "destination": "/api" },
+    { "source": "/hito1-semaforo", "destination": "/api" },
+    { "source": "/slack-callback", "destination": "/api" },
+    { "source": "/run-alertas", "destination": "/api" },
+    { "source": "/validate-checklist", "destination": "/api" },
+    { "source": "/run", "destination": "/api" },
+    { "source": "/digest", "destination": "/api" },
+    { "source": "/providers", "destination": "/api" },
+    { "source": "/providers/status", "destination": "/api" },
+    { "source": "/contracts", "destination": "/api" },
+    { "source": "/contracts/sign", "destination": "/api" },
+    { "source": "/api/intake", "destination": "/api" },
+    { "source": "/api/provider", "destination": "/api" },
+    { "source": "/api/provider/fill", "destination": "/api" },
+    { "source": "/p/:token*", "destination": "/api" },
+    { "source": "/", "destination": "/api" }
+  ],
+  "headers": [
+    {
+      "source": "/admin",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" }
+      ]
+    }
+  ]
+}

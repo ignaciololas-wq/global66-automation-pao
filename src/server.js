@@ -337,30 +337,70 @@ function matchDocId(filename) {
   return 'unknown';
 }
 
-const server = http.createServer(async (req, res) => {
+async function readStatic(rel) {
+  const path = await import('node:path');
+  const fs = await import('node:fs/promises');
+  // En Vercel el cwd puede no tener public/. Resolver relativo al archivo importador.
+  const tryPaths = [
+    path.resolve(process.cwd(), rel),
+    path.resolve(process.cwd(), 'public', rel.replace(/^public\//, '')),
+    new URL('../' + rel, import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'),
+  ];
+  for (const p of tryPaths) {
+    try { return await fs.readFile(p, 'utf-8'); } catch {}
+  }
+  throw new Error('Static file not found: ' + rel);
+}
+
+export async function handleRequest(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const key = `${req.method} ${url.pathname}`;
 
-  // Custom: provider self-service page /p/:token serves public HTML
+  // Provider self-service
   if (req.method === 'GET' && url.pathname.startsWith('/p/')) {
     try {
-      const html = await import('node:fs/promises').then((fs) => fs.readFile('public/provider.html', 'utf-8'));
+      const html = await readStatic('public/provider.html');
       res.statusCode = 200;
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       return res.end(html);
-    } catch (e) {
-      return json(res, 500, { error: e.message });
-    }
+    } catch (e) { return json(res, 500, { error: e.message }); }
+  }
+
+  // Root
+  if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '')) {
+    try {
+      const html = await readStatic('public/dashboard.html');
+      res.statusCode = 200; res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.end(html);
+    } catch (e) { return json(res, 500, { error: e.message }); }
   }
 
   const handler = routes[key];
   if (!handler || handler === null) return json(res, 404, { error: 'not found', path: key });
-  try {
-    await handler(req, res, url);
-  } catch (e) {
-    console.error(`[${key}]`, e);
-    json(res, 500, { error: e.message });
-  }
-});
+  try { await handler(req, res, url); }
+  catch (e) { console.error(`[${key}]`, e); json(res, 500, { error: e.message }); }
+}
 
-server.listen(PORT, () => console.log(`Server up on ${PORT}`));
+// Override /admin + /dashboard to use readStatic so funciona en Vercel
+const _adminHandler = routes['GET /admin'];
+routes['GET /admin'] = async (req, res) => {
+  try {
+    const html = await readStatic('public/admin.html');
+    res.statusCode = 200; res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.end(html);
+  } catch (e) { json(res, 500, { error: e.message }); }
+};
+routes['GET /dashboard'] = async (req, res) => {
+  try {
+    const html = await readStatic('public/dashboard.html');
+    res.statusCode = 200; res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.end(html);
+  } catch (e) { json(res, 500, { error: e.message }); }
+};
+
+// Standalone Node mode (no Vercel): start server.
+if (!process.env.VERCEL) {
+  http.createServer(handleRequest).listen(PORT, () => console.log(`Server up on ${PORT}`));
+}
+
+export default handleRequest;
