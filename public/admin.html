@@ -441,36 +441,31 @@ async function doLogin(ev) {
     return;
   }
 
-  visualLog('calling signInWithPassword');
-  // Bypass supabase-js: llamada directa a Auth REST API (más diagnostic-friendly).
+  visualLog('login via server (/api/auth/login)');
   try {
     const t0 = Date.now();
-    const r = await fetch(SB_URL + '/auth/v1/token?grant_type=password', {
+    const r = await fetch('/api/auth/login', {
       method: 'POST',
-      headers: {
-        apikey: SB_KEY,
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
+      credentials: 'include',
     });
-    visualLog('REST response: ' + r.status + ' in ' + (Date.now() - t0) + 'ms');
-    const data = await r.json();
+    visualLog('server response: ' + r.status + ' in ' + (Date.now() - t0) + 'ms');
+    const data = await r.json().catch(() => ({}));
     if (!r.ok) {
-      visualLog('ERROR body: ' + JSON.stringify(data).slice(0, 200));
-      $('#login-err').textContent = data.msg || data.error_description || data.error || 'Login fallido';
+      visualLog('ERROR: ' + (data.error || r.status));
+      $('#login-err').textContent = data.error || 'Login fallido';
       $('#login-err').hidden = false;
       return;
     }
-    visualLog('OK tokens received, persisting');
+    visualLog('OK user=' + data.user?.email + ' role=' + data.user?.role);
     const session = {
       access_token: data.access_token,
       refresh_token: data.refresh_token,
-      expires_in: data.expires_in,
       expires_at: data.expires_at,
-      token_type: 'bearer',
-      user: data.user,
+      user: { email: data.user.email, app_metadata: { role: data.user.role } },
     };
-    localStorage.setItem('sb-kdhpbrpeneokvhwyxmwn-auth-token', JSON.stringify(session));
+    try { localStorage.setItem('sb-kdhpbrpeneokvhwyxmwn-auth-token', JSON.stringify(session)); } catch {}
     visualLog('session stored → checkAuth');
     checkAuth();
   } catch (e) {

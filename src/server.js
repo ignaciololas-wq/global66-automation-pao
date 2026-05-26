@@ -385,6 +385,36 @@ const routes = {
     json(res, 200, { ok: true });
   },
 
+  'POST /api/auth/login': async (req, res) => {
+    const body = JSON.parse(await readBody(req));
+    if (!body.email || !body.password) return json(res, 400, { error: 'email + password required' });
+    const r = await fetch(`${process.env.SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { apikey: process.env.SUPABASE_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY ?? '', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: body.email, password: body.password }),
+    });
+    const data = await r.json();
+    if (!r.ok) return json(res, r.status, { error: data.msg ?? data.error_description ?? 'login failed' });
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json');
+    // Cookie HttpOnly con la sesión (server-side persistence)
+    const session = JSON.stringify({
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      expires_at: data.expires_at,
+      user: data.user,
+    });
+    const maxAge = data.expires_in ?? 3600;
+    res.setHeader('Set-Cookie', `g66_session=${encodeURIComponent(session)}; Path=/; Max-Age=${maxAge}; SameSite=Lax; Secure; HttpOnly`);
+    res.end(JSON.stringify({
+      ok: true,
+      user: { email: data.user.email, role: data.user.app_metadata?.role ?? 'user' },
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      expires_at: data.expires_at,
+    }));
+  },
+
   // ── Auth: magic link via n8n (bypass Supabase rate limit) ─────────────
   'POST /api/auth/magic-link': async (req, res) => {
     const body = JSON.parse(await readBody(req));
