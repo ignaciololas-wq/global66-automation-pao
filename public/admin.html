@@ -300,7 +300,21 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SB_URL = 'https://kdhpbrpeneokvhwyxmwn.supabase.co';
 const SB_KEY = 'sb_publishable_gMuIUc-TW3cBMQMXT3Tcfw_OnFQHbs-';
-const supabase = createClient(SB_URL, SB_KEY, { auth: { persistSession: true } });
+const supabase = createClient(SB_URL, SB_KEY, {
+  auth: {
+    persistSession: true,
+    detectSessionInUrl: true,
+    autoRefreshToken: true,
+    flowType: 'pkce',
+  },
+});
+
+// Si llegamos con tokens en hash o code en query, supabase-js los procesa automáticamente.
+// Limpio la URL después para evitar refresh con tokens visibles.
+if (location.hash.includes('access_token') || location.hash.includes('error') || location.search.includes('code=')) {
+  // dar tiempo a supabase-js a procesar antes de limpiar
+  setTimeout(() => history.replaceState(null, '', location.pathname), 1500);
+}
 
 const $ = (s) => document.querySelector(s);
 const view = $('#view');
@@ -333,7 +347,7 @@ $('#login-form').addEventListener('submit', async (e) => {
   const email = $('#login-email').value;
   const password = $('#login-password').value;
   if (!password) {
-    const { error } = await supabase.auth.signInWithOtp({ email });
+    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + '/admin' } });
     if (error) { $('#login-err').textContent = error.message; $('#login-err').hidden = false; }
     else { $('#login-ok').textContent = 'Revisá tu email — te mandamos un link de acceso'; $('#login-ok').hidden = false; }
     return;
