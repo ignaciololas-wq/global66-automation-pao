@@ -13,7 +13,6 @@
     { "source": "/admin", "destination": "/api" },
     { "source": "/dashboard", "destination": "/api" },
     { "source": "/health", "destination": "/api" },
-    { "source": "/form-webhook", "destination": "/api" },
     { "source": "/extract", "destination": "/api" },
     { "source": "/sanctions", "destination": "/api" },
     { "source": "/hito1-semaforo", "destination": "/api" },
