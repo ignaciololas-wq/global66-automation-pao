@@ -723,6 +723,7 @@ const routes = {
         buffer: file.buffer,
         uploadedBy: auth.email,
         uploadedById: auth.user_id,
+        previousVersionId: fields.previous_version_id || null,
       });
       json(res, 200, created);
     } catch (e) {
@@ -799,6 +800,8 @@ const routes = {
         authorId: auth.user_id,
         body: body.body,
         pageNumber: body.page_number ?? null,
+        anchorText: body.anchor_text ?? null,
+        anchorMeta: body.anchor_meta ?? null,
       });
       json(res, 200, comment);
     } catch (e) {

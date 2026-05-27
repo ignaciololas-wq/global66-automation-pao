@@ -37,6 +37,7 @@ export async function uploadFile({
   buffer,
   uploadedBy,
   uploadedById,
+  previousVersionId,
 }) {
   if (!workflowRunId) throw new Error('workflow_run_id required');
   if (!filename) throw new Error('filename required');
@@ -47,6 +48,23 @@ export async function uploadFile({
   const fileId = crypto.randomUUID();
   const storagePath = buildStoragePath(workflowRunId, fileId, filename);
   const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
+
+  // Versioning: si previousVersionId viene, archiva el anterior y bump version.
+  let version = 1;
+  if (previousVersionId) {
+    const { data: prev } = await sb
+      .from('contract_files')
+      .select('version, kind')
+      .eq('id', previousVersionId)
+      .single();
+    if (prev) {
+      version = (prev.version ?? 1) + 1;
+      await sb.from('contract_files').update({
+        archived_at: new Date().toISOString(),
+        draft_status: 'superseded',
+      }).eq('id', previousVersionId);
+    }
+  }
 
   const up = await sb.storage.from(BUCKET).upload(storagePath, buffer, {
     contentType: mimeType,
@@ -68,6 +86,9 @@ export async function uploadFile({
       sha256,
       uploaded_by: uploadedBy ?? 'unknown',
       uploaded_by_id: uploadedById ?? null,
+      version,
+      previous_version_id: previousVersionId ?? null,
+      draft_status: 'active',
     })
     .select()
     .single();

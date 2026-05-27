@@ -248,6 +248,31 @@
   .mention-popup .mention-item:hover, .mention-popup .mention-item.focus { background: var(--blue-50) }
   .mention-popup .mention-roles { color: var(--muted); font-size: 11px; margin-left: auto }
 
+  /* PR3.2 — PDF text layer + highlights + selection FAB */
+  .pdf-page { position: relative; margin: 0 auto 12px; box-shadow: 0 1px 6px rgba(19,32,70,0.1); background: white }
+  .pdf-page canvas { display: block }
+  .pdf-text-layer { position: absolute; inset: 0; overflow: hidden; line-height: 1; opacity: 1; pointer-events: auto }
+  .pdf-text-layer > span, .pdf-text-layer > br { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; user-select: text }
+  .pdf-text-layer ::selection { background: rgba(255,214,90,0.35); color: transparent }
+
+  .docx-render ::selection { background: rgba(255,214,90,0.35) }
+  .docx-render[contenteditable=true] { outline: 2px dashed var(--blue-400); outline-offset: 6px; padding: 16px; min-height: 400px }
+  .docx-render[contenteditable=true]:focus { outline-color: var(--blue-500) }
+
+  .anchor-highlight { background: linear-gradient(transparent 55%, rgba(255,214,90,0.65) 55%); cursor: pointer; padding: 0 1px; border-radius: 2px }
+  .anchor-highlight:hover { background: linear-gradient(transparent 35%, rgba(255,214,90,0.85) 35%) }
+
+  .selection-fab { position: fixed; z-index: 250; background: linear-gradient(135deg, #1F49B6, #3F5EDF); color: white; border: none; padding: 8px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 14px rgba(31,73,182,0.35); display: flex; align-items: center; gap: 6px }
+  .selection-fab:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(31,73,182,0.45) }
+
+  .anchor-quote { font-size: 12px; color: var(--muted); font-style: italic; background: rgba(255,214,90,0.12); border-left: 2px solid var(--yellow); padding: 4px 8px; border-radius: 4px; margin: 4px 0; line-height: 1.4 }
+
+  .comment.flash { animation: comment-flash 1.4s ease-out }
+  @keyframes comment-flash {
+    0%   { background: rgba(255,214,90,0.4); transform: scale(1.02) }
+    100% { background: var(--surface); transform: scale(1) }
+  }
+
   /* AI edit modal (PR3) */
   .ai-modal { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px }
   .ai-modal-backdrop { position: absolute; inset: 0; background: rgba(11,31,75,0.55); backdrop-filter: blur(2px) }
@@ -1473,27 +1498,57 @@ async function renderPdf(container, url) {
   for (let p = 1; p <= doc.numPages; p++) {
     const page = await doc.getPage(p);
     const viewport = page.getViewport({ scale: 1.4 });
+
+    const pageWrap = document.createElement('div');
+    pageWrap.className = 'pdf-page';
+    pageWrap.dataset.page = p;
+    pageWrap.style.width = viewport.width + 'px';
+    pageWrap.style.height = viewport.height + 'px';
+
     const canvas = document.createElement('canvas');
     canvas.width = viewport.width; canvas.height = viewport.height;
-    canvas.style.maxWidth = '100%'; canvas.style.boxShadow = '0 1px 6px rgba(19,32,70,0.1)'; canvas.style.marginBottom = '12px';
-    container.appendChild(canvas);
+    pageWrap.appendChild(canvas);
+
+    const textLayer = document.createElement('div');
+    textLayer.className = 'pdf-text-layer';
+    pageWrap.appendChild(textLayer);
+
+    container.appendChild(pageWrap);
     await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+
+    const textContent = await page.getTextContent();
+    if (pdfjs.renderTextLayer) {
+      pdfjs.renderTextLayer({
+        textContentSource: textContent,
+        container: textLayer,
+        viewport,
+        textDivs: [],
+      });
+    }
   }
 }
 
-async function renderDocx(container, url) {
+async function renderDocx(container, url, { editable = false } = {}) {
   const mammoth = await ensureMammoth();
   const r = await fetch(url);
   const buf = await r.arrayBuffer();
   const { value } = await mammoth.convertToHtml({ arrayBuffer: buf });
   const wrap = document.createElement('div');
   wrap.className = 'docx-render';
+  if (editable) wrap.contentEditable = 'true';
   wrap.innerHTML = value;
   container.innerHTML = '';
   container.appendChild(wrap);
+  return wrap;
 }
 
+window.__activeFile = null;
+window.__activeRunId = null;
+window.__lastSelection = null;
+window.__editingDocx = false;
+
 async function mountDocViewer(runId) {
+  window.__activeRunId = runId;
   const host = document.querySelector('#doc-viewer-host');
   if (!host) return;
   const files = await fetch(`/api/files?workflow_run_id=${runId}`, { credentials: 'include' }).then((r) => r.json()).catch(() => []);
@@ -1506,8 +1561,9 @@ async function mountDocViewer(runId) {
   host.innerHTML = `
     <div class="doc-files-list">
       ${sorted.map((f) => `
-        <span class="file-pill" data-id="${f.id}" data-mime="${f.mime_type}" data-name="${f.filename}">
+        <span class="file-pill" data-id="${f.id}" data-mime="${f.mime_type}" data-name="${f.filename}" data-version="${f.version ?? 1}">
           ${f.kind === 'main' ? '⭐' : f.kind === 'anexo' ? '📎' : '📁'} ${f.filename}
+          ${f.version > 1 ? `<span class="muted" style="margin-left:4px;font-size:10px;background:var(--blue-100);color:var(--blue-700);padding:1px 5px;border-radius:8px">v${f.version}</span>` : ''}
           <span class="muted" style="margin-left:6px;font-size:11px">${(f.size_bytes / 1024 / 1024).toFixed(1)}MB</span>
         </span>
       `).join('')}
@@ -1517,6 +1573,8 @@ async function mountDocViewer(runId) {
         <div class="doc-preview-header">
           <span id="doc-active-name" style="font-weight:600">Seleccioná un archivo</span>
           <span style="margin-left:auto;display:flex;gap:6px">
+            <button type="button" class="ghost" id="doc-edit-toggle" hidden>✏️ Editar</button>
+            <button type="button" class="primary" id="doc-save-v2" hidden style="padding:6px 14px;font-size:12.5px">Guardar v2</button>
             <button type="button" class="ghost" id="doc-download">Descargar</button>
           </span>
         </div>
@@ -1527,24 +1585,28 @@ async function mountDocViewer(runId) {
         <div class="comments-list" id="comments-list"><div class="muted" style="padding:16px;font-size:12.5px">Seleccioná un archivo para ver el hilo.</div></div>
       </div>
     </div>
+    <button type="button" id="selection-fab" class="selection-fab" hidden>💬 Comentar</button>
   `;
 
-  let activeFileId = null;
-  let cachedUrl = null;
-
   async function selectFile(fileId, mime, name) {
-    activeFileId = fileId;
+    window.__activeFile = { id: fileId, mime, name };
+    window.__editingDocx = false;
     host.querySelectorAll('.file-pill').forEach((p) => p.classList.toggle('active', p.dataset.id === fileId));
     document.querySelector('#doc-active-name').textContent = name;
+    const isDocx = mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || name.toLowerCase().endsWith('.docx');
+    document.querySelector('#doc-edit-toggle').hidden = !isDocx;
+    document.querySelector('#doc-save-v2').hidden = true;
+    document.querySelector('#doc-edit-toggle').textContent = '✏️ Editar';
+
     const body = document.querySelector('#doc-preview-body');
     body.innerHTML = '<div class="muted" style="padding:16px">Cargando preview…</div>';
     try {
       const signed = await fetchSignedUrl(fileId, { download: false });
-      cachedUrl = signed.url;
+      window.__activeFile.signedUrl = signed.url;
       if (mime === 'application/pdf') {
         body.innerHTML = '';
         await renderPdf(body, signed.url);
-      } else if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || name.toLowerCase().endsWith('.docx')) {
+      } else if (isDocx) {
         await renderDocx(body, signed.url);
       } else if (mime?.startsWith('image/')) {
         body.innerHTML = `<img src="${signed.url}" style="max-width:100%;border-radius:8px">`;
@@ -1555,18 +1617,168 @@ async function mountDocViewer(runId) {
       body.innerHTML = `<div class="err">Error: ${e.message}</div>`;
     }
     await loadComments(fileId, runId);
+    setTimeout(() => paintHighlights(), 100);
   }
 
   document.querySelector('#doc-download').addEventListener('click', async () => {
-    if (!activeFileId) return;
-    const signed = await fetchSignedUrl(activeFileId, { download: true });
+    if (!window.__activeFile) return;
+    const signed = await fetchSignedUrl(window.__activeFile.id, { download: true });
     const a = document.createElement('a'); a.href = signed.url; a.download = signed.filename ?? 'archivo'; a.click();
   });
 
+  document.querySelector('#doc-edit-toggle').addEventListener('click', async () => {
+    if (!window.__activeFile) return;
+    window.__editingDocx = !window.__editingDocx;
+    const btn = document.querySelector('#doc-edit-toggle');
+    btn.textContent = window.__editingDocx ? '👁 Vista' : '✏️ Editar';
+    document.querySelector('#doc-save-v2').hidden = !window.__editingDocx;
+    const body = document.querySelector('#doc-preview-body');
+    body.innerHTML = '<div class="muted" style="padding:16px">Recargando…</div>';
+    await renderDocx(body, window.__activeFile.signedUrl, { editable: window.__editingDocx });
+    if (window.__editingDocx) {
+      body.querySelector('.docx-render')?.focus();
+    }
+  });
+
+  document.querySelector('#doc-save-v2').addEventListener('click', () => saveDocxAsV2());
+
+  // Selection floating button (PR3.2)
+  document.querySelector('#doc-preview-body').addEventListener('mouseup', handleSelection);
+  document.querySelector('#selection-fab').addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openCommentComposerWithAnchor();
+  });
+  document.addEventListener('mousedown', (e) => {
+    if (e.target.closest('#selection-fab')) return;
+    if (!document.getSelection().toString().trim()) document.querySelector('#selection-fab').hidden = true;
+  });
+
   host.querySelectorAll('.file-pill').forEach((p) => p.addEventListener('click', () => selectFile(p.dataset.id, p.dataset.mime, p.dataset.name)));
-  // Auto-select main file.
   const main = sorted.find((f) => f.kind === 'main') ?? sorted[0];
   if (main) selectFile(main.id, main.mime_type, main.filename);
+}
+
+function handleSelection(e) {
+  const sel = document.getSelection();
+  const text = (sel?.toString() ?? '').trim();
+  const fab = document.querySelector('#selection-fab');
+  if (!fab) return;
+  if (!text || text.length < 3 || text.length > 800) { fab.hidden = true; return; }
+  if (!canCommentRoles()) { fab.hidden = true; return; }
+  const range = sel.getRangeAt(0);
+  const rect = range.getBoundingClientRect();
+  // Posicionar arriba de la selección.
+  fab.style.position = 'fixed';
+  fab.style.top = `${Math.max(8, rect.top - 42)}px`;
+  fab.style.left = `${Math.max(8, rect.left + rect.width / 2 - 60)}px`;
+  fab.hidden = false;
+  // Determinar página (para PDF)
+  const pageEl = e.target.closest('.pdf-page');
+  const page = pageEl ? Number(pageEl.dataset.page) : null;
+  window.__lastSelection = { text, page };
+}
+
+function openCommentComposerWithAnchor() {
+  const fab = document.querySelector('#selection-fab');
+  if (!window.__lastSelection || !window.__activeFile) return;
+  fab.hidden = true;
+  const composer = document.querySelector('#composer-body');
+  if (!composer) return;
+  composer.dataset.anchorText = window.__lastSelection.text;
+  if (window.__lastSelection.page) {
+    const pageInput = document.querySelector('#composer-page');
+    if (pageInput) pageInput.value = window.__lastSelection.page;
+  }
+  // Banner anchor info en composer
+  const composerEl = composer.closest('.comment-composer');
+  composerEl.querySelector('.anchor-banner')?.remove();
+  composerEl.insertAdjacentHTML('afterbegin', `
+    <div class="anchor-banner" style="background:rgba(240,180,41,0.12);border-left:3px solid var(--yellow);padding:6px 10px;border-radius:6px;font-size:12px;margin-bottom:8px">
+      📌 Anclado a: "<i>${escapeHtml(window.__lastSelection.text.slice(0, 80))}${window.__lastSelection.text.length > 80 ? '…' : ''}</i>"
+      <button type="button" style="float:right;background:none;border:none;color:var(--muted);cursor:pointer">×</button>
+    </div>
+  `);
+  composerEl.querySelector('.anchor-banner button').addEventListener('click', (e) => {
+    e.target.closest('.anchor-banner').remove();
+    delete composer.dataset.anchorText;
+  });
+  composer.focus();
+}
+
+function paintHighlights() {
+  if (!window.__currentComments?.length) return;
+  const body = document.querySelector('#doc-preview-body');
+  if (!body) return;
+  const anchored = window.__currentComments.filter((c) => c.anchor_text);
+  if (!anchored.length) return;
+  // Simple text-search + wrap. Idempotent (skip si ya wrapeado).
+  for (const c of anchored) {
+    const needle = c.anchor_text.trim();
+    if (needle.length < 3) continue;
+    wrapTextOccurrences(body, needle, c);
+  }
+}
+
+function wrapTextOccurrences(root, needle, comment) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (node.parentElement?.closest('.anchor-highlight')) return NodeFilter.FILTER_REJECT;
+      return node.textContent.includes(needle) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    },
+  });
+  const matches = [];
+  while (walker.nextNode()) matches.push(walker.currentNode);
+  for (const n of matches) {
+    const idx = n.textContent.indexOf(needle);
+    if (idx < 0) continue;
+    const after = n.splitText(idx);
+    after.splitText(needle.length);
+    const span = document.createElement('span');
+    span.className = 'anchor-highlight';
+    span.dataset.commentId = comment.id;
+    span.title = `${comment.author_email}: ${comment.body.slice(0, 80)}`;
+    span.textContent = after.textContent;
+    after.replaceWith(span);
+    span.addEventListener('click', () => {
+      document.querySelector(`[data-comment="${comment.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      document.querySelector(`[data-comment="${comment.id}"]`)?.classList.add('flash');
+      setTimeout(() => document.querySelector(`[data-comment="${comment.id}"]`)?.classList.remove('flash'), 1500);
+    });
+  }
+}
+
+async function saveDocxAsV2() {
+  if (!window.__activeFile) return;
+  const wrap = document.querySelector('#doc-preview-body .docx-render');
+  if (!wrap) return;
+  const btn = document.querySelector('#doc-save-v2');
+  btn.disabled = true; btn.textContent = 'Guardando…';
+  try {
+    if (!window.htmlDocx) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/html-docx-js/dist/html-docx.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+    const fullHtml = `<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;font-size:11pt}p{margin:6pt 0}h1,h2,h3{font-family:Arial,sans-serif}</style></head><body>${wrap.innerHTML}</body></html>`;
+    const blob = window.htmlDocx.asBlob(fullHtml);
+    const fd = new FormData();
+    fd.append('workflow_run_id', window.__activeRunId);
+    fd.append('kind', 'main');
+    fd.append('previous_version_id', window.__activeFile.id);
+    const newName = (window.__activeFile.name ?? 'contrato.docx').replace(/(\.docx)$/i, '_edit$1').replace(/(\.docx)?$/, (m) => m || '.docx');
+    fd.append('file', new File([blob], newName, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
+    const r = await fetch('/api/files/upload', { method: 'POST', credentials: 'include', body: fd });
+    if (!r.ok) throw new Error(await r.text());
+    btn.textContent = '✓ v2 guardado';
+    setTimeout(() => mountDocViewer(window.__activeRunId), 800);
+  } catch (e) {
+    alert('Error guardar v2: ' + e.message);
+    btn.disabled = false; btn.textContent = 'Guardar v2';
+  }
 }
 
 const canCommentRoles = () => hasRole('admin') || hasRole('aprobador');
@@ -1580,18 +1792,21 @@ async function loadComments(fileId, runId) {
   const comments = await r.json();
   const pending = comments.filter((c) => !c.resolved);
   countEl.textContent = comments.length ? `${comments.length} comentarios${pending.length !== comments.length ? ` · ${pending.length} pendientes` : ''}` : '';
+  window.__currentComments = comments;
   renderAiButton(fileId, runId, pending.length);
   if (!comments.length) {
     listEl.innerHTML = '<div class="muted" style="padding:16px;font-size:12.5px">Aún sin comentarios. Iniciá el hilo abajo.</div>';
   } else {
     const meEmail = window.__me?.email;
     listEl.innerHTML = comments.map((c) => `
-      <div class="comment ${c.author_email === meEmail ? 'is-mine' : ''}">
+      <div class="comment ${c.author_email === meEmail ? 'is-mine' : ''}" data-comment="${c.id}">
         <div class="comment-meta">
           <span class="comment-author">${c.author_email}</span>
           ${c.page_number ? `<span class="comment-page">p.${c.page_number}</span>` : ''}
+          ${c.resolved ? '<span class="pill green" style="font-size:10px">resuelto</span>' : ''}
           <span class="ts" style="margin-left:auto">${dt(c.created_at)}</span>
         </div>
+        ${c.anchor_text ? `<div class="anchor-quote">📌 "${escapeHtml(c.anchor_text.slice(0, 100))}${c.anchor_text.length > 100 ? '…' : ''}"</div>` : ''}
         <div class="comment-body">${highlightMentions(escapeHtml(c.body))}</div>
       </div>
     `).join('');
@@ -1727,19 +1942,22 @@ function renderComposer(fileId, runId) {
   `);
   wireMentionAutocomplete(document.querySelector('#composer-body'));
   document.querySelector('#composer-send').addEventListener('click', async () => {
-    const body = document.querySelector('#composer-body').value.trim();
+    const ta = document.querySelector('#composer-body');
+    const body = ta.value.trim();
     const page = Number(document.querySelector('#composer-page').value) || null;
+    const anchorText = ta.dataset.anchorText || null;
     if (!body) return;
     const r = await fetch('/api/comments', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file_id: fileId, workflow_run_id: runId, body, page_number: page }),
+      body: JSON.stringify({ file_id: fileId, workflow_run_id: runId, body, page_number: page, anchor_text: anchorText }),
     });
     if (!r.ok) { alert(await r.text()); return; }
-    document.querySelector('#composer-body').value = '';
+    ta.value = ''; delete ta.dataset.anchorText;
     document.querySelector('#composer-page').value = '';
-    loadComments(fileId, runId);
+    document.querySelector('.anchor-banner')?.remove();
+    loadComments(fileId, runId).then(() => paintHighlights());
   });
 }
 

@@ -16,7 +16,7 @@ export function parseMentions(body) {
 export async function listComments(fileId) {
   const { data, error } = await sb
     .from('file_comments')
-    .select('id, file_id, workflow_run_id, parent_id, author_email, body, page_number, resolved, created_at, updated_at')
+    .select('id, file_id, workflow_run_id, parent_id, author_email, body, page_number, resolved, anchor_text, anchor_meta, created_at, updated_at')
     .eq('file_id', fileId)
     .is('deleted_at', null)
     .order('created_at', { ascending: true });
@@ -32,6 +32,8 @@ export async function createComment({
   authorId,
   body,
   pageNumber,
+  anchorText,
+  anchorMeta,
 }) {
   if (!fileId || !workflowRunId) throw new Error('fileId + workflowRunId required');
   if (!body || !body.trim()) throw new Error('body required');
@@ -47,6 +49,8 @@ export async function createComment({
       author_id: authorId ?? null,
       body: body.trim(),
       page_number: pageNumber ?? null,
+      anchor_text: anchorText ?? null,
+      anchor_meta: anchorMeta ?? null,
     })
     .select()
     .single();
