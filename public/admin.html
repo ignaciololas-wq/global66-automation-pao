@@ -182,9 +182,9 @@
   .timeline li::before { content: ''; position: absolute; left: -31px; top: 16px; width: 12px; height: 12px; border-radius: 50%; background: var(--blue-500); border: 2px solid white; box-shadow: 0 0 0 1px var(--blue-100) }
   .timeline .ts { color: var(--muted); font-size: 11px; margin-top: 2px; display: block }
 
-  dl.props { display: grid; grid-template-columns: 220px 1fr; gap: 12px 24px; font-size: 14px }
-  dl.props dt { color: var(--muted); font-weight: 500 }
-  dl.props dd { font-weight: 500; color: var(--text) }
+  dl.props { display: grid; grid-template-columns: minmax(120px, 180px) minmax(0, 1fr); gap: 10px 18px; font-size: 14px; align-items: baseline }
+  dl.props dt { color: var(--muted); font-weight: 500; white-space: nowrap }
+  dl.props dd { font-weight: 500; color: var(--text); word-break: break-word; overflow-wrap: anywhere; min-width: 0 }
 
   .err { background: rgba(230,74,74,0.08); border: 1px solid rgba(230,74,74,0.3); border-radius: var(--radius-sm); padding: 12px 14px; color: var(--red); font-size: 13px; margin: 12px 0 }
   .ok  { background: rgba(2,167,87,0.08); border: 1px solid rgba(2,167,87,0.3); border-radius: var(--radius-sm); padding: 12px 14px; color: var(--green); font-size: 13px; margin: 12px 0 }
@@ -194,6 +194,27 @@
   .empty p { margin-top: 8px; font-size: 13px }
 
   pre { background: var(--surface); padding: 12px; border-radius: var(--radius-sm); font-size: 11px; overflow: auto; color: var(--text) }
+
+  /* Date field — pill styling consistente (PR3-fix) */
+  .date-field { position: relative }
+  .date-field input[type=date] {
+    appearance: none; -webkit-appearance: none;
+    background: white; color: var(--text);
+    border: 1.5px solid var(--border); padding: 11px 38px 11px 14px;
+    border-radius: var(--radius-sm); font-size: 14px;
+    width: 100%; transition: all .15s ease;
+    font-family: inherit;
+  }
+  .date-field input[type=date]:focus { outline: none; border-color: var(--blue-500); box-shadow: 0 0 0 4px rgba(31,73,182,0.08) }
+  .date-field input[type=date]:hover { border-color: var(--blue-200) }
+  .date-field input[type=date]::-webkit-calendar-picker-indicator {
+    opacity: 0; cursor: pointer; position: absolute; right: 0; top: 0; bottom: 0; width: 100%; margin: 0;
+  }
+  .date-field .date-icon {
+    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    pointer-events: none; font-size: 16px; opacity: 0.6;
+  }
+  .date-field:hover .date-icon { opacity: 1 }
 
   /* Dropzones (PR2) */
   .dropzone { border: 1.5px dashed var(--blue-100); border-radius: var(--radius); padding: 18px; background: var(--blue-50); transition: all .15s ease }
@@ -544,6 +565,16 @@ const dotPill = (txt, kind) => txt ? `<span class="pill ${kind ?? 'gray'}"><span
 const pill = (txt, kind) => txt ? `<span class="pill ${kind ?? 'gray'}">${txt}</span>` : `<span class="pill gray">—</span>`;
 const semKind = (s) => s === 'green' ? 'green' : s === 'yellow' ? 'yellow' : s === 'red' ? 'red' : 'gray';
 const phaseKind = (p) => p === 'signed' ? 'green' : p === 'rejected' ? 'red' : p === 'cancelled' ? 'gray' : 'blue';
+const PHASE_LABELS = {
+  fase1: '1. Solicitud',
+  hito1: '2. Aprobación interna',
+  fase2: '3. Datos proveedor',
+  fase3: '4. Validación docs',
+  signed: '5. Firmado',
+  rejected: 'Rechazado',
+  cancelled: 'Cancelado',
+};
+const phaseLabel = (p) => PHASE_LABELS[p] ?? (p ?? '—');
 const statusKind = (s) => s === 'aceptado' || s === 'signed' || s === 'active' ? 'green' : s === 'rechazado' || s === 'cancelled' || s === 'expired' ? 'red' : s === 'expiring' || s === 'pendiente_revision' ? 'yellow' : s === 'inactivo' ? 'gray' : 'blue';
 const dt = (iso) => (iso ?? '').slice(0, 16).replace('T', ' · ');
 const money = (n, c) => n != null ? new Intl.NumberFormat('es-CL').format(n) + (c ? ' ' + c : '') : '—';
@@ -598,7 +629,7 @@ const pages = {
           <div style="padding:16px 18px;border-bottom:1px solid var(--border)"><h3>Solicitudes por fase</h3></div>
           <table>
             <thead><tr><th>Fase</th><th>Total</th><th>🟢</th><th>🟡</th><th>🔴</th></tr></thead>
-            <tbody>${phases.length ? phases.map(p => `<tr><td>${dotPill(p.current_phase, phaseKind(p.current_phase))}</td><td>${p.total}</td><td>${p.green}</td><td>${p.yellow}</td><td>${p.red}</td></tr>`).join('') : '<tr><td colspan=5 class=muted style="text-align:center;padding:24px">Sin datos</td></tr>'}</tbody>
+            <tbody>${phases.length ? phases.map(p => `<tr><td>${dotPill(phaseLabel(p.current_phase), phaseKind(p.current_phase))}</td><td>${p.total}</td><td>${p.green}</td><td>${p.yellow}</td><td>${p.red}</td></tr>`).join('') : '<tr><td colspan=5 class=muted style="text-align:center;padding:24px">Sin datos</td></tr>'}</tbody>
           </table>
         </div>
 
@@ -624,7 +655,7 @@ const pages = {
               <td class="muted">${r.tax_id}</td>
               <td>${r.pais}</td>
               <td class="muted">${r.sociedad_contratante ?? '—'}</td>
-              <td>${dotPill(r.current_phase, phaseKind(r.current_phase))}</td>
+              <td>${dotPill(phaseLabel(r.current_phase), phaseKind(r.current_phase))}</td>
               <td>${dotPill(r.semaforo, semKind(r.semaforo))}</td>
               <td class="muted">${dt(r.created_at)}</td>
             </tr>`).join('') : '<tr><td colspan=7 class="empty">Sin solicitudes todavía</td></tr>'}</tbody>
@@ -654,7 +685,7 @@ const pages = {
               <td>${r.pais}</td>
               <td class="muted">${r.sociedad_contratante ?? '—'}</td>
               <td class="right">${money(r.monto, r.moneda)}</td>
-              <td>${dotPill(r.current_phase, phaseKind(r.current_phase))}</td>
+              <td>${dotPill(phaseLabel(r.current_phase), phaseKind(r.current_phase))}</td>
               <td>${dotPill(r.semaforo, semKind(r.semaforo))}</td>
               <td class="muted">${r.owner_email ?? '—'}</td>
               <td class="muted">${dt(r.created_at)}</td>
@@ -693,7 +724,7 @@ const pages = {
           <p style="color:var(--muted);margin-top:4px">${r.tax_id} · ${r.pais} · ${r.sociedad_contratante ?? 'sin sociedad'}</p>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          ${dotPill(r.current_phase, phaseKind(r.current_phase))}
+          ${dotPill(phaseLabel(r.current_phase), phaseKind(r.current_phase))}
           ${dotPill(r.semaforo, semKind(r.semaforo))}
         </div>
       </div>
@@ -1181,6 +1212,19 @@ async function intakeForm() {
               ${['Servicios profesionales','Plataformas SaaS','Marketing y Publicidad','Consultoría/Asesoría','Otro'].map(t => `<option>${t}</option>`).join('')}
             </select>
           </div>
+          <div>
+            <label>Nivel de acceso a datos *</label>
+            <select name="nivel_acceso" required>
+              <option value="">—</option>
+              <option>Sin acceso a datos</option>
+              <option>Datos públicos</option>
+              <option>PII no sensible</option>
+              <option>PII sensible</option>
+              <option>Datos financieros / transaccionales</option>
+              <option>Acceso a sistemas core</option>
+            </select>
+            <p style="font-size:12px;color:var(--muted);margin-top:4px">Qué tipo de datos de Global66 va a manejar este proveedor.</p>
+          </div>
         </div>
       </div>
 
@@ -1214,8 +1258,20 @@ async function intakeForm() {
               <option value="por_proyecto">Por proyecto o entregable</option>
             </select>
           </div>
-          <div id="fecha-inicio-wrap" hidden><label>Fecha inicio *</label><input type="date" name="fecha_inicio" id="fecha-inicio"></div>
-          <div id="fecha-fin-wrap" hidden><label>Fecha fin *</label><input type="date" name="fecha_fin" id="fecha-fin"></div>
+          <div id="fecha-inicio-wrap" hidden>
+            <label>Fecha de inicio *</label>
+            <div class="date-field">
+              <input type="date" name="fecha_inicio" id="fecha-inicio" required>
+              <span class="date-icon" aria-hidden="true">📅</span>
+            </div>
+          </div>
+          <div id="fecha-fin-wrap" hidden>
+            <label>Fecha de fin *</label>
+            <div class="date-field">
+              <input type="date" name="fecha_fin" id="fecha-fin">
+              <span class="date-icon" aria-hidden="true">📅</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1263,17 +1319,22 @@ async function intakeForm() {
     wrap.hidden = e.target.value !== 'false';
   });
 
-  // Conditional: Fechas aparecen solo si plazo_fijo (indefinido + por_proyecto NO piden fechas).
+  // Fechas: inicio siempre obligatoria al elegir duración; fin solo si plazo_fijo.
   const durToggle = document.querySelector('#duracion-toggle');
   function syncFechas() {
-    const show = durToggle.value === 'plazo_fijo';
+    const v = durToggle.value;
     const wi = document.querySelector('#fecha-inicio-wrap');
     const wf = document.querySelector('#fecha-fin-wrap');
-    wi.hidden = !show; wf.hidden = !show;
     const fi = document.querySelector('#fecha-inicio');
     const ff = document.querySelector('#fecha-fin');
-    fi.required = show; ff.required = show;
-    if (!show) { fi.value = ''; ff.value = ''; }
+    const anyChoice = !!v;
+    wi.hidden = !anyChoice;
+    fi.required = anyChoice;
+    const showFin = v === 'plazo_fijo';
+    wf.hidden = !showFin;
+    ff.required = showFin;
+    if (!anyChoice) fi.value = '';
+    if (!showFin) ff.value = '';
   }
   durToggle.addEventListener('change', syncFechas);
   syncFechas();

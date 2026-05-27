@@ -51,6 +51,7 @@ export async function startRun(formResponse, { allowDuplicate = false } = {}) {
     tax_id: formResponse.rut,
     pais: formResponse.pais,
     tipo_contrato: formResponse.tipo_contrato,
+    tipo_proveedor: formResponse.tipo_proveedor ?? null,
     monto: formResponse.monto,
     moneda: formResponse.moneda,
     vigencia_meses: typeof formResponse.vigencia === 'number' ? formResponse.vigencia : null,
