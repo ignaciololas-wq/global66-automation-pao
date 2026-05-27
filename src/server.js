@@ -801,43 +801,75 @@ const routes = {
   },
 
   'POST /api/auth/magic-link': async (req, res) => {
-    // Genera magic link con redirect a /api/auth/callback (PKCE / token_hash).
-    const body = JSON.parse(await readBody(req));
-    const email = (body.email ?? '').trim().toLowerCase();
-    if (!email) return json(res, 400, { error: 'email required' });
-
-    const { data: { users } } = await sb.auth.admin.listUsers();
-    const user = users.find((u) => (u.email ?? '').toLowerCase() === email);
-    if (!user) {
-      // Anti-enumeration.
-      return json(res, 200, { ok: true, sent: false, info: 'Si el email existe, recibirás un link en breve.' });
-    }
-
-    const redirectTo = callbackUrl();
-    const { data, error } = await sb.auth.admin.generateLink({
-      type: 'magiclink',
-      email,
-      options: { redirectTo },
-    });
-    if (error) return json(res, 500, { error: error.message });
-
-    const magicLink = data?.properties?.action_link;
-    if (!magicLink) return json(res, 500, { error: 'no action_link generated' });
-
-    const { sendEmail, magicLinkEmail } = await import('./email.js');
+    // Genera magic link con redirect a /api/auth/callback. Si el user no existe,
+    // lo crea on-the-fly (admin self-service de nuevos users).
     try {
-      await sendEmail({
-        to: email,
-        ...magicLinkEmail({ email, magicLink, role: user.app_metadata?.role ?? 'user' }),
-        tags: ['magic-link', 'auth'],
-      });
-    } catch (e) {
-      console.error('[magic-link] sendEmail failed:', e.message);
-      return json(res, 500, { error: 'failed to deliver email', detail: e.message });
-    }
+      const body = JSON.parse(await readBody(req));
+      const email = (body.email ?? '').trim().toLowerCase();
+      if (!email) return json(res, 400, { error: 'email required' });
 
-    await logAudit(null, email, 'auth.magic_link_sent', 'auth_user', user.id, { redirectTo });
-    json(res, 200, { ok: true, sent: true });
+      const redirectTo = callbackUrl();
+
+      // Buscar/crear user antes de generar link.
+      let user = null;
+      try {
+        const { data, error: listErr } = await sb.auth.admin.listUsers();
+        if (listErr) throw listErr;
+        user = data?.users?.find((u) => (u.email ?? '').toLowerCase() === email);
+      } catch (e) {
+        console.error('[magic-link] listUsers error:', e.message, e.stack);
+        return json(res, 500, { error: 'supabase admin listUsers failed: ' + e.message });
+      }
+
+      if (!user) {
+        // Auto-create (no anti-enumeration: el form en producción es para
+        // usuarios internos invitados por allowlist).
+        try {
+          const created = await sb.auth.admin.createUser({
+            email,
+            email_confirm: true,
+          });
+          if (created.error) throw created.error;
+          user = created.data.user;
+        } catch (e) {
+          console.error('[magic-link] createUser error:', e.message);
+          return json(res, 500, { error: 'crear usuario falló: ' + e.message });
+        }
+      }
+
+      let magicLink;
+      try {
+        const { data, error: linkErr } = await sb.auth.admin.generateLink({
+          type: 'magiclink',
+          email,
+          options: { redirectTo },
+        });
+        if (linkErr) throw linkErr;
+        magicLink = data?.properties?.action_link;
+        if (!magicLink) throw new Error('no action_link en respuesta supabase');
+      } catch (e) {
+        console.error('[magic-link] generateLink error:', e.message);
+        return json(res, 500, { error: 'generar link falló: ' + e.message });
+      }
+
+      const { sendEmail, magicLinkEmail } = await import('./email.js');
+      try {
+        await sendEmail({
+          to: email,
+          ...magicLinkEmail({ email, magicLink, role: user.app_metadata?.role ?? 'user' }),
+          tags: ['magic-link', 'auth'],
+        });
+      } catch (e) {
+        console.error('[magic-link] sendEmail failed:', e.message);
+        return json(res, 500, { error: 'envío email falló: ' + e.message, magic_link: magicLink });
+      }
+
+      await logAudit(null, email, 'auth.magic_link_sent', 'auth_user', user.id, { redirectTo });
+      json(res, 200, { ok: true, sent: true });
+    } catch (e) {
+      console.error('[magic-link] unhandled:', e.message, e.stack);
+      json(res, 500, { error: 'magic-link handler crash: ' + e.message });
+    }
   },
 
   'GET /api/auth/callback': async (req, res, url) => {
