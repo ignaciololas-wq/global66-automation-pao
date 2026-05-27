@@ -262,8 +262,15 @@ function renderForm(p) {
         </div>
       </div>
 
-      <div class="section tally-step" data-step="7" data-step-name="Confirmar y enviar" hidden>
-        <h2>6. Confirmá y envía</h2>
+      <div class="section tally-step" data-step="7" data-step-name="Documentos" hidden>
+        <h2>6. Documentos requeridos</h2>
+        <p class="help">Subí los archivos solicitados según tu sociedad contratante. Aceptamos PDF, PNG, JPG y WEBP (máx 10MB cada uno).</p>
+        <div id="uploads-list"></div>
+        <p class="muted" style="font-size:12px;margin-top:14px">Si no tenés algún documento ahora, podés enviar el perfil igual y subirlo después abriendo este mismo link.</p>
+      </div>
+
+      <div class="section tally-step" data-step="8" data-step-name="Confirmar y enviar" hidden>
+        <h2>7. Confirmá y envía</h2>
         <p class="help">Revisá tus datos abajo antes de enviar.</p>
         <div class="question">
           <label>Tu email (quien completa el formulario) <span class="req">*</span></label>
@@ -347,7 +354,85 @@ function renderForm(p) {
   });
 
   show(0);
+  renderUploads(p);
   $('#form').addEventListener('submit', submit);
+}
+
+function renderUploads(p) {
+  const host = document.querySelector('#uploads-list');
+  if (!host) return;
+  const sd = p.sociedad_docs ?? {};
+  const baseDocs = sd.base_docs ?? [];
+  const signDocs = (sd.documents_to_sign ?? []).map((d) => ({ ...d, _kind: 'sign' }));
+  const allDocs = [...baseDocs.map((d) => ({ ...d, _kind: 'base' })), ...signDocs];
+
+  const uploadsByType = {};
+  (p.uploads ?? []).forEach((u) => {
+    if (!uploadsByType[u.doc_type]) uploadsByType[u.doc_type] = [];
+    uploadsByType[u.doc_type].push(u);
+  });
+
+  if (!allDocs.length) {
+    host.innerHTML = `
+      <div class="question">
+        <label>Otros documentos</label>
+        <input type="file" data-doctype="otros" accept="application/pdf,image/*">
+        <div class="upload-status" data-doctype-status="otros"></div>
+      </div>
+      <p class="muted" style="font-size:12px">No hay sociedad asignada todavía. Podés subir archivos genéricos.</p>
+    `;
+  } else {
+    host.innerHTML = allDocs.map((d) => {
+      const slug = (d.id ?? d.code ?? d.name).toString().toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 60);
+      const existing = uploadsByType[slug] ?? uploadsByType[d.name] ?? [];
+      const validMonths = d.valid_months ? ` <span class="muted" style="font-size:11px">(vigencia ${d.valid_months}m)</span>` : '';
+      const kindBadge = d._kind === 'sign' ? '<span class="pill yellow" style="font-size:10px;margin-left:6px">PARA FIRMAR</span>' : '';
+      const existingHtml = existing.length ? `<div class="upload-status">${existing.map(u => `<div>✓ <b>${u.doc_filename}</b> <span class="muted">· ${fmtSize(u.file_size)} · ${new Date(u.created_at).toLocaleDateString()}</span></div>`).join('')}</div>` : '';
+      return `
+        <div class="question">
+          <label>${d.name}${validMonths}${kindBadge}</label>
+          <input type="file" data-doctype="${slug}" accept="application/pdf,image/*">
+          ${existingHtml}
+          <div class="upload-status" data-doctype-status="${slug}"></div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  host.querySelectorAll('input[type=file]').forEach((input) => {
+    input.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const docType = input.dataset.doctype;
+      const statusEl = host.querySelector(`[data-doctype-status="${docType}"]`);
+      statusEl.innerHTML = `<span class="muted">⬆ Subiendo ${file.name}…</span>`;
+      input.disabled = true;
+      try {
+        const fd = new FormData();
+        fd.append('token', token);
+        fd.append('doc_type', docType);
+        const filledByInput = document.querySelector('input[name=filled_by_email]');
+        if (filledByInput?.value) fd.append('by_email', filledByInput.value);
+        fd.append('file', file, file.name);
+        const r = await fetch('/api/provider/upload', { method: 'POST', body: fd });
+        if (!r.ok) throw new Error(await r.text());
+        const j = await r.json();
+        statusEl.innerHTML = `<div style="color:#02A757">✓ <b>${j.doc_filename}</b> subido (${fmtSize(j.file_size)})</div>`;
+        input.value = '';
+      } catch (err) {
+        statusEl.innerHTML = `<div class="err" style="margin-top:4px">Error: ${err.message}</div>`;
+      } finally {
+        input.disabled = false;
+      }
+    });
+  });
+}
+
+function fmtSize(b) {
+  if (!b) return '—';
+  if (b < 1024) return b + ' B';
+  if (b < 1024 * 1024) return Math.round(b / 1024) + ' KB';
+  return (b / 1024 / 1024).toFixed(1) + ' MB';
 }
 
 async function submit(e) {

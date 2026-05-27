@@ -10,6 +10,7 @@
 //   GET  /health              health check
 
 import http from 'node:http';
+import crypto from 'node:crypto';
 import { URL } from 'node:url';
 import { computeSemaphore } from './hito1_semaforo.js';
 import {
@@ -175,12 +176,29 @@ const routes = {
   },
 
   'POST /regcheq': async (req, res) => {
-    // body: { run_id?, supplier: { razon_social, tax_id, pais, email_contacto }, relations?: [{ dni, name, type }] }
+    // body: { run_id?, provider_id?, supplier: { razon_social, tax_id, pais, email_contacto }, relations?: [{ dni, name, type }] }
     const body = JSON.parse(await readBody(req));
     if (!body.supplier) return json(res, 400, { error: 'supplier required' });
     const result = await checkRegcheq(body.supplier, body.relations ?? []);
-    if (body.run_id) await recordRegcheqCheck(body.run_id, result);
+    if (body.run_id || body.provider_id) {
+      await recordRegcheqCheck(body.run_id ?? null, result, {
+        providerId: body.provider_id,
+        taxId: body.supplier.tax_id,
+      });
+    }
     json(res, 200, result);
+  },
+
+  'GET /api/regcheq-history': async (req, res, url) => {
+    const pid = url.searchParams.get('provider_id');
+    if (!pid) return json(res, 400, { error: 'provider_id required' });
+    const { data, error } = await sb
+      .from('regcheq_checks')
+      .select('id, workflow_run_id, decision, reason, company, relations, created_at')
+      .eq('provider_id', pid)
+      .order('created_at', { ascending: false });
+    if (error) return json(res, 500, { error: error.message });
+    json(res, 200, data ?? []);
   },
 
   'POST /hito1-semaforo': async (req, res) => {
@@ -373,7 +391,7 @@ const routes = {
       return json(res, 400, { error: 'invalid decision' });
 
     const { buildProfileUrl, findByToken } = await import('./provider_profile.js');
-    const { sendEmail, providerInvitation } = await import('./email.js');
+    const { sendEmail, providerInvitation, providerRevisionRequest } = await import('./email.js');
     const { getDocsForSociedad } = await import('./sociedad.js');
 
     const patch = {
@@ -385,45 +403,107 @@ const routes = {
     if (sociedad_contratante) patch.sociedad_contratante = sociedad_contratante;
     if (sociedad_apoderado_email) patch.sociedad_apoderado_email = sociedad_apoderado_email;
     if (decision === 'rejected') patch.current_phase = 'rejected';
+    if (decision === 'requested_changes') patch.current_phase = 'fase2'; // vuelve a paso datos proveedor
 
     await sb.from('workflow_runs').update(patch).eq('id', run_id);
     await logAudit(run_id, approver_email ?? 'admin', `intake.${decision}`, 'workflow_run', run_id, { sociedad_contratante, comment });
 
-    if (decision !== 'approved') return json(res, 200, { ok: true, decision });
+    if (decision === 'rejected') return json(res, 200, { ok: true, decision });
 
-    // Buscar provider asociado para mandar email
+    // approved | requested_changes → mail al proveedor
     const { data: run } = await sb.from('workflow_runs').select('*').eq('id', run_id).single();
     const { data: provider } = await sb.from('providers').select('*').eq('tax_id', run.tax_id).maybeSingle();
     if (!provider) return json(res, 200, { ok: true, decision, warning: 'provider not found, no email sent' });
 
-    // Persist sociedad en provider también
     if (sociedad_contratante) await sb.from('providers').update({ sociedad_contratante }).eq('id', provider.id);
 
-    const sociedadDocs = getDocsForSociedad(sociedad_contratante ?? run.sociedad_contratante);
     const profileUrl = buildProfileUrl(provider.public_token);
-    const tpl = providerInvitation({
-      providerName: run.representante_legal ?? provider.razon_social,
-      profileUrl,
-      sociedadContratante: sociedad_contratante ?? run.sociedad_contratante,
-      solicitanteNombre: run.solicitante_nombre,
-      sociedadDocs,
-    });
+    let tpl;
+
+    if (decision === 'requested_changes') {
+      tpl = providerRevisionRequest({
+        providerName: run.representante_legal ?? provider.razon_social,
+        profileUrl,
+        comment,
+        solicitanteNombre: run.solicitante_nombre,
+        approverEmail: approver_email,
+      });
+    } else {
+      const sociedadDocs = getDocsForSociedad(sociedad_contratante ?? run.sociedad_contratante);
+      tpl = providerInvitation({
+        providerName: run.representante_legal ?? provider.razon_social,
+        profileUrl,
+        sociedadContratante: sociedad_contratante ?? run.sociedad_contratante,
+        solicitanteNombre: run.solicitante_nombre,
+        sociedadDocs,
+      });
+    }
 
     if (provider.email_contacto) {
       sendEmail({ to: provider.email_contacto, ...tpl })
-        .then(() => sb.from('providers').update({ profile_invited_at: new Date().toISOString() }).eq('id', provider.id))
-        .catch((e) => console.error('Provider invitation failed:', e.message));
+        .then(() => {
+          if (decision === 'approved') {
+            sb.from('providers').update({ profile_invited_at: new Date().toISOString() }).eq('id', provider.id);
+          }
+        })
+        .catch((e) => console.error(`Provider ${decision} email failed:`, e.message));
     }
 
-    json(res, 200, { ok: true, decision, provider_invited: !!provider.email_contacto, profile_url: profileUrl });
+    json(res, 200, { ok: true, decision, provider_notified: !!provider.email_contacto, profile_url: profileUrl });
   },
 
   'POST /api/provider/upload': async (req, res) => {
-    // Provider sube documento. file_url ya en Drive/Vercel Blob; aquí solo registramos + RAG.
+    // Provider sube documento — acepta multipart/form-data (file binary) o JSON con file_url ya hosteada.
+    const ct = (req.headers['content-type'] ?? '').toLowerCase();
+    const { findByToken } = await import('./provider_profile.js');
+
+    if (ct.startsWith('multipart/form-data')) {
+      const boundaryMatch = ct.match(/boundary=([^;]+)/);
+      if (!boundaryMatch) return json(res, 400, { error: 'multipart boundary missing' });
+      const raw = await readRawBody(req);
+      const { fields, file } = parseMultipart(raw, boundaryMatch[1].trim());
+
+      if (!fields.token || !fields.doc_type) return json(res, 400, { error: 'token, doc_type required' });
+      if (!file || !file.buffer.length) return json(res, 400, { error: 'file required' });
+
+      const ALLOWED = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/webp']);
+      if (!ALLOWED.has(file.mimeType)) return json(res, 400, { error: `mime not allowed: ${file.mimeType}` });
+      const MAX = 10 * 1024 * 1024;
+      if (file.buffer.length > MAX) return json(res, 413, { error: 'file too large (max 10MB)' });
+
+      const provider = await findByToken(fields.token);
+      if (!provider) return json(res, 404, { error: 'token invalid' });
+
+      const safeName = (file.filename ?? 'archivo').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 120);
+      const fileId = crypto.randomUUID();
+      const storagePath = `providers/${provider.id}/${fileId}-${safeName}`;
+      const up = await sb.storage.from('contracts').upload(storagePath, file.buffer, {
+        contentType: file.mimeType,
+        upsert: false,
+      });
+      if (up.error) return json(res, 500, { error: `storage.upload: ${up.error.message}` });
+
+      const { data, error } = await sb.from('provider_uploads').insert({
+        provider_id: provider.id,
+        doc_type: fields.doc_type,
+        doc_filename: safeName,
+        file_url: storagePath,
+        file_size: file.buffer.length,
+        uploaded_by_email: fields.by_email ?? null,
+      }).select().single();
+      if (error) return json(res, 500, { error: error.message });
+
+      import('./rag_extract.js').then(({ extractAndValidate }) =>
+        extractAndValidate(data.id, provider).catch((e) => console.error('RAG failed:', e.message)),
+      );
+
+      return json(res, 200, { upload_id: data.id, doc_filename: safeName, file_size: file.buffer.length, rag_status: 'pending' });
+    }
+
+    // Legacy JSON path (file_url pre-hosteada)
     const body = JSON.parse(await readBody(req));
     if (!body.token || !body.doc_type || !body.file_url)
       return json(res, 400, { error: 'token, doc_type, file_url required' });
-    const { findByToken } = await import('./provider_profile.js');
     const provider = await findByToken(body.token);
     if (!provider) return json(res, 404, { error: 'token invalid' });
 
@@ -437,12 +517,27 @@ const routes = {
     }).select().single();
     if (error) return json(res, 500, { error: error.message });
 
-    // Trigger RAG async
     import('./rag_extract.js').then(({ extractAndValidate }) =>
       extractAndValidate(data.id, provider).catch((e) => console.error('RAG failed:', e.message)),
     );
 
     json(res, 200, { upload_id: data.id, rag_status: 'pending' });
+  },
+
+  'GET /api/provider/uploads': async (req, res, url) => {
+    // Lista uploads ya hechos por un proveedor (acceso público por token).
+    const token = url.searchParams.get('token');
+    if (!token) return json(res, 400, { error: 'token required' });
+    const { findByToken } = await import('./provider_profile.js');
+    const provider = await findByToken(token);
+    if (!provider) return json(res, 404, { error: 'token invalid' });
+    const { data, error } = await sb
+      .from('provider_uploads')
+      .select('id, doc_type, doc_filename, file_size, rag_status, validation_status, created_at')
+      .eq('provider_id', provider.id)
+      .order('created_at', { ascending: false });
+    if (error) return json(res, 500, { error: error.message });
+    json(res, 200, data ?? []);
   },
 
   'GET /api/providers/lookup': async (req, res, url) => {
@@ -486,7 +581,22 @@ const routes = {
     const { findByToken } = await import('./provider_profile.js');
     const p = await findByToken(token);
     if (!p) return json(res, 404, { error: 'token invalid' });
-    json(res, 200, p);
+
+    // Adjuntar docs requeridos según sociedad + uploads ya hechos
+    let sociedadDocs = null;
+    try {
+      const { getDocsForSociedad } = await import('./sociedad.js');
+      sociedadDocs = getDocsForSociedad(p.sociedad_contratante);
+    } catch (e) {
+      console.error('getDocsForSociedad failed:', e.message);
+    }
+    const { data: uploads } = await sb
+      .from('provider_uploads')
+      .select('id, doc_type, doc_filename, file_size, rag_status, validation_status, created_at')
+      .eq('provider_id', p.id)
+      .order('created_at', { ascending: false });
+
+    json(res, 200, { ...p, sociedad_docs: sociedadDocs, uploads: uploads ?? [] });
   },
 
   // ── Admin: gestión usuarios (solo role=admin) ──────────────────────────

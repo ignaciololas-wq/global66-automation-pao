@@ -158,6 +158,49 @@ export function providerInvitation({ providerName, profileUrl, sociedadContratan
   return { subject, html, text };
 }
 
+export function providerRevisionRequest({ providerName, profileUrl, comment, solicitanteNombre, approverEmail }) {
+  const subject = `📋 Revisión necesaria en tu información — Global66`;
+  const commentBlock = comment
+    ? `<div style="background:#FFF7E5;border-left:3px solid #E69A00;padding:14px 18px;border-radius:8px;margin:18px 0;color:#132046;font-size:14px;line-height:1.5"><b style="display:block;margin-bottom:4px">Comentario del revisor:</b>${comment}</div>`
+    : '';
+  const html = `<!doctype html>
+<html><body style="font-family:'Inter',system-ui,Arial;background:#f5f7fe;margin:0;padding:0">
+<div style="max-width:600px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(19,32,70,0.06)">
+  <div style="background:linear-gradient(135deg,#E69A00,#F0B040);padding:32px;color:white">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div style="width:36px;height:36px;border-radius:8px;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-weight:800;font-family:'Montserrat',sans-serif;font-size:18px">G</div>
+      <div style="font-family:'Montserrat',sans-serif;font-weight:700;font-size:16px">global66 · contratos</div>
+    </div>
+    <h1 style="font-family:'Montserrat',sans-serif;font-size:22px;font-weight:700;margin:16px 0 6px;letter-spacing:-0.02em">Hola ${providerName}</h1>
+    <p style="margin:0;opacity:0.95;font-size:14px">Necesitamos que revises algunos datos de tu perfil.</p>
+  </div>
+  <div style="padding:32px">
+    <p style="margin:0 0 14px;color:#132046;font-size:15px;line-height:1.6">
+      ${solicitanteNombre ?? 'El equipo de Global66'} revisó la información que enviaste y nos pidió que te contactemos para ajustar algunos puntos antes de continuar con el proceso de alta.
+    </p>
+    ${commentBlock}
+    <p style="margin:0 0 24px;color:#132046;font-size:15px;line-height:1.6">
+      Ingresá al link de tu perfil, corrige los datos indicados y volvé a guardar:
+    </p>
+    <div style="text-align:center;margin:28px 0">
+      <a href="${profileUrl}" style="display:inline-block;background:#1F49B6;color:white;padding:14px 32px;border-radius:999px;text-decoration:none;font-weight:600;box-shadow:0 4px 14px rgba(31,73,182,0.3)">Revisar mi perfil →</a>
+    </div>
+    <p style="margin:24px 0 0;color:#565656;font-size:12px;text-align:center;word-break:break-all">
+      ¿No funciona el botón? Copiá este link:<br>
+      <span style="color:#1F49B6">${profileUrl}</span>
+    </p>
+    <hr style="border:none;border-top:1px solid #E9EDF8;margin:24px 0">
+    <p style="margin:0;color:#565656;font-size:12px;line-height:1.5">
+      Si tenés dudas sobre qué corregir, respondé este correo${approverEmail ? ` o escribí directo a <a href="mailto:${approverEmail}" style="color:#1F49B6">${approverEmail}</a>` : ''}.
+    </p>
+  </div>
+  <div style="background:#f5f7fe;padding:16px 32px;text-align:center;color:#565656;font-size:12px">Global66 · Procedimiento G81-PRO-005</div>
+</div>
+</body></html>`;
+  const text = `Hola ${providerName},\n\nRevisamos la información de tu perfil y necesitamos algunos ajustes${comment ? `:\n\n${comment}\n` : '.\n'}\nIngresá a tu perfil para corregir: ${profileUrl}\n\n— Global66`;
+  return { subject, html, text };
+}
+
 export function intakeConfirmation({ runId, solicitanteNombre, razonSocial, taxId, pais, monto, moneda }) {
   const subject = `✓ Solicitud recibida: ${razonSocial}`;
 

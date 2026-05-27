@@ -163,6 +163,31 @@ export async function recordSanctionsCheck(runId, result) {
   await logAudit(runId, 'system', 'sanctions.checked', 'workflow_run', runId, { hit: result.hit });
 }
 
+export async function recordRegcheqCheck(runId, evalResult, { providerId, taxId } = {}) {
+  // Si no llega providerId, intenta resolver por tax_id
+  let pid = providerId ?? null;
+  if (!pid && taxId) {
+    const { data } = await sb.from('providers').select('id').eq('tax_id', taxId).maybeSingle();
+    pid = data?.id ?? null;
+  }
+  const { error } = await sb.from('regcheq_checks').insert({
+    workflow_run_id: runId,
+    provider_id: pid,
+    decision: evalResult.decision,
+    reason: evalResult.reason,
+    company: evalResult.company ?? null,
+    relations: evalResult.relations ?? [],
+  });
+  if (error) throw error;
+  if (runId) {
+    await logAudit(runId, 'system', 'regcheq.checked', 'workflow_run', runId, {
+      decision: evalResult.decision,
+      reason: evalResult.reason,
+      provider_id: pid,
+    });
+  }
+}
+
 export async function setSemaforo(runId, color, reason) {
   const { error } = await sb
     .from('workflow_runs')

@@ -5,8 +5,9 @@ import axios from 'axios';
 import { GoogleGenAI } from '@google/genai';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { recordSanctionsCheck } from './supabase_audit.js';
+import { recordSanctionsCheck, recordRegcheqCheck } from './supabase_audit.js';
 import { MOCK, mockSanctions } from './mock_mode.js';
+import { checkSupplier as checkRegcheqSupplier } from './regcheq.js';
 
 const OS_BASE = 'https://api.opensanctions.org';
 const OS_KEY = process.env.OPENSANCTIONS_API_KEY;
@@ -84,20 +85,44 @@ export async function validateRepresentatives({ razon_social, tax_id, pais, repr
 }
 
 export async function runFullCheck(supplier, representantes, textoPoderes, { runId } = {}) {
-  const [sanctions, repValidation] = await Promise.all([
+  const relations = (representantes ?? [])
+    .filter((r) => r?.rut || r?.dni)
+    .map((r) => ({
+      dni: r.rut ?? r.dni,
+      name: r.nombre ?? r.name,
+      fatherName: r.apellido_paterno ?? r.fatherName,
+      type: r.tipo ?? r.type ?? 'representant',
+    }));
+
+  const [sanctions, repValidation, regcheq] = await Promise.all([
     checkSanctions(supplier),
     validateRepresentatives({ ...supplier, representantes, texto_poderes: textoPoderes }),
+    checkRegcheqSupplier(supplier, relations).catch((e) => ({
+      decision: 'error',
+      reason: e.message,
+      company: null,
+      relations: [],
+    })),
   ]);
 
-  if (runId) await recordSanctionsCheck(runId, sanctions).catch((e) => console.error('record sanctions failed', e));
+  if (runId) {
+    await recordSanctionsCheck(runId, sanctions).catch((e) => console.error('record sanctions failed', e));
+    await recordRegcheqCheck(runId, regcheq, { taxId: supplier.tax_id }).catch((e) => console.error('record regcheq failed', e));
+  }
 
-  const recommend =
-    sanctions.hit
-      ? 'rechazar'
-      : repValidation.recomendacion;
+  // Decisión final: peor caso entre OpenSanctions, Regcheq, validación apoderados
+  let recommend;
+  if (sanctions.hit || regcheq.decision === 'block') {
+    recommend = 'rechazar';
+  } else if (regcheq.decision === 'review') {
+    recommend = 'revisar';
+  } else {
+    recommend = repValidation.recomendacion;
+  }
 
   return {
     sanctions,
+    regcheq,
     representatives: repValidation,
     final_recommendation: recommend,
     timestamp: new Date().toISOString(),
