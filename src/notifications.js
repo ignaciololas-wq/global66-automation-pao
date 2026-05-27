@@ -5,7 +5,7 @@ import { sb } from './supabase_audit.js';
 const SLACK_TOKEN = process.env.SLACK_BOT_TOKEN;
 const SITE_URL = (process.env.SITE_URL ?? process.env.SERVER_PUBLIC_URL ?? 'https://global66-automation-pao.vercel.app').replace(/\/$/, '');
 
-async function slackApi(method, body) {
+async function slackApiJson(method, body) {
   if (!SLACK_TOKEN) return { ok: false, error: 'SLACK_BOT_TOKEN not set' };
   const r = await fetch(`https://slack.com/api/${method}`, {
     method: 'POST',
@@ -15,12 +15,23 @@ async function slackApi(method, body) {
   return r.json();
 }
 
+async function slackApiForm(method, params) {
+  if (!SLACK_TOKEN) return { ok: false, error: 'SLACK_BOT_TOKEN not set' };
+  const qs = new URLSearchParams(params);
+  const r = await fetch(`https://slack.com/api/${method}?${qs.toString()}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${SLACK_TOKEN}` },
+  });
+  return r.json();
+}
+
 async function slackDM(email, blocks, fallbackText) {
-  const lookup = await slackApi('users.lookupByEmail', { email });
+  // lookupByEmail no acepta POST JSON: usa GET con query string.
+  const lookup = await slackApiForm('users.lookupByEmail', { email });
   if (!lookup.ok || !lookup.user?.id) return { ok: false, error: lookup.error ?? 'user_not_found' };
-  const open = await slackApi('conversations.open', { users: lookup.user.id });
+  const open = await slackApiJson('conversations.open', { users: lookup.user.id });
   if (!open.ok || !open.channel?.id) return { ok: false, error: open.error ?? 'open_failed' };
-  return slackApi('chat.postMessage', {
+  return slackApiJson('chat.postMessage', {
     channel: open.channel.id,
     text: fallbackText,
     blocks,

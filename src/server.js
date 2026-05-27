@@ -212,6 +212,13 @@ const routes = {
   },
 
   'GET /health': async (req, res) => json(res, 200, { ok: true, ts: new Date().toISOString() }),
+  'GET /api/health': async (req, res) => json(res, 200, {
+    ok: true,
+    ts: new Date().toISOString(),
+    auth_enabled: AUTH_ENABLED,
+    admin_emails_count: ADMIN_EMAILS.length,
+    site_url: siteUrl(),
+  }),
 
   'GET /run': async (req, res, url) => {
     const id = url.searchParams.get('id');

@@ -13,6 +13,7 @@
     { "source": "/dashboard", "destination": "/dashboard.html" },
     { "source": "/p/:token*", "destination": "/provider.html" },
     { "source": "/health", "destination": "/api" },
+    { "source": "/api/health", "destination": "/api" },
     { "source": "/digest", "destination": "/api" },
     { "source": "/run", "destination": "/api" },
     { "source": "/run-alertas", "destination": "/api" },
