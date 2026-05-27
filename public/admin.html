@@ -7,6 +7,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/themes/airbnb.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13"></script>
+<script src="https://npmcdn.com/flatpickr@4.6.13/dist/l10n/es.js"></script>
 <style>
   :root {
     --blue-50:  #f5f7fe;
@@ -46,7 +50,7 @@
   input, select, textarea { font-family: inherit }
 
   /* ─── Layout ─────────────────────────────────────────── */
-  .shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh }
+  /* .shell rule overridden below — line ~132 */
   aside {
     background: var(--blue-900); color: white;
     padding: 24px 16px; display: flex; flex-direction: column; gap: 4px;
@@ -74,13 +78,53 @@
 
   .nav-section { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--blue-200); padding: 16px 12px 6px; font-weight: 600 }
 
-  .nav-bottom { margin-top: auto; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 12px; color: var(--blue-200) }
-  .nav-bottom .user-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px }
+  .nav-bottom { margin-top: auto; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 12px; color: var(--blue-200) }
+  .profile-trigger {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; padding: 8px 10px; background: transparent;
+    border: 1px solid transparent; border-radius: 10px;
+    color: white; cursor: pointer; font: inherit;
+    transition: background .15s ease, border-color .15s ease;
+  }
+  .profile-trigger:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1) }
+  .profile-trigger.open { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15) }
+  .profile-info { display: flex; flex-direction: column; min-width: 0; flex: 1; text-align: left }
+  .profile-name { font-size: 13px; font-weight: 600; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+  .profile-role { font-size: 11px; color: var(--blue-200); font-weight: 500 }
+  .profile-chevron { color: var(--blue-200); flex-shrink: 0; transition: transform .2s ease }
+  .profile-trigger.open .profile-chevron { transform: rotate(180deg) }
   .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--blue-500); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 13px; font-family: 'Montserrat'; flex-shrink: 0 }
   .avatar-wrap { position: relative; width: 32px; height: 32px; flex-shrink: 0 }
   .avatar-img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; display: block }
-  .avatar-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.5); border-radius: 50%; display: none; align-items: center; justify-content: center; font-size: 14px }
-  .avatar-wrap:hover .avatar-overlay { display: flex }
+
+  /* Profile popup (ChatGPT-style) */
+  .profile-popup {
+    position: fixed; bottom: 70px; left: 16px; width: 248px;
+    background: var(--blue-900); color: white;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px; box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+    padding: 6px; z-index: 200;
+    animation: profile-fade .15s ease-out both;
+  }
+  @keyframes profile-fade { 0% { opacity: 0; transform: translateY(6px) } 100% { opacity: 1; transform: translateY(0) } }
+  .profile-popup-header {
+    padding: 10px 12px; font-size: 12px; color: var(--blue-200);
+    border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 4px;
+    word-break: break-all;
+  }
+  .profile-popup .item {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; padding: 8px 12px;
+    background: transparent; border: none;
+    color: white; font: 13px/1 inherit; cursor: pointer;
+    border-radius: 8px; text-align: left;
+    transition: background .12s ease;
+  }
+  .profile-popup .item:hover { background: rgba(255,255,255,0.08) }
+  .profile-popup .item svg { width: 16px; height: 16px; opacity: 0.7; flex-shrink: 0 }
+  .profile-popup .divider { height: 1px; background: rgba(255,255,255,0.08); margin: 4px 6px }
+  .profile-popup .item.danger { color: #ff8a8a }
+  .profile-popup .item.danger:hover { background: rgba(230,74,74,0.15) }
   .comment-avatar { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; background: var(--blue-500); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px; font-family: 'Montserrat'; overflow: hidden }
   .comment-avatar img { width: 100%; height: 100%; object-fit: cover; display: block }
   .mention-avatar { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; background: var(--blue-100); color: var(--blue-700); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 11px; overflow: hidden }
@@ -88,7 +132,8 @@
   .nav-bottom button { width: 100%; margin-top: 8px; background: transparent; border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.8); padding: 8px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500 }
   .nav-bottom button:hover { background: rgba(255,255,255,0.06); color: white }
 
-  main { padding: 32px 40px; max-width: 1400px; width: 100%ds }
+  main { padding: 32px 40px; width: 100%; max-width: none; min-width: 0; overflow-x: hidden }
+  .shell { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: 100vh; width: 100% }
 
   /* ─── Login ─────────────────────────────────────────── */
   .login-shell { min-height: 100vh; display: grid; place-items: center; background: linear-gradient(135deg, var(--blue-50), white) }
@@ -626,19 +671,18 @@
     </nav>
 
     <div class="nav-bottom">
-      <div class="user-row">
-        <button type="button" id="open-profile" class="avatar-wrap" title="Mi perfil" style="cursor:pointer;background:none;border:0;padding:0">
+      <button type="button" id="profile-trigger" class="profile-trigger" title="Mi perfil">
+        <span class="avatar-wrap">
           <div class="avatar" id="avatar">?</div>
           <img id="avatar-img" class="avatar-img" hidden alt="">
-          <div class="avatar-overlay">⚙</div>
-        </button>
-        <input type="file" id="avatar-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
-        <div style="min-width:0;flex:1">
-          <div id="user-name" style="color:white;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
-          <div id="user-email" style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
-        </div>
-      </div>
-      <button id="logout">Cerrar sesión</button>
+        </span>
+        <span class="profile-info">
+          <span id="user-name" class="profile-name">—</span>
+          <span id="user-role-pill" class="profile-role">—</span>
+        </span>
+        <svg class="profile-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <input type="file" id="avatar-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
     </div>
   </aside>
 
@@ -696,9 +740,10 @@ async function checkAuth() {
   $('#app-shell').hidden = false;
 
   const email = me.email ?? '';
-  $('#user-email').textContent = email + (me.bypass ? ' · DEV' : '');
   const name = me.display_name ?? email.split('@')[0].replace(/\./g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   $('#user-name').textContent = name;
+  const primaryRole = hasRole('admin') ? 'Admin' : hasRole('aprobador') ? 'Aprobador' : 'Solicitante';
+  $('#user-role-pill').textContent = `${primaryRole}${me.bypass ? ' · DEV' : ''}`;
   $('#avatar').textContent = (email[0] ?? '?').toUpperCase();
   const avImg = $('#avatar-img');
   if (me.avatar_url) {
@@ -852,8 +897,69 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('#open-profile')) {
     e.preventDefault();
     openProfileModal();
+    return;
+  }
+  if (e.target.closest('#profile-trigger')) {
+    e.preventDefault();
+    toggleProfilePopup();
+    return;
+  }
+  if (!e.target.closest('.profile-popup') && !e.target.closest('#profile-trigger')) {
+    document.querySelector('.profile-popup')?.remove();
+    document.querySelector('#profile-trigger')?.classList.remove('open');
   }
 });
+
+function toggleProfilePopup() {
+  const existing = document.querySelector('.profile-popup');
+  if (existing) {
+    existing.remove();
+    document.querySelector('#profile-trigger')?.classList.remove('open');
+    return;
+  }
+  const me = window.__me ?? {};
+  const pop = document.createElement('div');
+  pop.className = 'profile-popup';
+  pop.innerHTML = `
+    <div class="profile-popup-header">
+      <div style="font-weight:600;color:white;font-size:13px;margin-bottom:2px">${escapeHtml(me.display_name ?? (me.email ?? '').split('@')[0])}</div>
+      ${escapeHtml(me.email ?? '')}${me.bypass ? ' · DEV' : ''}
+    </div>
+    <button type="button" class="item" id="pp-profile">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a4 4 0 014-4h8a4 4 0 014 4v2"/></svg>
+      Mi perfil
+    </button>
+    <button type="button" class="item" id="pp-avatar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      Cambiar foto
+    </button>
+    ${hasRole('admin') ? `<button type="button" class="item" id="pp-users">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      Gestión usuarios
+    </button>
+    <button type="button" class="item" id="pp-matriz">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Matriz contratos
+    </button>` : ''}
+    <div class="divider"></div>
+    <button type="button" class="item danger" id="pp-logout">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Cerrar sesión
+    </button>
+  `;
+  document.body.appendChild(pop);
+  document.querySelector('#profile-trigger')?.classList.add('open');
+  pop.querySelector('#pp-profile').addEventListener('click', () => { pop.remove(); openProfileModal(); });
+  pop.querySelector('#pp-avatar').addEventListener('click', () => { pop.remove(); document.querySelector('#avatar-input').click(); });
+  pop.querySelector('#pp-users')?.addEventListener('click', () => { pop.remove(); location.hash = 'users'; });
+  pop.querySelector('#pp-matriz')?.addEventListener('click', () => { pop.remove(); location.hash = 'matriz'; });
+  pop.querySelector('#pp-logout').addEventListener('click', async () => {
+    pop.remove();
+    try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch {}
+    window.__me = null; window.__roles = []; window.__role = null;
+    checkAuth();
+  });
+}
 
 // Avatar file change → upload (triggered from modal "Cambiar foto").
 document.addEventListener('change', async (e) => {
@@ -941,11 +1047,7 @@ $('#magic-link').addEventListener('click', async () => {
   else { $('#login-ok').textContent = 'Revisá tu email — te mandamos un link'; $('#login-ok').hidden = false; }
 });
 
-$('#logout').addEventListener('click', async () => {
-  try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch {}
-  window.__me = null; window.__roles = []; window.__role = null;
-  checkAuth();
-});
+// Logout movido a profile popup (PR14).
 
 window.addEventListener('hashchange', route);
 
@@ -1319,7 +1421,8 @@ const pages = {
     if (shouldShowSignaturePanel(r)) loadSignaturePanel(r);
   },
 
-  async providers() {
+  async providers(params) {
+    if (params && params[0]) return pages.providerDetail(params[0]);
     const list = await q('providers', 'order=created_at.desc&limit=200').catch(() => []);
     view.innerHTML = `
       <div class="header-row">
@@ -1340,7 +1443,7 @@ const pages = {
         <table>
           <thead><tr><th>Razón social</th><th>Tax ID</th><th>País</th><th>Tipo</th><th>Status</th><th>Criticidad</th><th>Sociedad</th><th>Creado</th></tr></thead>
           <tbody id="rows">${list.length ? list.map(p => `
-            <tr class="clickable" data-search="${(p.razon_social + ' ' + p.tax_id + ' ' + p.pais).toLowerCase()}" data-status="${p.status}">
+            <tr class="clickable" data-search="${(p.razon_social + ' ' + p.tax_id + ' ' + p.pais).toLowerCase()}" data-status="${p.status}" onclick="location.hash='#providers/${p.id}'">
               <td><b>${p.razon_social}</b></td>
               <td class="muted">${p.tax_id}</td>
               <td>${p.pais}</td>
@@ -1364,6 +1467,72 @@ const pages = {
     };
     $('#filter').addEventListener('input', apply);
     $('#status-filter').addEventListener('change', apply);
+  },
+
+  async providerDetail(providerId) {
+    const [provs, history] = await Promise.all([
+      q('providers', `id=eq.${providerId}`).catch(() => []),
+      fetch(`/api/regcheq-history?provider_id=${encodeURIComponent(providerId)}`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : [])
+        .catch(() => []),
+    ]);
+    const p = provs[0];
+    if (!p) { view.innerHTML = '<div class="err">Proveedor no encontrado</div>'; return; }
+
+    const decisionKind = { block: 'red', review: 'yellow', approve_flag: 'yellow', approve: 'green', unknown: 'gray', skip: 'gray', error: 'red' };
+    const decisionLabel = { block: '⛔ Bloquear', review: '⚠️ Revisión', approve_flag: '⚑ Aprobar con flag', approve: '✓ Aprobar', unknown: 'Sin datos', skip: 'Omitido', error: 'Error' };
+
+    view.innerHTML = `
+      <div class="breadcrumb"><a href="#providers">← Proveedores</a></div>
+      <div class="header-row">
+        <div>
+          <h2>${p.razon_social}</h2>
+          <p style="color:var(--muted);margin-top:4px">${p.tax_id} · ${p.pais} · ${p.sociedad_contratante ?? 'sin sociedad'}</p>
+        </div>
+        ${dotPill(p.status, statusKind(p.status))}
+      </div>
+
+      <div class="grid grid-2">
+        <div class="card">
+          <h3 style="margin-bottom:16px">Datos del proveedor</h3>
+          <dl class="props">
+            <dt>Razón social</dt><dd><b>${p.razon_social}</b></dd>
+            <dt>Tax ID</dt><dd>${p.tax_id}</dd>
+            <dt>País</dt><dd>${p.pais}</dd>
+            <dt>Tipo</dt><dd>${p.tipo_proveedor ?? '—'}</dd>
+            <dt>Criticidad</dt><dd>${p.criticidad ?? '—'}</dd>
+            <dt>Representante legal</dt><dd>${p.representante_legal ?? '—'}</dd>
+            <dt>Email contacto</dt><dd>${p.email_contacto ?? '—'}</dd>
+            <dt>Email facturación</dt><dd>${p.email_facturacion ?? '—'}</dd>
+            <dt>Servicio</dt><dd>${p.servicio_descripcion ?? '—'}</dd>
+            <dt>Creado</dt><dd>${dt(p.created_at)}</dd>
+          </dl>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom:8px">Validación PEP/AML (RegCheq)</h3>
+          <p class="muted" style="font-size:12px;margin-bottom:16px">Histórico completo de chequeos AML/PEP para este proveedor.</p>
+          ${history.length ? history.map(h => {
+            const cmatches = h.company?.matches ?? [];
+            const relCount = (h.relations ?? []).length;
+            const relAlerts = (h.relations ?? []).filter(r => ['block','review'].includes(r.decision)).length;
+            return `<details style="margin-bottom:10px;border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+              <summary style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px">
+                <span>${dotPill(decisionLabel[h.decision] ?? h.decision, decisionKind[h.decision] ?? 'gray')}</span>
+                <span class="muted" style="font-size:12px">${dt(h.created_at)}</span>
+              </summary>
+              <div style="margin-top:10px;font-size:13px">
+                <div><b>Razón:</b> <span class="muted">${h.reason ?? '—'}</span></div>
+                <div><b>Riesgo empresa:</b> ${h.company?.effectiveRisk ?? '—'}</div>
+                ${cmatches.length ? `<div style="margin-top:8px"><b>Listas con match:</b> <span class="muted">${cmatches.map(m => m.list).join(', ')}</span></div>` : ''}
+                ${relCount ? `<div style="margin-top:8px"><b>Relacionados:</b> ${relCount} (${relAlerts} con alerta)</div>` : ''}
+                ${h.workflow_run_id ? `<div style="margin-top:8px"><a href="#workflows/${h.workflow_run_id}" style="font-size:12px">Ver solicitud relacionada →</a></div>` : ''}
+              </div>
+            </details>`;
+          }).join('') : '<div class="muted">Sin chequeos RegCheq registrados todavía.</div>'}
+        </div>
+      </div>
+    `;
   },
 
   async contracts() {
@@ -2326,7 +2495,7 @@ async function intakeForm() {
           <div id="fecha-inicio-wrap" hidden>
             <label>Fecha de inicio *</label>
             <div class="date-field">
-              <input type="date" name="fecha_inicio" id="fecha-inicio" required>
+              <input type="date" name="fecha_inicio" id="fecha-inicio">
               <span class="date-icon" aria-hidden="true">📅</span>
             </div>
           </div>
@@ -2396,6 +2565,7 @@ async function intakeForm() {
 
   // Fechas: AMBAS solo si plazo_fijo. Indefinido y por_proyecto NO piden fechas.
   const durToggle = document.querySelector('#duracion-toggle');
+  const fpInstances = { inicio: null, fin: null };
   function syncFechas() {
     const show = durToggle.value === 'plazo_fijo';
     const wi = document.querySelector('#fecha-inicio-wrap');
@@ -2404,33 +2574,51 @@ async function intakeForm() {
     const ff = document.querySelector('#fecha-fin');
     wi.hidden = !show; wf.hidden = !show;
     fi.required = show; ff.required = show;
-    if (!show) { fi.value = ''; ff.value = ''; }
+    if (!show) {
+      fi.value = ''; ff.value = '';
+      fi.removeAttribute('required'); ff.removeAttribute('required');
+      fpInstances.inicio?.clear(); fpInstances.fin?.clear();
+    }
   }
   durToggle.addEventListener('change', syncFechas);
   syncFechas();
 
-  // Sociedad contratante dinámica según país.
+  // Flatpickr (calendar más bonito que input nativo).
+  if (window.flatpickr) {
+    const cfg = { locale: 'es', dateFormat: 'Y-m-d', altInput: true, altFormat: 'd M Y', allowInput: false, disableMobile: false };
+    fpInstances.inicio = window.flatpickr('#fecha-inicio', cfg);
+    fpInstances.fin = window.flatpickr('#fecha-fin', cfg);
+  }
+
+  // Sociedad contratante dinámica según país (matriz xlsx PR7).
   const SOCIEDADES_BY_COUNTRY = {
-    'Chile':    ['Global 81 SpA (Chile)', 'Global Card S.A. (Chile)'],
-    'Panamá':   ['100X (Panamá)'],
-    'Panama':   ['100X (Panamá)'],
-    'Colombia': ['Global Colombia 81 (Colombia)'],
+    'Chile':           ['Global 81 SpA (Chile)', 'Global Card S.A. (Chile)'],
+    'Colombia':        ['Global Colombia 81 (Colombia)'],
+    'Argentina':       ['ArgPagos (Argentina)'],
+    'Perú':            ['Andes Latam (Perú)'],
+    'Estados Unidos':  ['100x Corp'],
+    'México':          ['100x Corp'],
+    'Panamá':          ['100x Corp'],
+    'Brasil':          ['100x Corp'],
+    'Ecuador':         ['100x Corp'],
+    'Uruguay':         ['100x Corp'],
+    'Otro':            ['100x Corp'],
   };
-  const ALL_SOCIEDADES = ['Global 81 SpA (Chile)', 'Global Card S.A. (Chile)', '100X (Panamá)', 'Global Colombia 81 (Colombia)'];
   const paisSelect = document.querySelector('#pais-select');
   const sociedadWrap = document.querySelector('#sociedad-wrap');
   const sociedadSelect = document.querySelector('#sociedad-select');
   function syncSociedad() {
     const country = paisSelect.value;
     if (!country) { sociedadWrap.hidden = true; sociedadSelect.required = false; sociedadSelect.innerHTML = '<option value="">—</option>'; return; }
-    const options = SOCIEDADES_BY_COUNTRY[country] ?? ALL_SOCIEDADES;
+    const options = SOCIEDADES_BY_COUNTRY[country] ?? ['100x Corp'];
     sociedadWrap.hidden = false;
     sociedadSelect.required = true;
-    sociedadSelect.innerHTML = '<option value="">—</option>' + options.map((s) => `<option value="${s}">${s}</option>`).join('');
-    // Auto-seleccionar si solo hay una opción.
-    if (options.length === 1) sociedadSelect.value = options[0];
+    sociedadSelect.innerHTML = options.map((s) => `<option value="${s}">${s}</option>`).join('');
+    // Auto-seleccionar la primera (siempre hay al menos una).
+    sociedadSelect.value = options[0];
   }
   paisSelect.addEventListener('change', syncSociedad);
+  window.syncSociedadGlobal = syncSociedad;
 
   // Autocomplete provider por RUT/Tax ID (lookup en /api/providers/lookup).
   const rutInput = document.querySelector('[name=rut]');
@@ -2653,6 +2841,9 @@ async function intakeForm() {
     ev.preventDefault();
     const data = Object.fromEntries(new FormData(ev.target));
     data.monto = data.monto ? Number(data.monto) : null;
+    // Sanitize fechas: strings vacíos rompen DATE columns en Postgres.
+    if (!data.fecha_inicio) delete data.fecha_inicio;
+    if (!data.fecha_fin) delete data.fecha_fin;
     data.owner_es_solicitante = data.owner_es_solicitante === 'true';
     data.proveedor_existente = data.proveedor_existente === 'true';
     data.id = `intake-${Date.now()}`;
