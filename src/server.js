@@ -70,6 +70,12 @@ import {
   markAllRead as markAllNotificationsRead,
   unreadCount as notificationUnreadCount,
 } from './notifications.js';
+import {
+  runAiEdit,
+  applyAiDraft,
+  discardAiDraft,
+  listJobsForRun as listAiJobs,
+} from './ai_edit.js';
 
 const PORT = process.env.PORT ?? 3000;
 
@@ -855,6 +861,70 @@ const routes = {
       json(res, 200, { ok: true });
     } catch (e) {
       json(res, 400, { error: e.message });
+    }
+  },
+
+  // ─── AI edit (PR3) ──────────────────────────────────────────────────────
+  'POST /api/files/ai-edit': async (req, res) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    if (!auth.roles?.includes('admin') && !auth.roles?.includes('aprobador')) {
+      return json(res, 403, { error: 'admin o aprobador required' });
+    }
+    const body = JSON.parse(await readBody(req));
+    if (!body.workflow_run_id || !body.source_file_id) {
+      return json(res, 400, { error: 'workflow_run_id + source_file_id required' });
+    }
+    try {
+      const out = await runAiEdit({
+        workflowRunId: body.workflow_run_id,
+        sourceFileId: body.source_file_id,
+        requestedBy: auth.email,
+        requestedById: auth.user_id,
+        extraPrompt: body.extra_prompt,
+      });
+      json(res, 200, out);
+    } catch (e) {
+      console.error('[ai-edit]', e);
+      json(res, 500, { error: e.message });
+    }
+  },
+
+  'POST /api/files/apply-v2': async (req, res) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const body = JSON.parse(await readBody(req));
+    if (!body.job_id) return json(res, 400, { error: 'job_id required' });
+    try {
+      const out = await applyAiDraft({ jobId: body.job_id, by: auth.email, byId: auth.user_id });
+      json(res, 200, out);
+    } catch (e) {
+      json(res, 400, { error: e.message });
+    }
+  },
+
+  'POST /api/files/discard-v2': async (req, res) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const body = JSON.parse(await readBody(req));
+    if (!body.job_id) return json(res, 400, { error: 'job_id required' });
+    try {
+      const out = await discardAiDraft({ jobId: body.job_id, by: auth.email });
+      json(res, 200, out);
+    } catch (e) {
+      json(res, 400, { error: e.message });
+    }
+  },
+
+  'GET /api/files/ai-jobs': async (req, res, url) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const runId = url.searchParams.get('workflow_run_id');
+    if (!runId) return json(res, 400, { error: 'workflow_run_id required' });
+    try {
+      json(res, 200, await listAiJobs(runId));
+    } catch (e) {
+      json(res, 500, { error: e.message });
     }
   },
 

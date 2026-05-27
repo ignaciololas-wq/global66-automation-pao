@@ -248,6 +248,14 @@
   .mention-popup .mention-item:hover, .mention-popup .mention-item.focus { background: var(--blue-50) }
   .mention-popup .mention-roles { color: var(--muted); font-size: 11px; margin-left: auto }
 
+  /* AI edit modal (PR3) */
+  .ai-modal { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px }
+  .ai-modal-backdrop { position: absolute; inset: 0; background: rgba(11,31,75,0.55); backdrop-filter: blur(2px) }
+  .ai-modal-card { position: relative; background: white; border-radius: 16px; box-shadow: var(--shadow-lg); padding: 28px; max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto }
+  .ai-modal-card h3 { font-family: 'Montserrat', sans-serif; font-size: 18px }
+  .ai-modal-card textarea { width: 100%; min-height: 80px; resize: vertical; font-size: 13.5px; padding: 10px 12px; border-radius: 10px; border: 1.5px solid var(--border) }
+  .ai-modal-card .err, .ai-modal-card .ok { font-size: 12.5px }
+
   /* Notif badge */
   .notif-bell { position: relative; cursor: pointer; padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.06); color: white; font-size: 14px }
   .notif-bell .badge { position: absolute; top: -2px; right: -2px; background: var(--red); color: white; border-radius: 999px; font-size: 10px; font-weight: 700; padding: 0 5px; min-width: 16px; text-align: center; line-height: 16px }
@@ -1570,7 +1578,9 @@ async function loadComments(fileId, runId) {
   const r = await fetch(`/api/comments?file_id=${fileId}`, { credentials: 'include' });
   if (!r.ok) { listEl.innerHTML = `<div class="err">${await r.text()}</div>`; return; }
   const comments = await r.json();
-  countEl.textContent = comments.length ? `${comments.length} comentarios` : '';
+  const pending = comments.filter((c) => !c.resolved);
+  countEl.textContent = comments.length ? `${comments.length} comentarios${pending.length !== comments.length ? ` · ${pending.length} pendientes` : ''}` : '';
+  renderAiButton(fileId, runId, pending.length);
   if (!comments.length) {
     listEl.innerHTML = '<div class="muted" style="padding:16px;font-size:12.5px">Aún sin comentarios. Iniciá el hilo abajo.</div>';
   } else {
@@ -1594,6 +1604,108 @@ function escapeHtml(s) {
 }
 function highlightMentions(html) {
   return html.replace(/@([a-z0-9._-]+@[a-z0-9.-]+\.[a-z]{2,})/gi, '<span class="mention">@$1</span>');
+}
+
+function renderAiButton(fileId, runId, pendingCount) {
+  const panel = document.querySelector('#comments-panel');
+  panel.querySelector('.ai-edit-row')?.remove();
+  if (!canCommentRoles() || !pendingCount) return;
+  panel.querySelector('.comments-header').insertAdjacentHTML('afterend', `
+    <div class="ai-edit-row" style="padding:10px 14px;border-bottom:1px solid var(--border);background:linear-gradient(90deg,rgba(31,73,182,0.04),rgba(51,217,178,0.04))">
+      <button type="button" id="ai-edit-btn" data-file="${fileId}" data-run="${runId}" class="primary" style="width:100%;padding:10px;font-size:13px;background:linear-gradient(135deg,#1F49B6,#3F5EDF);display:flex;align-items:center;justify-content:center;gap:8px">
+        🪄 Aplicar ${pendingCount} comentario${pendingCount === 1 ? '' : 's'} con IA
+      </button>
+    </div>
+  `);
+  document.querySelector('#ai-edit-btn').addEventListener('click', () => runAiEditModal(fileId, runId, pendingCount));
+}
+
+async function runAiEditModal(fileId, runId, pendingCount) {
+  const m = document.createElement('div');
+  m.className = 'ai-modal';
+  m.innerHTML = `
+    <div class="ai-modal-backdrop"></div>
+    <div class="ai-modal-card">
+      <h3 style="margin-bottom:8px">🪄 Aplicar comentarios con IA</h3>
+      <p style="color:var(--muted);font-size:13.5px;margin-bottom:14px">Gemini va a leer el contrato y los ${pendingCount} comentarios pendientes, y generar una versión 2.0 con los cambios aplicados.</p>
+      <label>Instrucción extra (opcional)</label>
+      <textarea id="ai-extra-prompt" rows="3" placeholder="Ej: 'Reformulá la cláusula 8 en términos más conservadores'"></textarea>
+      <p style="color:var(--muted);font-size:11.5px;margin-top:6px">Vas a poder revisar los cambios antes de aplicar.</p>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+        <button type="button" class="secondary" id="ai-cancel">Cancelar</button>
+        <button type="button" class="primary" id="ai-run">Generar v2 con IA →</button>
+      </div>
+      <div id="ai-status" style="margin-top:14px"></div>
+    </div>
+  `;
+  document.body.appendChild(m);
+  m.querySelector('#ai-cancel').addEventListener('click', () => m.remove());
+  m.querySelector('.ai-modal-backdrop').addEventListener('click', () => m.remove());
+  m.querySelector('#ai-run').addEventListener('click', async () => {
+    const btn = m.querySelector('#ai-run');
+    btn.disabled = true; btn.textContent = 'Generando… (15-40s)';
+    m.querySelector('#ai-status').innerHTML = '<div class="muted" style="font-size:12.5px">Gemini está leyendo el contrato y aplicando cambios. No cierres la ventana.</div>';
+    try {
+      const r = await fetch('/api/files/ai-edit', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workflow_run_id: runId,
+          source_file_id: fileId,
+          extra_prompt: m.querySelector('#ai-extra-prompt').value || undefined,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error ?? 'IA falló');
+      m.remove();
+      showDiffModal({ ...data, runId, fileId });
+    } catch (e) {
+      m.querySelector('#ai-status').innerHTML = `<div class="err">${e.message}</div>`;
+      btn.disabled = false; btn.textContent = 'Reintentar →';
+    }
+  });
+}
+
+function showDiffModal({ job_id, draft_file_id, diff_summary, todos, comments_unresolved, runId, fileId }) {
+  const m = document.createElement('div');
+  m.className = 'ai-modal';
+  m.innerHTML = `
+    <div class="ai-modal-backdrop"></div>
+    <div class="ai-modal-card" style="max-width:720px">
+      <h3 style="margin-bottom:8px">✨ Borrador v2 listo para revisar</h3>
+      <p style="color:var(--muted);font-size:13px;margin-bottom:14px">Gemini generó esta lista de cambios:</p>
+      <div style="background:var(--surface);border-radius:10px;padding:14px;margin-bottom:14px;white-space:pre-wrap;font-size:13.5px;max-height:220px;overflow:auto">${escapeHtml(diff_summary ?? '(sin resumen)')}</div>
+      ${todos?.length ? `<div style="background:rgba(240,180,41,0.08);border:1px solid rgba(240,180,41,0.3);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12.5px"><b>⚠ Pendientes (info faltante):</b><ul style="margin:6px 0 0 18px">${todos.map((t) => `<li>${escapeHtml(t)}</li>`).join('')}</ul></div>` : ''}
+      ${comments_unresolved?.length ? `<div style="font-size:12px;color:var(--muted);margin-bottom:12px">${comments_unresolved.length} comentario(s) no aplicados.</div>` : ''}
+      <div style="display:flex;gap:8px;align-items:center">
+        <button type="button" class="secondary" id="ai-preview">Ver borrador v2</button>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <button type="button" class="secondary" id="ai-discard">Descartar</button>
+          <button type="button" class="primary" id="ai-apply">Aplicar v2 (archiva v1) →</button>
+        </div>
+      </div>
+      <div id="ai-status2" style="margin-top:10px"></div>
+    </div>
+  `;
+  document.body.appendChild(m);
+  m.querySelector('.ai-modal-backdrop').addEventListener('click', () => m.remove());
+  m.querySelector('#ai-preview').addEventListener('click', async () => {
+    const signed = await fetchSignedUrl(draft_file_id);
+    window.open(signed.url, '_blank');
+  });
+  m.querySelector('#ai-discard').addEventListener('click', async () => {
+    if (!confirm('¿Descartar el borrador v2?')) return;
+    await fetch('/api/files/discard-v2', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id }) });
+    m.remove();
+    mountDocViewer(runId);
+  });
+  m.querySelector('#ai-apply').addEventListener('click', async () => {
+    if (!confirm('Aplicar v2: la versión actual queda archivada y la v2 pasa a ser el contrato activo. ¿Continuar?')) return;
+    const r = await fetch('/api/files/apply-v2', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ job_id }) });
+    if (!r.ok) { m.querySelector('#ai-status2').innerHTML = `<div class="err">${await r.text()}</div>`; return; }
+    m.remove();
+    mountDocViewer(runId);
+  });
 }
 
 function renderComposer(fileId, runId) {

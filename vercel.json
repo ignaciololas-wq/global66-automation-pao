@@ -47,7 +47,11 @@
     { "source": "/api/comments", "destination": "/api" },
     { "source": "/api/notifications", "destination": "/api" },
     { "source": "/api/notifications/read", "destination": "/api" },
-    { "source": "/api/users/mentions", "destination": "/api" }
+    { "source": "/api/users/mentions", "destination": "/api" },
+    { "source": "/api/files/ai-edit", "destination": "/api" },
+    { "source": "/api/files/apply-v2", "destination": "/api" },
+    { "source": "/api/files/discard-v2", "destination": "/api" },
+    { "source": "/api/files/ai-jobs", "destination": "/api" }
   ],
   "headers": [
     {
