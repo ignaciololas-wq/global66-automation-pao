@@ -54,19 +54,24 @@
   .shell.sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr) }
   .shell.sidebar-collapsed aside { transform: translateX(-100%); pointer-events: none }
   aside { transition: transform .25s ease }
+  /* Handle pegado al borde del sidebar (tab-style, no flotante). */
   .sidebar-toggle {
-    position: fixed; top: 16px; z-index: 150;
-    width: 36px; height: 36px; border-radius: 10px;
-    background: var(--blue-900); color: white;
-    border: 1px solid rgba(255,255,255,0.15);
+    position: fixed; top: 50%; transform: translateY(-50%);
+    z-index: 150;
+    width: 22px; height: 64px;
+    background: var(--blue-900); color: rgba(255,255,255,0.75);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-left: none;
+    border-radius: 0 10px 10px 0;
     cursor: pointer; display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.2);
-    left: 196px;
-    transition: left .25s ease, background .15s ease;
+    box-shadow: 4px 0 12px rgba(0,0,0,0.12);
+    left: 240px; padding: 0;
+    transition: left .25s ease, background .15s ease, color .15s ease;
   }
-  .sidebar-toggle:hover { background: var(--blue-800) }
-  body.sidebar-collapsed .sidebar-toggle { left: 16px }
-  .sidebar-toggle svg { width: 16px; height: 16px }
+  .sidebar-toggle:hover { background: var(--blue-800); color: white }
+  body.sidebar-collapsed .sidebar-toggle { left: 0 }
+  .sidebar-toggle svg { width: 14px; height: 14px; transition: transform .25s ease }
+  body:not(.sidebar-collapsed) .sidebar-toggle svg { transform: rotate(180deg) }
   aside {
     background: var(--blue-900); color: white;
     padding: 24px 16px; display: flex; flex-direction: column; gap: 4px;
@@ -671,7 +676,7 @@
 
 <!-- App -->
 <button type="button" id="sidebar-toggle" class="sidebar-toggle" title="Mostrar/ocultar barra lateral" aria-label="Toggle sidebar">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
 </button>
 <div id="app-shell" class="shell">
   <aside>
