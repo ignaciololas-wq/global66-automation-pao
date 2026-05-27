@@ -79,10 +79,27 @@ export async function fillProfile(token, profileData, { byEmail } = {}) {
   }
   const mergedProfile = { ...(provider.profile_data ?? {}), ...profileData };
 
-  // Si profileData tiene campos top-level que coinciden, los actualizamos también
+  // Campos top-level editables (incluye datos intake que el proveedor puede corregir en paso 1)
   const topLevelPatch = {};
-  const allowed = ['representante_legal','email_contacto','email_facturacion','tipo_proveedor'];
-  for (const k of allowed) if (profileData[k]) topLevelPatch[k] = profileData[k];
+  const allowed = [
+    'representante_legal',
+    'email_contacto',
+    'email_facturacion',
+    'tipo_proveedor',
+    'razon_social',
+    'tax_id',
+    'pais',
+  ];
+  for (const k of allowed) if (profileData[k] != null && profileData[k] !== '') topLevelPatch[k] = profileData[k];
+
+  // Diff con valores previos para auditoría — solo campos intake (los core)
+  const intakeFields = ['razon_social', 'tax_id', 'pais', 'tipo_proveedor'];
+  const intakeDiff = {};
+  for (const k of intakeFields) {
+    if (topLevelPatch[k] != null && topLevelPatch[k] !== provider[k]) {
+      intakeDiff[k] = { from: provider[k] ?? null, to: topLevelPatch[k] };
+    }
+  }
 
   const { data, error } = await sb.from('providers')
     .update({
@@ -97,6 +114,9 @@ export async function fillProfile(token, profileData, { byEmail } = {}) {
   if (error) throw error;
 
   await logAudit(null, byEmail ?? 'provider', 'profile.filled', 'provider', provider.id, { fields: Object.keys(profileData) });
+  if (Object.keys(intakeDiff).length) {
+    await logAudit(null, byEmail ?? 'provider', 'provider.intake_corrected', 'provider', provider.id, { diff: intakeDiff });
+  }
   return data;
 }
 

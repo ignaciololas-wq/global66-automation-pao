@@ -208,7 +208,13 @@ const routes = {
     const result = computeSemaphore(body);
     if (body.run_id) {
       await setSemaforo(body.run_id, result.color, result.reason);
-      await setPhase(body.run_id, result.color === 'green' ? 'fase2' : result.color === 'red' ? 'rejected' : 'hito1');
+      // En modo paralelo: marcamos aprobaciones internas como done sin avanzar a fase3 hasta que provider también termine
+      if (result.color === 'red') {
+        await setPhase(body.run_id, 'rejected');
+      } else {
+        const { markInternalApprovalsDone } = await import('./approvals_dispatch.js');
+        await markInternalApprovalsDone(body.run_id, result.color, result.reason);
+      }
     }
     json(res, 200, result);
   },
@@ -394,6 +400,7 @@ const routes = {
     const { buildProfileUrl, findByToken } = await import('./provider_profile.js');
     const { sendEmail, providerInvitation, providerRevisionRequest } = await import('./email.js');
     const { getDocsForSociedad } = await import('./sociedad.js');
+    const { dispatchApprovalRequests } = await import('./approvals_dispatch.js');
 
     const patch = {
       internal_approval_status: decision,
@@ -404,12 +411,21 @@ const routes = {
     if (sociedad_contratante) patch.sociedad_contratante = sociedad_contratante;
     if (sociedad_apoderado_email) patch.sociedad_apoderado_email = sociedad_apoderado_email;
     if (decision === 'rejected') patch.current_phase = 'rejected';
-    if (decision === 'requested_changes') patch.current_phase = 'fase2'; // vuelve a paso datos proveedor
+    if (decision === 'requested_changes') patch.current_phase = 'fase2';
+    if (decision === 'approved') {
+      patch.current_phase = 'parallel'; // marca de UI: hay branches activos
+      patch.active_phases = ['fase2_provider_data', 'hito1_approvals'];
+    }
 
     await sb.from('workflow_runs').update(patch).eq('id', run_id);
     await logAudit(run_id, approver_email ?? 'admin', `intake.${decision}`, 'workflow_run', run_id, { sociedad_contratante, comment });
 
     if (decision === 'rejected') return json(res, 200, { ok: true, decision });
+
+    // En aprobado: dispara aprobaciones internas Slack en paralelo (no bloquea mail proveedor)
+    if (decision === 'approved') {
+      dispatchApprovalRequests(run_id).catch((e) => console.error('dispatchApprovalRequests failed:', e.message));
+    }
 
     // approved | requested_changes → mail al proveedor
     const { data: run } = await sb.from('workflow_runs').select('*').eq('id', run_id).single();
@@ -1424,6 +1440,21 @@ const routes = {
     const { fillProfile } = await import('./provider_profile.js');
     try {
       const p = await fillProfile(body.token, body.profile_data ?? {}, { byEmail: body.by_email });
+
+      // PR-B: marca branch datos proveedor como done en cualquier run activo del proveedor
+      const { data: runs } = await sb
+        .from('workflow_runs')
+        .select('id, active_phases')
+        .eq('tax_id', p.tax_id)
+        .not('current_phase', 'in', '(signed,rejected,cancelled)');
+      const { markProviderDataDone } = await import('./approvals_dispatch.js');
+      for (const run of runs ?? []) {
+        const phases = run.active_phases ?? [];
+        if (phases.includes('fase2_provider_data')) {
+          await markProviderDataDone(run.id).catch((e) => console.error('markProviderDataDone failed:', e.message));
+        }
+      }
+
       json(res, 200, { ok: true, provider_id: p.id });
     } catch (e) {
       if (e.code === 'INVALID_TOKEN') return json(res, 404, { error: 'token invalid' });

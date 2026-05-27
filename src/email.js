@@ -101,15 +101,17 @@ export function providerInvitation({ providerName, profileUrl, sociedadContratan
     .map((d) => `<li style="margin:4px 0">${d.name}${d.valid_months ? ` <span style="color:#999;font-size:11px">(vigencia ${d.valid_months}m)</span>` : ''}</li>`)
     .join('');
   const signList = (sociedadDocs?.documents_to_sign ?? [])
-    .map((d) => `<li style="margin:4px 0">${d.name} — <i style="color:#565656">descargar, firmar y subir</i></li>`)
+    .map((d) => `<li style="margin:8px 0;padding:10px 12px;background:#f5f7fe;border-radius:8px;border:1px solid #E9EDF8">
+      <div style="font-weight:600;color:#132046;font-size:13.5px">${d.name}</div>
+      ${d.template_url ? `<a href="${d.template_url}" style="display:inline-block;margin-top:6px;padding:6px 14px;background:#1F49B6;color:white;text-decoration:none;border-radius:6px;font-size:12px;font-weight:600">⬇ Descargar plantilla</a>` : `<span style="color:#999;font-size:11px">Plantilla disponible en la plataforma</span>`}
+    </li>`)
     .join('');
 
   const docsSection = sociedadDocs ? `
     <h3 style="font-family:'Montserrat',sans-serif;font-size:14px;text-transform:uppercase;letter-spacing:0.05em;color:#565656;margin:28px 0 8px">📁 Documentos que vas a necesitar</h3>
     <p style="color:#132046;font-size:13px;margin:0 0 12px">Según la sociedad contratante (<b>${sociedadDocs.name}</b>):</p>
     ${baseList ? `<ul style="padding-left:20px;margin:0;color:#132046;font-size:14px">${baseList}</ul>` : ''}
-    ${signList ? `<h4 style="font-size:13px;color:#132046;margin:14px 0 4px">Documentos para firmar</h4><ul style="padding-left:20px;margin:0;color:#132046;font-size:14px">${signList}</ul>
-    <p style="margin:8px 0 0;color:#565656;font-size:11px">Las plantillas están disponibles en la plataforma una vez que abras el link de arriba.</p>` : ''}
+    ${signList ? `<h4 style="font-size:13px;color:#132046;margin:18px 0 8px">Documentos para firmar — descargá, firmá y subí</h4><ul style="padding:0;margin:0;list-style:none;color:#132046;font-size:14px">${signList}</ul>` : ''}
   ` : '';
 
   const html = `<!doctype html>

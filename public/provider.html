@@ -70,6 +70,7 @@
     transition: all .15s ease;
   }
   input:focus, textarea:focus, select:focus { outline: none; border-color: var(--blue-500); box-shadow: 0 0 0 4px rgba(31,73,182,0.08) }
+  input.dirty, select.dirty, textarea.dirty { border-color: var(--blue-500); background: #f5f9ff }
   textarea { resize: vertical; min-height: 90px }
 
   .preview {
@@ -173,14 +174,31 @@ function renderForm(p) {
 
     <form id="form">
       <div class="section tally-step" data-step="1" data-step-name="Datos registrados">
-        <div class="preview" style="margin:0">
-          <h3>Datos ya registrados</h3>
-          <div class="preview-row"><span>Razón social</span><span>${p.razon_social}</span></div>
-          <div class="preview-row"><span>Tax ID</span><span>${p.tax_id}</span></div>
-          <div class="preview-row"><span>País</span><span>${p.pais}</span></div>
-          ${p.tipo_proveedor ? `<div class="preview-row"><span>Tipo</span><span>${p.tipo_proveedor}</span></div>` : ''}
+        <h2>Datos ya registrados</h2>
+        <p class="help">Revisá los datos. Si algo está mal, corregilo acá antes de continuar.</p>
+        <div class="question">
+          <label>Razón social <span class="req">*</span></label>
+          <input type="text" name="razon_social" required value="${esc(p.razon_social)}" data-original="${esc(p.razon_social)}">
         </div>
-        <p class="help" style="margin-top:14px">Revisá los datos que tenemos. Si está OK, dale "Continuar" para completar tu perfil.</p>
+        <div class="question">
+          <label>Tax ID / RUT <span class="req">*</span></label>
+          <input type="text" name="tax_id" required value="${esc(p.tax_id)}" data-original="${esc(p.tax_id)}">
+        </div>
+        <div class="question">
+          <label>País <span class="req">*</span></label>
+          <input type="text" name="pais" required value="${esc(p.pais)}" data-original="${esc(p.pais)}">
+        </div>
+        <div class="question">
+          <label>Tipo de proveedor</label>
+          <select name="tipo_proveedor" data-original="${esc(p.tipo_proveedor)}">
+            <option value="">— Sin definir —</option>
+            <option value="bienes" ${p.tipo_proveedor === 'bienes' ? 'selected' : ''}>Bienes</option>
+            <option value="servicios" ${p.tipo_proveedor === 'servicios' ? 'selected' : ''}>Servicios</option>
+            <option value="profesional" ${p.tipo_proveedor === 'profesional' ? 'selected' : ''}>Profesional independiente</option>
+            <option value="otro" ${p.tipo_proveedor === 'otro' ? 'selected' : ''}>Otro</option>
+          </select>
+        </div>
+        <p class="help" id="step1-dirty-hint" style="margin-top:10px;color:var(--blue-500);font-weight:500;display:none">✏️ Cambios detectados — se guardarán al enviar.</p>
       </div>
 
       <div class="section tally-step" data-step="2" data-step-name="Información de la empresa" hidden>
@@ -331,6 +349,10 @@ function renderForm(p) {
     const data = Object.fromEntries(fd);
     const fmt = (v) => v == null || v === '' ? '<span style="color:#999">—</span>' : String(v).replace(/[<>&]/g, (c) => ({ '<':'&lt;', '>':'&gt;', '&':'&amp;' }[c]));
     const rows = [
+      ['Razón social', fmt(data.razon_social)],
+      ['Tax ID', fmt(data.tax_id)],
+      ['País', fmt(data.pais)],
+      ['Tipo proveedor', fmt(data.tipo_proveedor)],
       ['Domicilio', fmt(data.domicilio)],
       ['Sitio web', fmt(data.website)],
       ['Representante', `${fmt(data.representante_legal)} (${fmt(data.representante_doc)})`],
@@ -355,7 +377,28 @@ function renderForm(p) {
 
   show(0);
   renderUploads(p);
+  setupStep1DirtyDetection();
   $('#form').addEventListener('submit', submit);
+}
+
+function setupStep1DirtyDetection() {
+  const step1 = document.querySelector('.tally-step[data-step="1"]');
+  if (!step1) return;
+  const inputs = step1.querySelectorAll('input[data-original], select[data-original]');
+  const hint = step1.querySelector('#step1-dirty-hint');
+  const check = () => {
+    let dirty = false;
+    inputs.forEach((el) => {
+      const changed = (el.value ?? '') !== (el.dataset.original ?? '');
+      el.classList.toggle('dirty', changed);
+      if (changed) dirty = true;
+    });
+    if (hint) hint.style.display = dirty ? 'block' : 'none';
+  };
+  inputs.forEach((el) => {
+    el.addEventListener('input', check);
+    el.addEventListener('change', check);
+  });
 }
 
 function renderUploads(p) {
@@ -388,9 +431,11 @@ function renderUploads(p) {
       const validMonths = d.valid_months ? ` <span class="muted" style="font-size:11px">(vigencia ${d.valid_months}m)</span>` : '';
       const kindBadge = d._kind === 'sign' ? '<span class="pill yellow" style="font-size:10px;margin-left:6px">PARA FIRMAR</span>' : '';
       const existingHtml = existing.length ? `<div class="upload-status">${existing.map(u => `<div>✓ <b>${u.doc_filename}</b> <span class="muted">· ${fmtSize(u.file_size)} · ${new Date(u.created_at).toLocaleDateString()}</span></div>`).join('')}</div>` : '';
+      const downloadBtn = d.template_url ? `<a href="${d.template_url}" target="_blank" download style="display:inline-block;margin-bottom:8px;padding:6px 12px;background:#1F49B6;color:white;text-decoration:none;border-radius:6px;font-size:12px;font-weight:600">⬇ Descargar plantilla</a>` : '';
       return `
         <div class="question">
           <label>${d.name}${validMonths}${kindBadge}</label>
+          ${downloadBtn}
           <input type="file" data-doctype="${slug}" accept="application/pdf,image/*">
           ${existingHtml}
           <div class="upload-status" data-doctype-status="${slug}"></div>
@@ -408,16 +453,28 @@ function renderUploads(p) {
       statusEl.innerHTML = `<span class="muted">⬆ Subiendo ${file.name}…</span>`;
       input.disabled = true;
       try {
+        if (!token) throw new Error('Falta token de sesión, recargá el link del email');
+        if (!docType) throw new Error('Tipo de documento no identificado');
         const fd = new FormData();
         fd.append('token', token);
         fd.append('doc_type', docType);
         const filledByInput = document.querySelector('input[name=filled_by_email]');
         if (filledByInput?.value) fd.append('by_email', filledByInput.value);
         fd.append('file', file, file.name);
+
         const r = await fetch('/api/provider/upload', { method: 'POST', body: fd });
-        if (!r.ok) throw new Error(await r.text());
-        const j = await r.json();
-        statusEl.innerHTML = `<div style="color:#02A757">✓ <b>${j.doc_filename}</b> subido (${fmtSize(j.file_size)})</div>`;
+        const rawText = await r.text();
+        let payload = null;
+        try { payload = JSON.parse(rawText); } catch {}
+
+        if (!r.ok) {
+          const errMsg = payload?.error ?? rawText ?? `HTTP ${r.status}`;
+          if (errMsg.includes('mime not allowed')) throw new Error('Tipo no permitido. Usá PDF, PNG, JPG o WEBP.');
+          if (errMsg.includes('too large')) throw new Error('Archivo demasiado pesado (máx 10MB).');
+          if (errMsg.includes('token invalid')) throw new Error('Link expirado. Pedí uno nuevo a Global66.');
+          throw new Error(errMsg);
+        }
+        statusEl.innerHTML = `<div style="color:#02A757">✓ <b>${payload.doc_filename}</b> subido (${fmtSize(payload.file_size)})</div>`;
         input.value = '';
       } catch (err) {
         statusEl.innerHTML = `<div class="err" style="margin-top:4px">Error: ${err.message}</div>`;
