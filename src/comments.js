@@ -120,7 +120,7 @@ export async function createComment({
   })().catch((e) => console.error('[comment notif solicitante]', e.message));
 
   await logAudit(workflowRunId, authorEmail, 'comment.created', 'file_comment', comment.id, {
-    file_id: fileId, mentions: emails.length, page: pageNumber,
+    file_id: fileId, mentions: mentionEmails.length, page: pageNumber,
   });
   return comment;
 }

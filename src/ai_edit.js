@@ -2,7 +2,9 @@
 
 import crypto from 'node:crypto';
 import Anthropic from '@anthropic-ai/sdk';
-import pdfParse from 'pdf-parse';
+// pdf-parse bundles test files al cargar el index → falla en Vercel serverless.
+// Importar el archivo interno directamente evita ese código.
+import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import { sb, logAudit } from './supabase_audit.js';
 import { MOCK } from './mock_mode.js';
 

@@ -1,7 +1,7 @@
 // Extracción de campos contrato vía Gemini API + cache Supabase por hash PDF.
 
 import { GoogleGenAI } from '@google/genai';
-import pdfParse from 'pdf-parse';
+import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';

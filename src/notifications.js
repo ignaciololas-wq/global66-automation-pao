@@ -39,7 +39,7 @@ async function slackDM(email, blocks, fallbackText) {
 }
 
 function buildMentionEmail({ authorEmail, body, runId, fileId, pageNumber }) {
-  const previewUrl = `${SITE_URL}/admin#workflows/${runId}?file=${fileId}`;
+  const previewUrl = `${SITE_URL}/admin?file=${fileId}#workflows/${runId}`;
   const pageLine = pageNumber ? ` · página ${pageNumber}` : '';
   return {
     subject: `${authorEmail} te mencionó en un contrato${pageLine}`,
@@ -98,7 +98,7 @@ export async function sendMentionNotification({ mentionedEmails, authorEmail, bo
       elements: [{
         type: 'button',
         text: { type: 'plain_text', text: 'Ver comentario' },
-        url: `${SITE_URL}/admin#workflows/${workflowRunId}?file=${fileId}`,
+        url: `${SITE_URL}/admin?file=${fileId}#workflows/${workflowRunId}`,
       }],
     },
   ];
@@ -148,7 +148,7 @@ export async function sendCommentNotification({ recipients, authorEmail, body, f
   }
 
   const { sendEmail } = await import('./email.js');
-  const previewUrl = `${SITE_URL}/admin#workflows/${workflowRunId}?file=${fileId}`;
+  const previewUrl = `${SITE_URL}/admin?file=${fileId}#workflows/${workflowRunId}`;
   const pageLine = pageNumber ? ` · página ${pageNumber}` : '';
   const tpl = {
     subject: `Nuevo comentario en tu solicitud · ${authorEmail}`,

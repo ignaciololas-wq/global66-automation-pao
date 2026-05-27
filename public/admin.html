@@ -1097,12 +1097,13 @@ const pages = {
   },
 
   async workflowDetail(runId) {
-    const [runs, apps, audits, extraction, sanctions, uploads] = await Promise.all([
+    const [runs, apps, audits, extraction, sanctions, regcheq, uploads] = await Promise.all([
       q('workflow_runs', `id=eq.${runId}`),
       q('approvals', `workflow_run_id=eq.${runId}&order=decided_at.asc`),
       q('audit_log', `workflow_run_id=eq.${runId}&order=created_at.asc`),
       q('extractions', `workflow_run_id=eq.${runId}&order=created_at.desc&limit=1`),
       q('sanctions_checks', `workflow_run_id=eq.${runId}&order=created_at.desc&limit=1`),
+      q('regcheq_checks', `workflow_run_id=eq.${runId}&order=created_at.desc&limit=1`).catch(() => []),
       q('provider_uploads', `workflow_run_id=eq.${runId}&order=created_at.desc`).catch(() => []),
     ]);
     const r = runs[0];
@@ -1110,6 +1111,7 @@ const pages = {
     const ext = extraction[0]?.extracted_json;
     const risks = ext?.riesgos_detectados ?? [];
     const sanct = sanctions[0];
+    const rcq = regcheq[0];
 
     view.innerHTML = `
       <div class="breadcrumb"><a href="#workflows">← Volver a solicitudes</a></div>
@@ -1187,9 +1189,36 @@ const pages = {
       </div>` : ''}
 
       ${sanct ? `<div class="card" style="margin-bottom:16px">
-        <h3 style="margin-bottom:12px">Sanciones</h3>
+        <h3 style="margin-bottom:12px">Sanciones (OpenSanctions)</h3>
         ${sanct.hit ? `<div class="err">⚠️ Match en lista de sanciones</div><pre>${JSON.stringify(sanct.matches, null, 2)}</pre>` : `<div class="ok">✓ Sin matches</div>`}
       </div>` : ''}
+
+      ${rcq ? (() => {
+        const decisionKind = { block: 'red', review: 'yellow', approve_flag: 'yellow', approve: 'green', unknown: 'gray', skip: 'gray' }[rcq.decision] ?? 'gray';
+        const decisionLabel = { block: '⛔ Bloquear', review: '⚠️ Revisión manual', approve_flag: '⚑ Aprobar con flag', approve: '✓ Aprobar', unknown: 'Sin datos', skip: 'Omitido' }[rcq.decision] ?? rcq.decision;
+        const companyMatches = rcq.company?.matches ?? [];
+        const relations = rcq.relations ?? [];
+        return `<div class="card" style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h3>Validación PEP/AML (Regcheq)</h3>
+            ${dotPill(decisionLabel, decisionKind)}
+          </div>
+          <dl class="props">
+            <dt>Decisión</dt><dd><b>${decisionLabel}</b> <span class="muted">(${rcq.reason ?? '—'})</span></dd>
+            <dt>Riesgo empresa</dt><dd>${rcq.company?.effectiveRisk ?? '—'}</dd>
+          </dl>
+          ${companyMatches.length ? `<h4 style="margin:16px 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-family:'Inter';font-weight:600">Listas con match (empresa)</h4>
+            <ul style="margin:0 0 12px 18px">${companyMatches.map(m => `<li><b>${m.list}</b> ${m.risk ? `<span class="muted">— riesgo ${m.risk}</span>` : ''}</li>`).join('')}</ul>` : ''}
+          ${relations.length ? `<h4 style="margin:16px 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-family:'Inter';font-weight:600">Personas relacionadas</h4>
+            <table><thead><tr><th>DNI</th><th>Tipo</th><th>Decisión</th><th>Matches</th></tr></thead>
+            <tbody>${relations.map(r => `<tr>
+              <td>${r.dni}</td>
+              <td class="muted">${r.type ?? '—'}</td>
+              <td>${dotPill(r.decision, { block:'red', review:'yellow', approve_flag:'yellow', approve:'green' }[r.decision] ?? 'gray')}</td>
+              <td class="muted" style="font-size:12px">${(r.matches ?? []).map(m => m.list).join(', ') || '—'}</td>
+            </tr>`).join('')}</tbody></table>` : ''}
+        </div>`;
+      })() : ''}
 
       ${uploads.length ? `<div class="card" style="margin-bottom:16px">
         <h3 style="margin-bottom:16px">Documentos subidos por el proveedor</h3>
@@ -2336,8 +2365,17 @@ async function mountDocViewer(runId) {
   });
 
   host.querySelectorAll('.file-pill').forEach((p) => p.addEventListener('click', () => selectFile(p.dataset.id, p.dataset.mime, p.dataset.name)));
-  const main = sorted.find((f) => f.kind === 'main') ?? sorted[0];
+  // Auto-select: si ?file=X en query, abrir ese; sino main; sino primero.
+  const qsFileId = new URLSearchParams(location.search).get('file');
+  const wanted = qsFileId ? sorted.find((f) => f.id === qsFileId) : null;
+  const main = wanted ?? sorted.find((f) => f.kind === 'main') ?? sorted[0];
   if (main) selectFile(main.id, main.mime_type, main.filename);
+  // Limpiar ?file de URL después de usar (no contaminar futuras navegaciones).
+  if (qsFileId) {
+    const url = new URL(location.href);
+    url.searchParams.delete('file');
+    history.replaceState(null, '', url);
+  }
 }
 
 function handleSelection(e) {
@@ -2795,7 +2833,20 @@ function toggleNotifPopup() {
       body: JSON.stringify({ ids: [el.dataset.id] }),
     });
     const runId = el.dataset.run; const fileId = el.dataset.file;
-    location.hash = runId ? `workflows/${runId}${fileId ? `?file=${fileId}` : ''}` : 'dashboard';
+    if (runId) {
+      if (fileId) {
+        // Setear ?file= en query antes del hash y navegar.
+        const url = new URL(location.href);
+        url.searchParams.set('file', fileId);
+        url.hash = `workflows/${runId}`;
+        history.pushState(null, '', url);
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      } else {
+        location.hash = `workflows/${runId}`;
+      }
+    } else {
+      location.hash = 'dashboard';
+    }
     pop.remove();
     refreshNotifBadge();
   }));
