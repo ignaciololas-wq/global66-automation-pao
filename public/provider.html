@@ -41,6 +41,23 @@
   .section h2 { font-size: 18px; margin-bottom: 4px }
   .section p.help { color: var(--muted); font-size: 13px; margin-bottom: 18px }
 
+  /* Tally-style (PR4) */
+  .tally-topbar { padding: 0 0 14px; display: flex; flex-direction: column; gap: 6px }
+  .tally-progress { height: 4px; background: var(--border); border-radius: 99px; overflow: hidden }
+  .tally-progress-fill { height: 100%; background: linear-gradient(90deg, var(--blue-500), var(--mint)); border-radius: 99px; transition: width .35s cubic-bezier(.22,.61,.36,1) }
+  .tally-step-meta { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--blue-700) }
+  .tally-step-meta .muted { font-weight: 500 }
+  .tally-step.tally-enter { animation: tally-slide 0.32s cubic-bezier(.22,.61,.36,1) both }
+  @keyframes tally-slide { 0% { opacity: 0; transform: translateY(14px) } 100% { opacity: 1; transform: translateY(0) } }
+  .tally-nav { display: flex; gap: 10px; align-items: center; padding-top: 14px; border-top: 1px solid var(--border); margin-top: 8px }
+  .tally-nav .ghost { background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 10px 16px; border-radius: 99px; font-weight: 600; font-size: 14px }
+  .tally-nav .ghost:hover { color: var(--text); background: var(--blue-50) }
+  .tally-review { background: var(--blue-50); border-radius: 12px; border: 1px solid var(--blue-100); padding: 4px 0 }
+  .tally-review-row { display: grid; grid-template-columns: minmax(120px, 180px) 1fr; gap: 10px 16px; padding: 10px 16px; border-bottom: 1px solid var(--blue-100); font-size: 13.5px }
+  .tally-review-row:last-child { border-bottom: none }
+  .tally-review-key { color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px }
+  .tally-review-val { color: var(--text); font-weight: 500; word-break: break-word }
+
   .question { margin: 18px 0 }
   .question label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; color: var(--text) }
   .question label .req { color: var(--red); margin-left: 4px }
@@ -146,16 +163,27 @@ function renderForm(p) {
   fa.hidden = false;
 
   fa.innerHTML = `
-    <div class="preview">
-      <h3>Datos ya registrados</h3>
-      <div class="preview-row"><span>Razón social</span><span>${p.razon_social}</span></div>
-      <div class="preview-row"><span>Tax ID</span><span>${p.tax_id}</span></div>
-      <div class="preview-row"><span>País</span><span>${p.pais}</span></div>
-      ${p.tipo_proveedor ? `<div class="preview-row"><span>Tipo</span><span>${p.tipo_proveedor}</span></div>` : ''}
+    <div class="tally-topbar">
+      <div class="tally-progress"><div class="tally-progress-fill" id="tally-fill" style="width:14%"></div></div>
+      <div class="tally-step-meta">
+        <span id="tally-step-name">Paso 1 de 7</span>
+        <span class="muted" id="tally-step-hint">Datos registrados</span>
+      </div>
     </div>
 
     <form id="form">
-      <div class="section">
+      <div class="section tally-step" data-step="1" data-step-name="Datos registrados">
+        <div class="preview" style="margin:0">
+          <h3>Datos ya registrados</h3>
+          <div class="preview-row"><span>Razón social</span><span>${p.razon_social}</span></div>
+          <div class="preview-row"><span>Tax ID</span><span>${p.tax_id}</span></div>
+          <div class="preview-row"><span>País</span><span>${p.pais}</span></div>
+          ${p.tipo_proveedor ? `<div class="preview-row"><span>Tipo</span><span>${p.tipo_proveedor}</span></div>` : ''}
+        </div>
+        <p class="help" style="margin-top:14px">Revisá los datos que tenemos. Si está OK, dale "Continuar" para completar tu perfil.</p>
+      </div>
+
+      <div class="section tally-step" data-step="2" data-step-name="Información de la empresa" hidden>
         <h2>1. Información de la empresa</h2>
         <p class="help">Confirmá o completá los datos legales.</p>
         <div class="question">
@@ -172,7 +200,7 @@ function renderForm(p) {
         </div>
       </div>
 
-      <div class="section">
+      <div class="section tally-step" data-step="3" data-step-name="Representante legal" hidden>
         <h2>2. Representante legal</h2>
         <div class="question">
           <label>Nombre completo del representante legal <span class="req">*</span></label>
@@ -192,7 +220,7 @@ function renderForm(p) {
         </div>
       </div>
 
-      <div class="section">
+      <div class="section tally-step" data-step="4" data-step-name="Contacto comercial" hidden>
         <h2>3. Contacto comercial</h2>
         <p class="help">Persona con quien coordinamos día a día (puede ser distinto al representante legal).</p>
         <div class="question">
@@ -209,7 +237,7 @@ function renderForm(p) {
         </div>
       </div>
 
-      <div class="section">
+      <div class="section tally-step" data-step="5" data-step-name="Facturación" hidden>
         <h2>4. Facturación</h2>
         <div class="question">
           <label>Email de facturación <span class="req">*</span></label>
@@ -221,7 +249,7 @@ function renderForm(p) {
         </div>
       </div>
 
-      <div class="section">
+      <div class="section tally-step" data-step="6" data-step-name="Compliance" hidden>
         <h2>5. Compliance</h2>
         <p class="help">Esta info nos ayuda a procesar tu alta más rápido.</p>
         <div class="question">
@@ -238,21 +266,91 @@ function renderForm(p) {
         </div>
       </div>
 
-      <div class="section">
-        <h2>6. Email que está completando</h2>
+      <div class="section tally-step" data-step="7" data-step-name="Confirmar y enviar" hidden>
+        <h2>6. Confirmá y envía</h2>
+        <p class="help">Revisá tus datos abajo antes de enviar.</p>
         <div class="question">
-          <label>Tu email <span class="req">*</span></label>
+          <label>Tu email (quien completa el formulario) <span class="req">*</span></label>
           <input type="email" name="filled_by_email" required placeholder="tu.email@empresa.com" value="${esc(p.profile_data?.filled_by_email)}">
         </div>
+        <div id="tally-review" class="tally-review" style="margin-top:14px"></div>
       </div>
 
       <div id="form-err" class="err" hidden></div>
-      <div class="actions">
-        <button type="submit" class="primary" id="submit-btn">Enviar y continuar</button>
+      <div class="tally-nav">
+        <button type="button" class="ghost" id="tally-prev" hidden>← Atrás</button>
+        <button type="button" class="primary" id="tally-next" style="margin-left:auto">Continuar →</button>
+        <button type="submit" class="primary" id="submit-btn" hidden style="margin-left:auto">Enviar perfil completo →</button>
       </div>
     </form>
   `;
 
+  // Tally controller
+  const steps = Array.from(document.querySelectorAll('.tally-step'));
+  const total = steps.length;
+  let idx = 0;
+  const fill = $('#tally-fill');
+  const nameEl = $('#tally-step-name');
+  const hintEl = $('#tally-step-hint');
+  const prevBtn = $('#tally-prev');
+  const nextBtn = $('#tally-next');
+  const submitBtn = $('#submit-btn');
+
+  function show(i) {
+    idx = Math.max(0, Math.min(total - 1, i));
+    steps.forEach((s, k) => {
+      s.hidden = k !== idx;
+      if (k === idx) s.classList.add('tally-enter'); else s.classList.remove('tally-enter');
+    });
+    fill.style.width = `${Math.round(((idx + 1) / total) * 100)}%`;
+    nameEl.textContent = `Paso ${idx + 1} de ${total}`;
+    hintEl.textContent = steps[idx].dataset.stepName ?? '';
+    prevBtn.hidden = idx === 0;
+    const isLast = idx === total - 1;
+    nextBtn.hidden = isLast;
+    submitBtn.hidden = !isLast;
+    if (isLast) renderReview();
+    setTimeout(() => steps[idx].querySelector('input:not([type=hidden]), select, textarea')?.focus({ preventScroll: true }), 80);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function validate() {
+    const step = steps[idx];
+    const fields = step.querySelectorAll('input, select, textarea');
+    for (const f of fields) {
+      if (!f.checkValidity()) { f.reportValidity(); f.focus(); return false; }
+    }
+    return true;
+  }
+
+  function renderReview() {
+    const fd = new FormData(document.querySelector('#form'));
+    const data = Object.fromEntries(fd);
+    const fmt = (v) => v == null || v === '' ? '<span style="color:#999">—</span>' : String(v).replace(/[<>&]/g, (c) => ({ '<':'&lt;', '>':'&gt;', '&':'&amp;' }[c]));
+    const rows = [
+      ['Domicilio', fmt(data.domicilio)],
+      ['Sitio web / fundación', `${fmt(data.website)} · ${fmt(data.fundacion_year)}`],
+      ['Representante', `${fmt(data.representante_legal)} (${fmt(data.representante_doc)})`],
+      ['Email repr.', `${fmt(data.representante_email)}${data.representante_tel ? ' · tel ' + fmt(data.representante_tel) : ''}`],
+      ['Contacto comercial', `${fmt(data.contacto_comercial_nombre)} · ${fmt(data.contacto_comercial_email)}`],
+      ['Facturación', fmt(data.email_facturacion)],
+      ['Datos bancarios', fmt((data.datos_bancarios ?? '').slice(0, 100))],
+      ['Compliance', `Certif: ${fmt(data.certificaciones)} · Anti-corrupción: ${fmt(data.anticorrupcion)}`],
+    ];
+    $('#tally-review').innerHTML = rows.map(([k, v]) => `
+      <div class="tally-review-row"><div class="tally-review-key">${k}</div><div class="tally-review-val">${v}</div></div>
+    `).join('');
+  }
+
+  prevBtn.addEventListener('click', () => show(idx - 1));
+  nextBtn.addEventListener('click', () => { if (validate()) show(idx + 1); });
+
+  document.querySelector('#form').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.target.tagName === 'TEXTAREA') return;
+    if (idx < total - 1) { e.preventDefault(); if (validate()) show(idx + 1); }
+  });
+
+  show(0);
   $('#form').addEventListener('submit', submit);
 }
 

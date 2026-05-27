@@ -295,6 +295,45 @@
   .approval-hours small { font-size: 11px; color: var(--muted); font-weight: 500; margin-left: 4px; letter-spacing: 0 }
   .approval-counts { display: flex; gap: 6px; margin-top: 10px }
 
+  /* Tally-style form (PR4) */
+  .tally-shell { display: flex; flex-direction: column; gap: 14px }
+  .tally-topbar { display: flex; flex-direction: column; gap: 6px; padding: 4px 2px }
+  .tally-progress { height: 4px; background: var(--border); border-radius: 99px; overflow: hidden }
+  .tally-progress-fill {
+    height: 100%; background: linear-gradient(90deg, var(--blue-500), var(--mint));
+    border-radius: 99px; transition: width .35s cubic-bezier(.22,.61,.36,1);
+  }
+  .tally-step-meta { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--blue-700); letter-spacing: 0.02em }
+  .tally-step-meta .muted { font-weight: 500 }
+
+  .tally-step { animation: none }
+  .tally-step.tally-enter { animation: tally-slide 0.32s cubic-bezier(.22,.61,.36,1) both }
+  @keyframes tally-slide {
+    0%   { opacity: 0; transform: translateY(14px) }
+    100% { opacity: 1; transform: translateY(0) }
+  }
+
+  .tally-nav {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 0 8px;
+    position: sticky; bottom: 0;
+    background: linear-gradient(transparent, white 30%);
+  }
+  .tally-nav .ghost { padding: 10px 16px }
+
+  .tally-review {
+    background: var(--surface); border-radius: 12px; padding: 4px 0;
+    border: 1px solid var(--border);
+  }
+  .tally-review-row {
+    display: grid; grid-template-columns: minmax(140px, 200px) 1fr;
+    gap: 12px 18px; padding: 12px 18px;
+    border-bottom: 1px solid var(--border); font-size: 13.5px;
+  }
+  .tally-review-row:last-child { border-bottom: none }
+  .tally-review-key { color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px }
+  .tally-review-val { color: var(--text); font-weight: 500; word-break: break-word }
+
   /* Date field — pill styling consistente (PR3-fix) */
   .date-field { position: relative }
   .date-field input[type=date] {
@@ -1428,15 +1467,17 @@ window.submitApproval = async function (runId, decision) {
 async function intakeForm() {
   view.innerHTML = `
     <div class="breadcrumb"><a href="#workflows">← Solicitudes</a></div>
-    <div class="header-row">
-      <div>
-        <h2>Nueva solicitud de contrato</h2>
-        <p style="color:var(--muted);margin-top:4px">Iniciamos el flujo de alta. Si el proveedor es nuevo, le mandamos un email para que complete su perfil.</p>
+    <div class="tally-shell" style="max-width:760px;margin:0 auto">
+      <div class="tally-topbar">
+        <div class="tally-progress"><div class="tally-progress-fill" id="tally-fill" style="width:25%"></div></div>
+        <div class="tally-step-meta">
+          <span id="tally-step-name">Paso 1 de 5</span>
+          <span class="muted" id="tally-step-hint">Quién solicita</span>
+        </div>
       </div>
-    </div>
 
-    <form id="intake-form" style="max-width:760px">
-      <div class="card" style="margin-bottom:20px">
+    <form id="intake-form">
+      <div class="card tally-step" data-step="1" data-step-name="Quién solicita">
         <h3 style="margin-bottom:6px">1. Quién solicita</h3>
         <p style="color:var(--muted);font-size:13px;margin-bottom:18px">Tus datos quedan asociados a la solicitud para seguimiento.</p>
         <div class="grid grid-2">
@@ -1455,7 +1496,7 @@ async function intakeForm() {
         </div>
       </div>
 
-      <div class="card" style="margin-bottom:20px">
+      <div class="card tally-step" data-step="2" data-step-name="Proveedor" hidden>
         <h3 style="margin-bottom:18px">2. Proveedor</h3>
         <div class="grid grid-2">
           <div><label>Razón social *</label><input type="text" name="razon_social" required></div>
@@ -1506,7 +1547,7 @@ async function intakeForm() {
         </div>
       </div>
 
-      <div class="card" style="margin-bottom:20px">
+      <div class="card tally-step" data-step="3" data-step-name="Contrato" hidden>
         <h3 style="margin-bottom:18px">3. Contrato</h3>
         <div class="grid grid-2">
           <div style="grid-column:1/-1"><label>Descripción del servicio *</label><textarea name="servicio_descripcion" rows="3" placeholder="Ej: Desarrollo de software, consultoría legal, hosting..." required></textarea></div>
@@ -1553,7 +1594,7 @@ async function intakeForm() {
         </div>
       </div>
 
-      <div class="card" style="margin-bottom:20px">
+      <div class="card tally-step" data-step="4" data-step-name="Adjuntos" hidden>
         <h3 style="margin-bottom:6px">4. Adjuntos</h3>
         <p style="color:var(--muted);font-size:13px;margin-bottom:14px">Subí los archivos directo en la plataforma. PDF y Word soportados. Hasta 50 MB por archivo.</p>
 
@@ -1582,13 +1623,23 @@ async function intakeForm() {
         </div>
       </div>
 
+      <div class="card tally-step" data-step="5" data-step-name="Revisar y enviar" hidden>
+        <h3 style="margin-bottom:8px">5. Revisar y enviar</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:18px">Confirmá los datos antes de crear la solicitud.</p>
+        <div id="tally-review" class="tally-review"></div>
+      </div>
+
       <div id="intake-err" class="err" hidden></div>
       <div id="intake-ok" class="ok" hidden></div>
-      <div style="display:flex;justify-content:flex-end;gap:10px">
-        <button type="button" class="secondary" onclick="location.hash='workflows'">Cancelar</button>
-        <button type="submit" class="primary" id="submit-intake">Crear solicitud →</button>
+
+      <div class="tally-nav">
+        <button type="button" class="ghost" id="tally-prev" hidden>← Atrás</button>
+        <button type="button" class="ghost" onclick="location.hash='workflows'" style="margin-left:auto">Cancelar</button>
+        <button type="button" class="primary" id="tally-next">Continuar →</button>
+        <button type="submit" class="primary" id="submit-intake" hidden>Crear solicitud →</button>
       </div>
     </form>
+    </div>
   `;
 
   // Conditional: Owner name aparece solo si "No"
@@ -1757,6 +1808,98 @@ async function intakeForm() {
     if (statusEl) { statusEl.dataset.status = 'done'; statusEl.textContent = '✓ subido'; }
     return r.json();
   }
+
+  // Tally-style controller: navegación entre steps + validación + review.
+  const tallySteps = Array.from(document.querySelectorAll('.tally-step'));
+  const tallyTotal = tallySteps.length;
+  let tallyIdx = 0;
+  const tallyPrev = document.querySelector('#tally-prev');
+  const tallyNext = document.querySelector('#tally-next');
+  const tallySubmitBtn = document.querySelector('#submit-intake');
+  const tallyFill = document.querySelector('#tally-fill');
+  const tallyName = document.querySelector('#tally-step-name');
+  const tallyHint = document.querySelector('#tally-step-hint');
+
+  function tallyShow(i) {
+    tallyIdx = Math.max(0, Math.min(tallyTotal - 1, i));
+    tallySteps.forEach((s, k) => {
+      s.hidden = k !== tallyIdx;
+      if (k === tallyIdx) s.classList.add('tally-enter');
+      else s.classList.remove('tally-enter');
+    });
+    tallyFill.style.width = `${Math.round(((tallyIdx + 1) / tallyTotal) * 100)}%`;
+    tallyName.textContent = `Paso ${tallyIdx + 1} de ${tallyTotal}`;
+    tallyHint.textContent = tallySteps[tallyIdx].dataset.stepName ?? '';
+    tallyPrev.hidden = tallyIdx === 0;
+    const isLast = tallyIdx === tallyTotal - 1;
+    tallyNext.hidden = isLast;
+    tallySubmitBtn.hidden = !isLast;
+    if (isLast) renderTallyReview();
+    setTimeout(() => {
+      const firstInput = tallySteps[tallyIdx].querySelector('input:not([type=hidden]), select, textarea');
+      firstInput?.focus({ preventScroll: true });
+    }, 80);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function tallyValidateCurrent() {
+    const step = tallySteps[tallyIdx];
+    const fields = step.querySelectorAll('input, select, textarea');
+    for (const f of fields) {
+      if (f.closest('[hidden]')) continue;
+      if (!f.checkValidity()) {
+        f.reportValidity();
+        f.focus();
+        return false;
+      }
+    }
+    // Paso adjuntos (4): chequear archivo principal pendiente.
+    if (step.dataset.step === '4' && !pendingFiles.main) {
+      document.querySelector('#intake-err').textContent = 'El borrador del contrato (archivo principal) es obligatorio.';
+      document.querySelector('#intake-err').hidden = false;
+      return false;
+    }
+    document.querySelector('#intake-err').hidden = true;
+    return true;
+  }
+
+  function renderTallyReview() {
+    const fd = new FormData(document.querySelector('#intake-form'));
+    const data = Object.fromEntries(fd);
+    const fmt = (v) => v == null || v === '' ? '<span class="muted">—</span>' : String(v).replace(/[<>&]/g, (c) => ({ '<':'&lt;', '>':'&gt;', '&':'&amp;' }[c]));
+    const rows = [
+      ['Solicitante', `${fmt(data.solicitante_nombre)} · ${fmt(data.solicitante_email)} · ${fmt(data.solicitante_area)}`],
+      ['Owner', `${data.owner_es_solicitante === 'true' ? 'Mismo solicitante' : fmt(data.owner_nombre)} · ${fmt(data.owner_email)}`],
+      ['Backup', fmt(data.responsable_backup_email)],
+      ['Proveedor', `<b>${fmt(data.razon_social)}</b> · ${fmt(data.rut)} · ${fmt(data.pais)}`],
+      ['Sociedad contratante', fmt(data.sociedad_contratante)],
+      ['Tipo / Nivel acceso', `${fmt(data.tipo_proveedor)} · ${fmt(data.nivel_acceso)}`],
+      ['Representante', `${fmt(data.representante_legal)} · contacto ${fmt(data.email_contacto)}`],
+      ['Servicio', fmt(data.servicio_descripcion)],
+      ['Periodicidad / Monto', `${fmt(data.periodicidad)} · ${fmt(data.monto)} ${fmt(data.moneda)}`],
+      ['Duración', `${fmt(data.tipo_duracion)}${data.fecha_inicio ? ` · desde ${fmt(data.fecha_inicio)}` : ''}${data.fecha_fin ? ` hasta ${fmt(data.fecha_fin)}` : ''}`],
+      ['Archivos', `📄 ${pendingFiles.main?.name ?? '—'}${pendingFiles.anexo.length ? ` + ${pendingFiles.anexo.length} anexo${pendingFiles.anexo.length > 1 ? 's' : ''}` : ''}`],
+    ];
+    document.querySelector('#tally-review').innerHTML = rows.map(([k, v]) => `
+      <div class="tally-review-row"><div class="tally-review-key">${k}</div><div class="tally-review-val">${v}</div></div>
+    `).join('');
+  }
+
+  tallyPrev.addEventListener('click', () => tallyShow(tallyIdx - 1));
+  tallyNext.addEventListener('click', () => {
+    if (tallyValidateCurrent()) tallyShow(tallyIdx + 1);
+  });
+
+  // Enter avanza step (no en textarea).
+  document.querySelector('#intake-form').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.target.tagName === 'TEXTAREA') return;
+    if (tallyIdx < tallyTotal - 1) {
+      e.preventDefault();
+      if (tallyValidateCurrent()) tallyShow(tallyIdx + 1);
+    }
+  });
+
+  tallyShow(0);
 
   document.querySelector('#intake-form').addEventListener('submit', async (ev) => {
     ev.preventDefault();
