@@ -845,8 +845,22 @@ const routes = {
           options: { redirectTo },
         });
         if (linkErr) throw linkErr;
-        magicLink = data?.properties?.action_link;
-        if (!magicLink) throw new Error('no action_link en respuesta supabase');
+        // Usar hashed_token (no action_link) para construir link que apunte
+        // directo a NUESTRO callback con token_hash en QUERY (no fragment).
+        // action_link de Supabase pone tokens en # que no llega al server.
+        const hashedToken = data?.properties?.hashed_token;
+        if (hashedToken) {
+          const params = new URLSearchParams({
+            token_hash: hashedToken,
+            type: 'magiclink',
+            next: '/admin',
+          });
+          magicLink = `${redirectTo}?${params.toString()}`;
+        } else {
+          // Fallback al action_link si Supabase no devuelve hashed_token.
+          magicLink = data?.properties?.action_link;
+        }
+        if (!magicLink) throw new Error('no token_hash ni action_link en respuesta supabase');
       } catch (e) {
         console.error('[magic-link] generateLink error:', e.message);
         return json(res, 500, { error: 'generar link falló: ' + e.message });
@@ -910,9 +924,11 @@ const routes = {
         user: { id: session.user?.id, email: session.user?.email },
       };
       await logAudit(null, session.user?.email ?? 'unknown', 'auth.login', 'auth_user', session.user?.id ?? null, { via: code ? 'pkce' : 'otp' });
+      const next = url.searchParams.get('next') ?? '/admin';
+      const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '/admin';
       res.statusCode = 302;
       res.setHeader('Set-Cookie', buildSessionCookie(stored));
-      res.setHeader('Location', `${siteUrl()}/admin`);
+      res.setHeader('Location', `${siteUrl()}${safeNext}`);
       res.end();
     } catch (e) {
       console.error('[auth/callback]', e);
