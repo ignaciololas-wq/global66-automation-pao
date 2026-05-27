@@ -10,8 +10,24 @@ const CHECKLISTS = JSON.parse(
 
 export const SOCIEDADES = Object.keys(CHECKLISTS);
 
+function templateUrl(filename) {
+  if (!filename) return null;
+  const base = (process.env.SUPABASE_URL ?? '').replace(/\/$/, '');
+  if (!base) return null;
+  return `${base}/storage/v1/object/public/templates/${encodeURIComponent(filename)}`;
+}
+
 export function getDocsForSociedad(sociedad) {
-  return CHECKLISTS[sociedad] ?? null;
+  const cfg = CHECKLISTS[sociedad];
+  if (!cfg) return null;
+  // Enriquecer documents_to_sign con template_url derivado de filename
+  return {
+    ...cfg,
+    documents_to_sign: (cfg.documents_to_sign ?? []).map((d) => ({
+      ...d,
+      template_url: d.template ? templateUrl(d.template) : null,
+    })),
+  };
 }
 
 export function getRequiredDocIds(sociedad) {
