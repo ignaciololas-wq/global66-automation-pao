@@ -410,9 +410,78 @@
   }
   .flow-split-split { color: var(--blue-500) }
 
+  /* Lever-style cards (PR-A) */
+  .lever-node {
+    flex: 0 0 220px; max-width: 220px;
+    padding: 14px 16px;
+    text-align: left;
+    border-radius: 12px;
+  }
+  .lever-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 12px; gap: 8px;
+  }
+  .lever-pill {
+    font-size: 10.5px; font-weight: 600;
+    padding: 3px 10px; border-radius: 999px;
+    text-transform: none; letter-spacing: 0;
+  }
+  .lever-pill-done { background: rgba(2,167,87,0.12); color: var(--green) }
+  .lever-pill-rejected { background: rgba(230,74,74,0.12); color: var(--red) }
+  .lever-pill-active { background: rgba(31,73,182,0.12); color: var(--blue-700) }
+  .lever-pill-pending { background: #f0f0f0; color: var(--muted) }
+  .lever-date { font-size: 11px; color: var(--muted); font-weight: 500 }
+  .lever-title {
+    font-weight: 700; font-size: 14px; color: var(--text);
+    margin-bottom: 14px; letter-spacing: -0.01em; line-height: 1.3;
+  }
+  .lever-person { display: flex; align-items: center; gap: 10px }
+  .lever-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    object-fit: cover; flex-shrink: 0;
+    background: var(--blue-50);
+    border: 1.5px solid var(--border);
+  }
+  .lever-avatar-initials {
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 12px; color: var(--blue-700);
+    background: linear-gradient(135deg, var(--blue-100), var(--blue-50));
+  }
+  .lever-person-info { min-width: 0; flex: 1 }
+  .lever-person-name {
+    font-size: 13px; font-weight: 600; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .lever-person-area {
+    font-size: 11px; color: var(--muted); font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  /* Zoom controls overlay */
+  .flow-canvas-wrap { position: relative }
+  .flow-zoom {
+    position: absolute; top: 18px; right: 18px;
+    display: flex; flex-direction: column; gap: 4px;
+    background: white; border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+    z-index: 10;
+  }
+  .flow-zoom button {
+    background: none; border: none; padding: 8px 10px;
+    cursor: pointer; color: var(--muted); font-size: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .flow-zoom button:last-child { border-bottom: none }
+  .flow-zoom button:hover { background: var(--blue-50); color: var(--blue-700) }
+  .flow-canvas-inner {
+    display: flex; align-items: stretch; gap: 0;
+    transform-origin: top left; transition: transform .15s ease;
+  }
+
   @media (max-width: 1100px) {
     .flow-canvas { padding: 16px 8px }
     .flow-node { flex-basis: 150px; max-width: 150px }
+    .lever-node { flex-basis: 200px; max-width: 200px }
   }
 
   /* Dashboard funnel (PR3-fix UX) */
@@ -1358,7 +1427,7 @@ const pages = {
   },
 
   async workflowDetail(runId) {
-    const [runs, apps, audits, extraction, sanctions, regcheq, uploads] = await Promise.all([
+    const [runs, apps, audits, extraction, sanctions, regcheq, uploads, profiles] = await Promise.all([
       q('workflow_runs', `id=eq.${runId}`),
       q('approvals', `workflow_run_id=eq.${runId}&order=decided_at.asc`),
       q('audit_log', `workflow_run_id=eq.${runId}&order=created_at.asc`),
@@ -1366,7 +1435,12 @@ const pages = {
       q('sanctions_checks', `workflow_run_id=eq.${runId}&order=created_at.desc&limit=1`),
       q('regcheq_checks', `workflow_run_id=eq.${runId}&order=created_at.desc&limit=1`).catch(() => []),
       q('provider_uploads', `workflow_run_id=eq.${runId}&order=created_at.desc`).catch(() => []),
+      q('user_profiles', `select=user_id,display_name,avatar_url,sociedades,roles,email`).catch(() => []),
     ]);
+    window.__userProfiles = {};
+    (profiles ?? []).forEach((p) => {
+      if (p.email) window.__userProfiles[p.email.toLowerCase()] = p;
+    });
     const r = runs[0];
     if (!r) { view.innerHTML = '<div class="err">Solicitud no encontrada</div>'; return; }
     const ext = extraction[0]?.extracted_json;
@@ -1703,25 +1777,44 @@ function renderStepper(r) {
   }
 
   const stages = {
-    1: { num: 1, label: 'Solicitud',           who: 'Solicitante interno', icon: '📝', assignee: r.solicitante_email },
-    2: { num: 2, label: 'Aprobación interna',  who: 'Aprobador Global66',  icon: '✅', assignee: r.internal_approver_email ?? 'Pendiente asignar' },
-    3: { num: 3, label: 'Datos proveedor',     who: 'Proveedor',           icon: '🏢', assignee: r.email_contacto ?? '—' },
-    4: { num: 4, label: 'Validación docs',     who: 'IA + Compliance',     icon: '🔍', assignee: 'IA Claude + Compliance' },
-    5: { num: 5, label: 'Firma',               who: 'Apoderado + Proveedor', icon: '✍️', assignee: r.sociedad_apoderado_email ?? 'Pendiente apoderado' },
-    6: { num: 6, label: 'Cerrado',             who: 'Sistema',             icon: '🏁', assignee: '—' },
+    1: { num: 1, label: 'Se creó solicitud',  who: 'Solicitante',  icon: '📝', assignee: r.solicitante_email, date: r.created_at },
+    2: { num: 2, label: 'Aprobación interna', who: 'Aprobador',    icon: '✅', assignee: r.internal_approver_email ?? 'Pendiente asignar', date: r.internal_approved_at },
+    3: { num: 3, label: 'Datos proveedor',    who: 'Proveedor',    icon: '🏢', assignee: r.email_contacto ?? '—', date: r.provider_data_completed_at ?? r.profile_completed_at },
+    4: { num: 4, label: 'Validación docs',    who: 'IA + Compliance', icon: '🔍', assignee: 'compliance@global66.com', date: r.current_phase === 'fase3' || r.current_phase === 'signed' ? r.updated_at : null },
+    5: { num: 5, label: 'Firma',              who: 'Apoderado',    icon: '✍️', assignee: r.sociedad_apoderado_email ?? 'Pendiente apoderado', date: r.current_phase === 'signed' ? r.updated_at : null },
+    6: { num: 6, label: 'Cerrado',            who: 'Sistema',      icon: '🏁', assignee: '—', date: r.current_phase === 'signed' ? r.updated_at : null },
   };
 
   function nodeHtml(s, state) {
     const cls = state === 'rejected' ? 'flow-node-rejected' : state === 'done' ? 'flow-node-done' : state === 'active' ? 'flow-node-active' : 'flow-node-pending';
-    const num = state === 'done' ? '✓' : state === 'rejected' ? '✗' : s.num;
-    return `<div class="flow-node ${cls}">
-      <div class="flow-node-header">
-        <span class="flow-node-icon">${s.icon}</span>
-        <span class="flow-node-num">${num}</span>
+    const statusLabel = state === 'done' ? 'Aprobado' : state === 'rejected' ? 'Rechazado' : state === 'active' ? 'En curso' : 'Pendiente';
+    const statusCls = state === 'done' ? 'lever-pill-done' : state === 'rejected' ? 'lever-pill-rejected' : state === 'active' ? 'lever-pill-active' : 'lever-pill-pending';
+    const date = s.date ? new Date(s.date).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+
+    // Avatar + nombre + área desde user_profiles si está
+    const email = (s.assignee ?? '').toLowerCase();
+    const profile = (window.__userProfiles ?? {})[email];
+    const displayName = profile?.display_name || (s.assignee ? s.assignee.split('@')[0].replace(/\./g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '—');
+    const area = profile?.roles?.[0] ?? s.who;
+    const avatarUrl = profile?.avatar_url;
+    const initials = displayName.split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+    const avatarHtml = avatarUrl
+      ? `<img src="${avatarUrl}" class="lever-avatar" alt="">`
+      : `<div class="lever-avatar lever-avatar-initials">${initials || '?'}</div>`;
+
+    return `<div class="flow-node lever-node ${cls}">
+      <div class="lever-header">
+        <span class="lever-pill ${statusCls}">${statusLabel}</span>
+        ${date ? `<span class="lever-date">${date}</span>` : ''}
       </div>
-      <div class="flow-node-label">${s.label}</div>
-      <div class="flow-node-who">${s.who}</div>
-      <div class="flow-node-assignee" title="${s.assignee}">${(s.assignee ?? '—').slice(0, 28)}${(s.assignee ?? '').length > 28 ? '…' : ''}</div>
+      <div class="lever-title">${s.label}</div>
+      <div class="lever-person">
+        ${avatarHtml}
+        <div class="lever-person-info">
+          <div class="lever-person-name">${displayName}</div>
+          <div class="lever-person-area">${area}</div>
+        </div>
+      </div>
       ${state === 'active' ? '<div class="flow-node-pulse"></div>' : ''}
     </div>`;
   }
@@ -1729,23 +1822,41 @@ function renderStepper(r) {
   const arrow = '<div class="flow-edge"><svg width="48" height="14" viewBox="0 0 48 14"><path d="M0 7 L40 7 M34 1 L40 7 L34 13" fill="none" stroke="currentColor" stroke-width="2"/></svg></div>';
   const splitMerge = (dir) => `<div class="flow-split flow-split-${dir}"></div>`;
 
-  return `<div class="flow-canvas">
-    ${nodeHtml(stages[1], stateOf(1))}
-    ${splitMerge('split')}
-    <div class="flow-parallel-col">
-      <div class="flow-parallel-tag">paralelo</div>
-      <div class="flow-parallel-stack">
-        ${nodeHtml(stages[2], stateOf(2))}
-        ${nodeHtml(stages[3], stateOf(3))}
+  return `<div class="flow-canvas-wrap">
+    <div class="flow-zoom">
+      <button type="button" title="Zoom in" onclick="flowZoom(1)">+</button>
+      <button type="button" title="Zoom out" onclick="flowZoom(-1)">−</button>
+      <button type="button" title="Ajustar" onclick="flowZoom(0)">⛶</button>
+    </div>
+    <div class="flow-canvas">
+      <div class="flow-canvas-inner">
+        ${nodeHtml(stages[1], stateOf(1))}
+        ${splitMerge('split')}
+        <div class="flow-parallel-col">
+          <div class="flow-parallel-tag">paralelo</div>
+          <div class="flow-parallel-stack">
+            ${nodeHtml(stages[2], stateOf(2))}
+            ${nodeHtml(stages[3], stateOf(3))}
+          </div>
+        </div>
+        ${splitMerge('merge')}
+        ${nodeHtml(stages[4], stateOf(4))}
+        ${arrow}
+        ${nodeHtml(stages[5], stateOf(5))}
+        ${arrow}
+        ${nodeHtml(stages[6], stateOf(6))}
       </div>
     </div>
-    ${splitMerge('merge')}
-    ${nodeHtml(stages[4], stateOf(4))}
-    ${arrow}
-    ${nodeHtml(stages[5], stateOf(5))}
-    ${arrow}
-    ${nodeHtml(stages[6], stateOf(6))}
   </div>`;
+}
+
+window.__flowZoom = 1;
+function flowZoom(dir) {
+  const inner = document.querySelector('.flow-canvas-inner');
+  if (!inner) return;
+  if (dir === 0) window.__flowZoom = 1;
+  else window.__flowZoom = Math.max(0.5, Math.min(1.8, window.__flowZoom + dir * 0.1));
+  inner.style.transform = `scale(${window.__flowZoom})`;
 }
 
 function shouldShowSignaturePanel(r) {
