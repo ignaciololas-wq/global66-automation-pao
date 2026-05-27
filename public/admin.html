@@ -1014,9 +1014,14 @@ function toggleProfilePopup() {
   pop.querySelector('#pp-matriz')?.addEventListener('click', () => { pop.remove(); location.hash = 'matriz'; });
   pop.querySelector('#pp-logout').addEventListener('click', async () => {
     pop.remove();
-    try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch {}
+    try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include', cache: 'no-store' }); } catch {}
+    // Limpiar cualquier residuo localStorage legacy + force reload con cache busting.
+    try {
+      Object.keys(localStorage).filter(k => k.startsWith('sb-') || k === 'g66_sidebar_collapsed').forEach(k => localStorage.removeItem(k));
+    } catch {}
     window.__me = null; window.__roles = []; window.__role = null;
-    checkAuth();
+    // Hard navigation a /admin con timestamp para evitar cache de /api/auth/me.
+    window.location.replace('/admin?logout=' + Date.now());
   });
 }
 

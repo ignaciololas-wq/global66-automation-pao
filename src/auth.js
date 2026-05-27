@@ -60,7 +60,8 @@ export function buildSessionCookie(session, { maxAge = COOKIE_MAX_AGE } = {}) {
 }
 
 export function buildClearCookie() {
-  return `${SESSION_COOKIE}=; Max-Age=0; ${COOKIE_BASE_OPTS}`;
+  // Expires + Max-Age=0 + mismos atributos que set original para asegurar match.
+  return `${SESSION_COOKIE}=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; ${COOKIE_BASE_OPTS}`;
 }
 
 export function readSessionCookie(req) {
