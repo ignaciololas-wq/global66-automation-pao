@@ -950,11 +950,11 @@ function renderStepper(r) {
 function renderApprovalPanel(r) {
   return `<div class="card" style="margin-bottom:16px;border-left:4px solid var(--blue-500)">
     <h3 style="margin-bottom:6px">🕒 Solicitud pendiente de aprobación interna</h3>
-    <p style="color:var(--muted);font-size:13px;margin-bottom:18px">Revisá los datos. Si está OK, asignamos sociedad y mandamos al proveedor para que complete su info.</p>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:18px">Revisá los datos del solicitante y del proveedor. Si está OK, mandamos al proveedor para que complete su perfil. El apoderado firmante se define en el nodo 5 (Firma).</p>
 
     <div class="grid grid-2" style="margin-bottom:16px">
       <div>
-        <label>Sociedad contratante</label>
+        <label>Sociedad contratante (confirmá / cambiá si hace falta)</label>
         <select id="approve-sociedad">
           <option value="">— Elegí —</option>
           <option ${r.sociedad_contratante === 'Global 81 SpA (Chile)' ? 'selected' : ''} value="Global 81 SpA (Chile)">Global 81 SpA (Chile)</option>
@@ -962,10 +962,6 @@ function renderApprovalPanel(r) {
           <option ${r.sociedad_contratante === '100X (Panamá)' ? 'selected' : ''} value="100X (Panamá)">100X (Panamá)</option>
           <option ${r.sociedad_contratante === 'Global Colombia 81 (Colombia)' ? 'selected' : ''} value="Global Colombia 81 (Colombia)">Global Colombia 81 (Colombia)</option>
         </select>
-      </div>
-      <div>
-        <label>Email apoderado Global66 (firmante)</label>
-        <input type="email" id="approve-apoderado" placeholder="apoderado@global66.com" value="${r.sociedad_apoderado_email ?? ''}">
       </div>
       <div style="grid-column:1/-1">
         <label>Comentario</label>
@@ -1117,10 +1113,9 @@ async function usersPage() {
 
 window.submitApproval = async function (runId, decision) {
   const sociedad = document.getElementById('approve-sociedad').value;
-  const apoderado = document.getElementById('approve-apoderado').value;
   const comment = document.getElementById('approve-comment').value;
   if (decision === 'approved' && !sociedad) {
-    document.getElementById('approve-err').textContent = 'Asigná la sociedad contratante antes de aprobar';
+    document.getElementById('approve-err').textContent = 'Confirmá la sociedad contratante antes de aprobar';
     document.getElementById('approve-err').hidden = false;
     return;
   }
@@ -1133,7 +1128,6 @@ window.submitApproval = async function (runId, decision) {
         run_id: runId,
         decision,
         sociedad_contratante: sociedad || undefined,
-        sociedad_apoderado_email: apoderado || undefined,
         comment,
         approver_email: window.__me?.email,
       }),
@@ -1191,10 +1185,17 @@ async function intakeForm() {
           <div><label>RUT / Tax ID *</label><input type="text" name="rut" required placeholder="76.000.000-K"></div>
           <div>
             <label>País *</label>
-            <select name="pais" required>
+            <select name="pais" id="pais-select" required>
               <option value="">—</option>
               ${['Chile','Perú','México','Colombia','Argentina','Panamá','Ecuador','Brasil','Uruguay','Estados Unidos','Otro'].map(p => `<option>${p}</option>`).join('')}
             </select>
+          </div>
+          <div id="sociedad-wrap" hidden>
+            <label>Sociedad contratante *</label>
+            <select name="sociedad_contratante" id="sociedad-select">
+              <option value="">—</option>
+            </select>
+            <p style="font-size:12px;color:var(--muted);margin-top:4px">A qué sociedad de Global66 le va a dar el servicio el proveedor.</p>
           </div>
           <div><label>Representante legal / contacto *</label><input type="text" name="representante_legal" required></div>
           <div><label>Email de contacto del proveedor *</label><input type="email" name="email_contacto" required></div>
@@ -1338,6 +1339,29 @@ async function intakeForm() {
   }
   durToggle.addEventListener('change', syncFechas);
   syncFechas();
+
+  // Sociedad contratante dinámica según país.
+  const SOCIEDADES_BY_COUNTRY = {
+    'Chile':    ['Global 81 SpA (Chile)', 'Global Card S.A. (Chile)'],
+    'Panamá':   ['100X (Panamá)'],
+    'Panama':   ['100X (Panamá)'],
+    'Colombia': ['Global Colombia 81 (Colombia)'],
+  };
+  const ALL_SOCIEDADES = ['Global 81 SpA (Chile)', 'Global Card S.A. (Chile)', '100X (Panamá)', 'Global Colombia 81 (Colombia)'];
+  const paisSelect = document.querySelector('#pais-select');
+  const sociedadWrap = document.querySelector('#sociedad-wrap');
+  const sociedadSelect = document.querySelector('#sociedad-select');
+  function syncSociedad() {
+    const country = paisSelect.value;
+    if (!country) { sociedadWrap.hidden = true; sociedadSelect.required = false; sociedadSelect.innerHTML = '<option value="">—</option>'; return; }
+    const options = SOCIEDADES_BY_COUNTRY[country] ?? ALL_SOCIEDADES;
+    sociedadWrap.hidden = false;
+    sociedadSelect.required = true;
+    sociedadSelect.innerHTML = '<option value="">—</option>' + options.map((s) => `<option value="${s}">${s}</option>`).join('');
+    // Auto-seleccionar si solo hay una opción.
+    if (options.length === 1) sociedadSelect.value = options[0];
+  }
+  paisSelect.addEventListener('change', syncSociedad);
 
   // Autocomplete provider por RUT/Tax ID (lookup en /api/providers/lookup).
   const rutInput = document.querySelector('[name=rut]');
