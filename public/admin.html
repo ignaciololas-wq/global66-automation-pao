@@ -441,6 +441,28 @@
   .ai-modal-card textarea { width: 100%; min-height: 80px; resize: vertical; font-size: 13.5px; padding: 10px 12px; border-radius: 10px; border: 1.5px solid var(--border) }
   .ai-modal-card .err, .ai-modal-card .ok { font-size: 12.5px }
 
+  /* Profile modal */
+  .profile-modal-card { display: flex; flex-direction: column; gap: 18px; max-width: 440px }
+  .profile-modal-card h3 { margin: 0; font-family: 'Montserrat', sans-serif; font-size: 18px; color: var(--blue-900) }
+  .profile-avatar-big { width: 96px; height: 96px; border-radius: 50%; background: var(--blue-500); color: white; display: flex; align-items: center; justify-content: center; font-size: 38px; font-weight: 600; font-family: 'Montserrat'; margin: 0 auto; overflow: hidden; flex-shrink: 0 }
+  .profile-avatar-big img { width: 100%; height: 100%; object-fit: cover }
+  .profile-actions-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap }
+  .profile-btn { padding: 8px 14px; border-radius: 8px; border: 1.5px solid var(--border); background: white; font-size: 13px; cursor: pointer; font-family: inherit; color: var(--blue-900) }
+  .profile-btn:hover { background: var(--blue-50); border-color: var(--blue-500) }
+  .profile-btn.danger { color: #c0392b; border-color: #f3c7c2 }
+  .profile-btn.danger:hover { background: #fdecea; border-color: #c0392b }
+  .profile-btn.primary { background: var(--blue-500); color: white; border-color: var(--blue-500) }
+  .profile-btn.primary:hover { background: var(--blue-700); border-color: var(--blue-700) }
+  .profile-field { display: flex; flex-direction: column; gap: 4px }
+  .profile-field label { font-size: 12px; color: var(--text-muted); font-weight: 500 }
+  .profile-field input { padding: 8px 10px; border-radius: 8px; border: 1.5px solid var(--border); font-size: 13.5px; font-family: inherit }
+  .profile-field input:focus { outline: none; border-color: var(--blue-500) }
+  .profile-field .readonly { padding: 8px 10px; border-radius: 8px; background: var(--blue-50); font-size: 13.5px; color: var(--blue-900) }
+  .profile-footer { display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--border); padding-top: 14px }
+  .profile-msg { font-size: 12.5px; min-height: 16px }
+  .profile-msg.err { color: #c0392b }
+  .profile-msg.ok { color: #1e7e34 }
+
   /* Notif badge */
   .notif-bell { position: relative; cursor: pointer; padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.06); color: white; font-size: 14px }
   .notif-bell .badge { position: absolute; top: -2px; right: -2px; background: var(--red); color: white; border-radius: 999px; font-size: 10px; font-weight: 700; padding: 0 5px; min-width: 16px; text-align: center; line-height: 16px }
@@ -541,11 +563,11 @@
 
     <div class="nav-bottom">
       <div class="user-row">
-        <label for="avatar-input" class="avatar-wrap" title="Cambiar foto" style="cursor:pointer">
+        <button type="button" id="open-profile" class="avatar-wrap" title="Mi perfil" style="cursor:pointer;background:none;border:0;padding:0">
           <div class="avatar" id="avatar">?</div>
           <img id="avatar-img" class="avatar-img" hidden alt="">
-          <div class="avatar-overlay">📷</div>
-        </label>
+          <div class="avatar-overlay">⚙</div>
+        </button>
         <input type="file" id="avatar-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
         <div style="min-width:0;flex:1">
           <div id="user-name" style="color:white;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
@@ -627,24 +649,175 @@ async function checkAuth() {
   route();
 }
 
-// Avatar upload
+// ===== Profile modal =====
+function syncSidebarAvatar() {
+  const me = window.__me ?? {};
+  const email = me.email ?? '';
+  const img = document.querySelector('#avatar-img');
+  const ph = document.querySelector('#avatar');
+  ph.textContent = (email[0] ?? '?').toUpperCase();
+  if (me.avatar_url) {
+    img.src = me.avatar_url + '?t=' + Date.now();
+    img.hidden = false;
+    ph.style.display = 'none';
+  } else {
+    img.hidden = true;
+    img.removeAttribute('src');
+    ph.style.display = '';
+  }
+  const name = me.display_name ?? email.split('@')[0].replace(/\./g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  document.querySelector('#user-name').textContent = name;
+}
+
+function renderProfileAvatar(container) {
+  const me = window.__me ?? {};
+  const email = me.email ?? '';
+  if (me.avatar_url) {
+    container.innerHTML = `<img src="${me.avatar_url}?t=${Date.now()}" alt="">`;
+  } else {
+    container.textContent = (email[0] ?? '?').toUpperCase();
+  }
+}
+
+function setProfileMsg(text, kind) {
+  const el = document.querySelector('#profile-msg');
+  if (!el) return;
+  el.textContent = text ?? '';
+  el.className = 'profile-msg' + (kind ? ' ' + kind : '');
+}
+
+function closeProfileModal() {
+  document.querySelector('#profile-modal')?.remove();
+}
+
+function openProfileModal() {
+  closeProfileModal();
+  const me = window.__me ?? {};
+  const email = me.email ?? '';
+  const roles = (window.__roles ?? []).join(', ') || '—';
+  const m = document.createElement('div');
+  m.id = 'profile-modal';
+  m.className = 'ai-modal';
+  m.innerHTML = `
+    <div class="ai-modal-backdrop" data-close="1"></div>
+    <div class="ai-modal-card profile-modal-card">
+      <h3>Mi perfil</h3>
+      <div id="profile-avatar-big" class="profile-avatar-big"></div>
+      <div class="profile-actions-row">
+        <button type="button" class="profile-btn" id="profile-change-photo">Cambiar foto</button>
+        <button type="button" class="profile-btn danger" id="profile-remove-photo" ${me.avatar_url ? '' : 'disabled style="opacity:0.5;cursor:not-allowed"'}>Eliminar foto</button>
+      </div>
+      <div class="profile-field">
+        <label for="profile-display-name">Nombre</label>
+        <input id="profile-display-name" type="text" maxlength="80" value="${(me.display_name ?? '').replace(/"/g, '&quot;')}" placeholder="Tu nombre">
+      </div>
+      <div class="profile-field">
+        <label>Email</label>
+        <div class="readonly">${email}</div>
+      </div>
+      <div class="profile-field">
+        <label>Roles</label>
+        <div class="readonly">${roles}</div>
+      </div>
+      <div id="profile-msg" class="profile-msg"></div>
+      <div class="profile-footer">
+        <button type="button" class="profile-btn" data-close="1">Cerrar</button>
+        <button type="button" class="profile-btn primary" id="profile-save">Guardar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(m);
+  renderProfileAvatar(m.querySelector('#profile-avatar-big'));
+
+  m.addEventListener('click', (ev) => {
+    if (ev.target.dataset?.close) closeProfileModal();
+  });
+
+  m.querySelector('#profile-change-photo').addEventListener('click', () => {
+    document.querySelector('#avatar-input').click();
+  });
+
+  m.querySelector('#profile-remove-photo').addEventListener('click', async () => {
+    if (!window.__me?.avatar_url) return;
+    if (!confirm('¿Eliminar foto de perfil?')) return;
+    setProfileMsg('Eliminando…');
+    try {
+      const r = await fetch('/api/profile/avatar', { method: 'DELETE', credentials: 'include' });
+      if (!r.ok) throw new Error(await r.text());
+      window.__me.avatar_url = null;
+      renderProfileAvatar(m.querySelector('#profile-avatar-big'));
+      m.querySelector('#profile-remove-photo').disabled = true;
+      m.querySelector('#profile-remove-photo').style.opacity = '0.5';
+      syncSidebarAvatar();
+      setProfileMsg('Foto eliminada', 'ok');
+    } catch (err) {
+      setProfileMsg('Error: ' + err.message, 'err');
+    }
+  });
+
+  m.querySelector('#profile-save').addEventListener('click', async () => {
+    const name = m.querySelector('#profile-display-name').value.trim();
+    setProfileMsg('Guardando…');
+    try {
+      const r = await fetch('/api/profile/me', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name: name }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      window.__me.display_name = name;
+      syncSidebarAvatar();
+      setProfileMsg('Guardado', 'ok');
+    } catch (err) {
+      setProfileMsg('Error: ' + err.message, 'err');
+    }
+  });
+
+  document.addEventListener('keydown', escClose);
+  function escClose(ev) {
+    if (ev.key === 'Escape') {
+      closeProfileModal();
+      document.removeEventListener('keydown', escClose);
+    }
+  }
+}
+
+document.addEventListener('click', (e) => {
+  if (e.target.closest('#open-profile')) {
+    e.preventDefault();
+    openProfileModal();
+  }
+});
+
+// Avatar file change → upload (triggered from modal "Cambiar foto").
 document.addEventListener('change', async (e) => {
   if (e.target.id !== 'avatar-input') return;
   const f = e.target.files[0];
   if (!f) return;
+  if (f.size > 2 * 1024 * 1024) {
+    setProfileMsg('Archivo > 2MB', 'err');
+    e.target.value = '';
+    return;
+  }
   const fd = new FormData();
   fd.append('file', f);
+  setProfileMsg('Subiendo…');
   try {
     const r = await fetch('/api/profile/avatar', { method: 'POST', credentials: 'include', body: fd });
     if (!r.ok) throw new Error(await r.text());
     const { avatar_url } = await r.json();
     window.__me.avatar_url = avatar_url;
-    const img = document.querySelector('#avatar-img');
-    img.src = avatar_url + '?t=' + Date.now();
-    img.hidden = false;
-    document.querySelector('#avatar').style.display = 'none';
+    const big = document.querySelector('#profile-avatar-big');
+    if (big) renderProfileAvatar(big);
+    const removeBtn = document.querySelector('#profile-remove-photo');
+    if (removeBtn) { removeBtn.disabled = false; removeBtn.style.opacity = ''; }
+    syncSidebarAvatar();
+    setProfileMsg('Foto actualizada', 'ok');
   } catch (err) {
-    alert('Error subir avatar: ' + err.message);
+    setProfileMsg('Error subir avatar: ' + err.message, 'err');
+  } finally {
+    e.target.value = '';
   }
 });
 
@@ -1502,7 +1675,7 @@ async function intakeForm() {
           <div><label>Razón social *</label><input type="text" name="razon_social" required></div>
           <div><label>RUT / Tax ID *</label><input type="text" name="rut" required placeholder="76.000.000-K"></div>
           <div>
-            <label>País *</label>
+            <label>País de constitución de la empresa *</label>
             <select name="pais" id="pais-select" required>
               <option value="">—</option>
               ${['Chile','Perú','México','Colombia','Argentina','Panamá','Ecuador','Brasil','Uruguay','Estados Unidos','Otro'].map(p => `<option>${p}</option>`).join('')}
@@ -1513,7 +1686,6 @@ async function intakeForm() {
             <select name="sociedad_contratante" id="sociedad-select">
               <option value="">—</option>
             </select>
-            <p style="font-size:12px;color:var(--muted);margin-top:4px">A qué sociedad de Global66 le va a dar el servicio el proveedor.</p>
           </div>
           <div><label>Representante legal / contacto *</label><input type="text" name="representante_legal" required></div>
           <div><label>Email de contacto del proveedor *</label><input type="email" name="email_contacto" required></div>
@@ -1530,19 +1702,6 @@ async function intakeForm() {
               <option value="">—</option>
               ${['Servicios profesionales','Plataformas SaaS','Marketing y Publicidad','Consultoría/Asesoría','Otro'].map(t => `<option>${t}</option>`).join('')}
             </select>
-          </div>
-          <div>
-            <label>Nivel de acceso a datos *</label>
-            <select name="nivel_acceso" required>
-              <option value="">—</option>
-              <option>Sin acceso a datos</option>
-              <option>Datos públicos</option>
-              <option>PII no sensible</option>
-              <option>PII sensible</option>
-              <option>Datos financieros / transaccionales</option>
-              <option>Acceso a sistemas core</option>
-            </select>
-            <p style="font-size:12px;color:var(--muted);margin-top:4px">Qué tipo de datos de Global66 va a manejar este proveedor.</p>
           </div>
         </div>
       </div>
@@ -1648,22 +1807,17 @@ async function intakeForm() {
     wrap.hidden = e.target.value !== 'false';
   });
 
-  // Fechas: inicio siempre obligatoria al elegir duración; fin solo si plazo_fijo.
+  // Fechas: AMBAS solo si plazo_fijo. Indefinido y por_proyecto NO piden fechas.
   const durToggle = document.querySelector('#duracion-toggle');
   function syncFechas() {
-    const v = durToggle.value;
+    const show = durToggle.value === 'plazo_fijo';
     const wi = document.querySelector('#fecha-inicio-wrap');
     const wf = document.querySelector('#fecha-fin-wrap');
     const fi = document.querySelector('#fecha-inicio');
     const ff = document.querySelector('#fecha-fin');
-    const anyChoice = !!v;
-    wi.hidden = !anyChoice;
-    fi.required = anyChoice;
-    const showFin = v === 'plazo_fijo';
-    wf.hidden = !showFin;
-    ff.required = showFin;
-    if (!anyChoice) fi.value = '';
-    if (!showFin) ff.value = '';
+    wi.hidden = !show; wf.hidden = !show;
+    fi.required = show; ff.required = show;
+    if (!show) { fi.value = ''; ff.value = ''; }
   }
   durToggle.addEventListener('change', syncFechas);
   syncFechas();
@@ -1873,7 +2027,7 @@ async function intakeForm() {
       ['Backup', fmt(data.responsable_backup_email)],
       ['Proveedor', `<b>${fmt(data.razon_social)}</b> · ${fmt(data.rut)} · ${fmt(data.pais)}`],
       ['Sociedad contratante', fmt(data.sociedad_contratante)],
-      ['Tipo / Nivel acceso', `${fmt(data.tipo_proveedor)} · ${fmt(data.nivel_acceso)}`],
+      ['Tipo de proveedor', fmt(data.tipo_proveedor)],
       ['Representante', `${fmt(data.representante_legal)} · contacto ${fmt(data.email_contacto)}`],
       ['Servicio', fmt(data.servicio_descripcion)],
       ['Periodicidad / Monto', `${fmt(data.periodicidad)} · ${fmt(data.monto)} ${fmt(data.moneda)}`],
@@ -1946,18 +2100,33 @@ async function intakeForm() {
         ✓ Solicitud creada · <code>${runId.slice(0, 8)}</code><br>
         ${result.provider_new ? `📨 Email al proveedor enviado` : `📂 Proveedor reusado`}<br>
         📎 ${okCount} de ${uploads.length} archivos subidos correctamente${failed.length ? ` (${failed.length} con error)` : ''}
-        <div style="margin-top:12px"><a href="#workflows/${runId}">Ver detalle →</a></div>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <a href="#workflows/${runId}" class="primary" style="background:var(--blue-500);color:white;padding:8px 14px;border-radius:999px;text-decoration:none;font-weight:600;font-size:13px">Ver detalle →</a>
+          <button type="button" class="secondary" id="crear-otra-btn" style="padding:8px 14px;font-size:13px">Crear otra solicitud</button>
+        </div>
       `;
       ok.hidden = false;
       if (failed.length) {
         document.querySelector('#intake-err').textContent = 'Errores en uploads: ' + failed.map((f) => f.reason?.message ?? 'unknown').join('; ');
         document.querySelector('#intake-err').hidden = false;
       }
-      btn.textContent = 'Crear otra';
-      btn.disabled = false;
-      ev.target.reset();
-      pendingFiles.main = null; pendingFiles.anexo = [];
-      document.querySelectorAll('.drop-list').forEach((el) => el.innerHTML = '');
+      // Reset state + ocultar submit button del nav (ya no hay form activo).
+      btn.disabled = false; btn.textContent = 'Crear solicitud →'; btn.hidden = true;
+      tallyPrev.hidden = true; tallyNext.hidden = true;
+
+      document.querySelector('#crear-otra-btn').addEventListener('click', () => {
+        // Limpiar todo + volver al step 1.
+        ev.target.reset();
+        pendingFiles.main = null; pendingFiles.anexo = [];
+        document.querySelectorAll('.drop-list').forEach((el) => el.innerHTML = '');
+        document.querySelector('#intake-ok').hidden = true;
+        document.querySelector('#intake-err').hidden = true;
+        // Re-sincronizar conditionals (sociedad, fechas, owner).
+        syncFechas();
+        if (window.syncSociedadGlobal) window.syncSociedadGlobal();
+        tallyShow(0);
+      });
+
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e) {
       document.querySelector('#intake-err').textContent = e.message;
