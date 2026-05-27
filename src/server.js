@@ -37,6 +37,20 @@ import {
   attachSignedPdf,
   getContractById,
 } from './providers.js';
+import {
+  AUTH_ENABLED,
+  ADMIN_EMAILS,
+  SESSION_COOKIE,
+  buildSessionCookie,
+  buildClearCookie,
+  readSessionCookie,
+  publicSupabase,
+  getUserFromRequest,
+  requireRole,
+  requireAdmin,
+  siteUrl,
+  callbackUrl,
+} from './auth.js';
 
 const PORT = process.env.PORT ?? 3000;
 
@@ -44,27 +58,6 @@ async function readBody(req) {
   let raw = '';
   for await (const chunk of req) raw += chunk;
   return raw;
-}
-
-// Verifica JWT del header Authorization. Retorna { ok, email, role } o { error }.
-async function getUserFromRequest(req) {
-  const auth = req.headers.authorization ?? '';
-  const token = auth.replace(/^Bearer\s+/i, '');
-  if (!token) return { ok: false, status: 401, error: 'no token' };
-  try {
-    const { data: { user }, error } = await sb.auth.getUser(token);
-    if (error || !user) return { ok: false, status: 401, error: 'invalid token' };
-    return { ok: true, email: user.email, role: user.app_metadata?.role ?? 'user', user_id: user.id };
-  } catch (e) {
-    return { ok: false, status: 401, error: e.message };
-  }
-}
-
-async function requireAdmin(req) {
-  const r = await getUserFromRequest(req);
-  if (!r.ok) return r;
-  if (r.role !== 'admin') return { ok: false, status: 403, error: 'admin role required' };
-  return r;
 }
 
 function json(res, status, payload) {
@@ -316,14 +309,36 @@ const routes = {
     if (!auth.ok) return json(res, auth.status, { error: auth.error });
     const { data, error } = await sb.auth.admin.listUsers();
     if (error) return json(res, 500, { error: error.message });
-    json(res, 200, data.users.map((u) => ({
-      id: u.id,
-      email: u.email,
-      role: u.app_metadata?.role ?? 'user',
-      created_at: u.created_at,
-      last_sign_in_at: u.last_sign_in_at,
-      confirmed: !!u.email_confirmed_at,
-    })));
+
+    const profilesById = new Map();
+    const { data: profiles } = await sb.from('user_profiles').select('user_id, roles, sociedades, display_name');
+    (profiles ?? []).forEach((p) => profilesById.set(p.user_id, p));
+
+    json(res, 200, data.users.map((u) => {
+      const profile = profilesById.get(u.id);
+      const isAllowlistedAdmin = ADMIN_EMAILS.includes((u.email ?? '').toLowerCase());
+      const baseRoles = profile?.roles?.length
+        ? profile.roles
+        : (u.app_metadata?.role === 'admin'
+          ? ['admin', 'aprobador', 'solicitante']
+          : u.app_metadata?.role
+            ? [u.app_metadata.role]
+            : ['solicitante']);
+      const roles = isAllowlistedAdmin
+        ? Array.from(new Set([...baseRoles, 'admin', 'aprobador', 'solicitante']))
+        : baseRoles;
+      return {
+        id: u.id,
+        email: u.email,
+        roles,
+        sociedades: profile?.sociedades ?? [],
+        display_name: profile?.display_name ?? null,
+        created_at: u.created_at,
+        last_sign_in_at: u.last_sign_in_at,
+        confirmed: !!u.email_confirmed_at,
+        admin_via_allowlist: isAllowlistedAdmin,
+      };
+    }));
   },
 
   'POST /api/admin/users': async (req, res) => {
@@ -331,47 +346,70 @@ const routes = {
     if (!auth.ok) return json(res, auth.status, { error: auth.error });
     const body = JSON.parse(await readBody(req));
     if (!body.email) return json(res, 400, { error: 'email required' });
-    const role = body.role ?? 'user';
+    const email = body.email.toLowerCase();
+    const roles = normalizeRoles(body.roles ?? body.role ?? ['solicitante']);
+    const sociedades = Array.isArray(body.sociedades) ? body.sociedades : [];
 
-    // Check if exists
     const { data: { users } } = await sb.auth.admin.listUsers();
-    let user = users.find((u) => u.email === body.email);
+    let user = users.find((u) => (u.email ?? '').toLowerCase() === email);
 
-    if (user) {
-      await sb.auth.admin.updateUserById(user.id, {
-        app_metadata: { ...(user.app_metadata ?? {}), role },
-      });
-    } else {
-      const { data, error } = await sb.auth.admin.createUser({
-        email: body.email,
+    if (!user) {
+      const created = await sb.auth.admin.createUser({
+        email,
         email_confirm: true,
-        app_metadata: { role },
       });
-      if (error) return json(res, 400, { error: error.message });
-      user = data.user;
+      if (created.error) return json(res, 400, { error: created.error.message });
+      user = created.data.user;
     }
 
-    // Send magic link
-    const linkRes = await sb.auth.admin.generateLink({ type: 'magiclink', email: body.email });
-    await logAudit(null, auth.email, 'user.invited', 'auth_user', user.id, { role });
+    await sb.from('user_profiles').upsert({
+      user_id: user.id,
+      email,
+      roles,
+      sociedades,
+      display_name: body.display_name ?? null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' });
+
+    // Magic link bienvenida
+    const linkRes = await sb.auth.admin.generateLink({
+      type: 'magiclink',
+      email,
+      options: { redirectTo: callbackUrl() },
+    });
+
+    await logAudit(null, auth.email, 'user.invited', 'auth_user', user.id, { roles, sociedades });
     json(res, 200, {
-      id: user.id, email: user.email, role,
+      id: user.id,
+      email: user.email,
+      roles,
+      sociedades,
       magic_link: linkRes.data?.properties?.action_link,
     });
   },
 
   'POST /api/admin/users/role': async (req, res) => {
+    // Backward-compat: actualiza roles desde body.roles (array) o body.role (string).
     const auth = await requireAdmin(req);
     if (!auth.ok) return json(res, auth.status, { error: auth.error });
     const body = JSON.parse(await readBody(req));
-    if (!body.user_id || !body.role) return json(res, 400, { error: 'user_id and role required' });
+    if (!body.user_id) return json(res, 400, { error: 'user_id required' });
+    const roles = normalizeRoles(body.roles ?? body.role);
+    if (!roles.length) return json(res, 400, { error: 'roles required' });
+
     const { data: { user } } = await sb.auth.admin.getUserById(body.user_id);
     if (!user) return json(res, 404, { error: 'user not found' });
-    await sb.auth.admin.updateUserById(body.user_id, {
-      app_metadata: { ...(user.app_metadata ?? {}), role: body.role },
-    });
-    await logAudit(null, auth.email, 'user.role_changed', 'auth_user', body.user_id, { role: body.role });
-    json(res, 200, { ok: true });
+
+    await sb.from('user_profiles').upsert({
+      user_id: user.id,
+      email: user.email,
+      roles,
+      sociedades: body.sociedades ?? undefined,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' });
+
+    await logAudit(null, auth.email, 'user.role_changed', 'auth_user', body.user_id, { roles });
+    json(res, 200, { ok: true, roles });
   },
 
   'DELETE /api/admin/users': async (req, res, url) => {
@@ -386,50 +424,49 @@ const routes = {
   },
 
   'POST /api/auth/login': async (req, res) => {
+    // Password login (legacy fallback). Magic link es el path principal.
     const body = JSON.parse(await readBody(req));
     if (!body.email || !body.password) return json(res, 400, { error: 'email + password required' });
     const r = await fetch(`${process.env.SUPABASE_URL}/auth/v1/token?grant_type=password`, {
       method: 'POST',
-      headers: { apikey: process.env.SUPABASE_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY ?? '', 'Content-Type': 'application/json' },
+      headers: {
+        apikey: process.env.SUPABASE_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY ?? '',
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({ email: body.email, password: body.password }),
     });
     const data = await r.json();
     if (!r.ok) return json(res, r.status, { error: data.msg ?? data.error_description ?? 'login failed' });
+
+    const session = {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      expires_at: data.expires_at,
+      user: { id: data.user?.id, email: data.user?.email },
+    };
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
-    // Cookie HttpOnly con la sesión (server-side persistence)
-    const session = JSON.stringify({
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
-      expires_at: data.expires_at,
-      user: data.user,
-    });
-    const maxAge = data.expires_in ?? 3600;
-    res.setHeader('Set-Cookie', `g66_session=${encodeURIComponent(session)}; Path=/; Max-Age=${maxAge}; SameSite=Lax; Secure; HttpOnly`);
+    res.setHeader('Set-Cookie', buildSessionCookie(session));
     res.end(JSON.stringify({
       ok: true,
-      user: { email: data.user.email, role: data.user.app_metadata?.role ?? 'user' },
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
-      expires_at: data.expires_at,
+      user: { email: data.user.email },
     }));
   },
 
-  // ── Auth: magic link via n8n (bypass Supabase rate limit) ─────────────
   'POST /api/auth/magic-link': async (req, res) => {
+    // Genera magic link con redirect a /api/auth/callback (PKCE / token_hash).
     const body = JSON.parse(await readBody(req));
     const email = (body.email ?? '').trim().toLowerCase();
     if (!email) return json(res, 400, { error: 'email required' });
 
-    // Buscar usuario para confirmar que existe y obtener rol
     const { data: { users } } = await sb.auth.admin.listUsers();
     const user = users.find((u) => (u.email ?? '').toLowerCase() === email);
     if (!user) {
-      // No revelar que el email no existe (anti-enumeration)
+      // Anti-enumeration.
       return json(res, 200, { ok: true, sent: false, info: 'Si el email existe, recibirás un link en breve.' });
     }
 
-    const redirectTo = (process.env.SERVER_PUBLIC_URL ?? 'https://global66-automation-pao.vercel.app') + '/admin';
+    const redirectTo = callbackUrl();
     const { data, error } = await sb.auth.admin.generateLink({
       type: 'magiclink',
       email,
@@ -454,6 +491,111 @@ const routes = {
 
     await logAudit(null, email, 'auth.magic_link_sent', 'auth_user', user.id, { redirectTo });
     json(res, 200, { ok: true, sent: true });
+  },
+
+  'GET /api/auth/callback': async (req, res, url) => {
+    // Intercambia code (PKCE) o token_hash (server-side OTP) por sesión.
+    const code = url.searchParams.get('code');
+    const tokenHash = url.searchParams.get('token_hash');
+    const type = url.searchParams.get('type') ?? 'magiclink';
+    const errParam = url.searchParams.get('error_description') ?? url.searchParams.get('error');
+
+    function redirectErr(msg) {
+      const target = `${siteUrl()}/admin?auth_error=${encodeURIComponent(msg)}`;
+      res.statusCode = 302;
+      res.setHeader('Location', target);
+      res.end();
+    }
+
+    if (errParam) return redirectErr(errParam);
+    if (!code && !tokenHash) return redirectErr('missing code or token_hash');
+
+    try {
+      const pub = publicSupabase();
+      let session = null;
+      if (code) {
+        const { data, error } = await pub.auth.exchangeCodeForSession(code);
+        if (error) return redirectErr(error.message);
+        session = data.session;
+      } else {
+        const { data, error } = await pub.auth.verifyOtp({ type, token_hash: tokenHash });
+        if (error) return redirectErr(error.message);
+        session = data.session;
+      }
+      if (!session) return redirectErr('no session returned');
+
+      const stored = {
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+        expires_at: session.expires_at,
+        user: { id: session.user?.id, email: session.user?.email },
+      };
+      await logAudit(null, session.user?.email ?? 'unknown', 'auth.login', 'auth_user', session.user?.id ?? null, { via: code ? 'pkce' : 'otp' });
+      res.statusCode = 302;
+      res.setHeader('Set-Cookie', buildSessionCookie(stored));
+      res.setHeader('Location', `${siteUrl()}/admin`);
+      res.end();
+    } catch (e) {
+      console.error('[auth/callback]', e);
+      redirectErr(e.message);
+    }
+  },
+
+  'GET /api/auth/me': async (req, res) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { ok: false, error: auth.error });
+    json(res, 200, {
+      ok: true,
+      auth_enabled: AUTH_ENABLED,
+      bypass: !!auth.bypass,
+      email: auth.email,
+      user_id: auth.user_id,
+      roles: auth.roles,
+      sociedades: auth.sociedades,
+      display_name: auth.display_name,
+    });
+  },
+
+  'GET /api/data': async (req, res, url) => {
+    // Proxy a Supabase REST con JWT del cookie (RLS aplica server-side).
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const table = url.searchParams.get('table');
+    if (!table) return json(res, 400, { error: 'table required' });
+    if (!/^[a-zA-Z0-9_]+$/.test(table)) return json(res, 400, { error: 'invalid table name' });
+
+    const passthrough = new URLSearchParams(url.searchParams);
+    passthrough.delete('table');
+
+    const SB_URL = process.env.SUPABASE_URL;
+    const ANON = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_KEY;
+    const session = auth.session;
+    const headers = {
+      apikey: ANON,
+      Authorization: `Bearer ${session?.access_token ?? ANON}`,
+    };
+    if (auth.bypass) {
+      // Bypass dev: usa service role para saltarse RLS (sin cookie/JWT real).
+      const svc = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (svc) headers.Authorization = `Bearer ${svc}`;
+    }
+
+    const r = await fetch(`${SB_URL}/rest/v1/${table}?${passthrough.toString()}`, { headers });
+    const text = await r.text();
+    res.statusCode = r.status;
+    res.setHeader('Content-Type', r.headers.get('content-type') ?? 'application/json');
+    res.end(text);
+  },
+
+  'POST /api/auth/logout': async (req, res) => {
+    const session = readSessionCookie(req);
+    if (session?.access_token) {
+      try { await sb.auth.admin.signOut(session.access_token); } catch {}
+    }
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Set-Cookie', buildClearCookie());
+    res.end(JSON.stringify({ ok: true }));
   },
 
   'POST /api/provider/fill': async (req, res) => {
@@ -535,6 +677,12 @@ const routes = {
     }
   },
 };
+
+const VALID_ROLES = ['admin', 'aprobador', 'solicitante', 'proveedor'];
+function normalizeRoles(input) {
+  const arr = Array.isArray(input) ? input : input ? [input] : [];
+  return Array.from(new Set(arr.map((r) => String(r).toLowerCase()))).filter((r) => VALID_ROLES.includes(r));
+}
 
 function matchDocId(filename) {
   const lower = filename.toLowerCase();

@@ -296,121 +296,66 @@
 </div>
 
 <script type="module">
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const SB_URL = 'https://kdhpbrpeneokvhwyxmwn.supabase.co';
-const SB_KEY = 'sb_publishable_gMuIUc-TW3cBMQMXT3Tcfw_OnFQHbs-';
-const supabase = createClient(SB_URL, SB_KEY, {
-  auth: {
-    persistSession: true,
-    detectSessionInUrl: true,
-    autoRefreshToken: true,
-    flowType: 'implicit',
-  },
-});
-
-// Procesar manualmente tokens del hash (failsafe si detectSessionInUrl no corre).
-async function processUrlSession() {
-  const hash = location.hash.slice(1);
-  console.log('[auth] processUrlSession hash:', hash.slice(0, 60));
-  if (!hash) return;
-
-  const params = new URLSearchParams(hash);
-  if (params.get('error')) {
-    const msg = params.get('error_description') ?? params.get('error');
-    document.body.insertAdjacentHTML('afterbegin', `<div style="position:fixed;top:0;left:0;right:0;background:#e64a4a;color:white;padding:14px;text-align:center;z-index:9999;font-family:system-ui">Auth error: ${decodeURIComponent(msg)}</div>`);
-    return;
-  }
-
-  const access_token = params.get('access_token');
-  const refresh_token = params.get('refresh_token');
-  if (!access_token) return;
-
-  console.log('[auth] persisting token from URL hash');
-  // Fetch user via REST (no supabase-js que cuelga)
-  let user = null;
-  try {
-    const r = await fetch(SB_URL + '/auth/v1/user', { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + access_token } });
-    if (r.ok) user = await r.json();
-  } catch {}
-  const expiresIn = parseInt(params.get('expires_in') ?? '3600', 10);
-  const session = {
-    access_token,
-    refresh_token: refresh_token ?? '',
-    expires_in: expiresIn,
-    expires_at: Math.floor(Date.now() / 1000) + expiresIn,
-    token_type: 'bearer',
-    user,
-  };
-  localStorage.setItem('sb-kdhpbrpeneokvhwyxmwn-auth-token', JSON.stringify(session));
-  history.replaceState(null, '', location.pathname);
-}
-
 const $ = (s) => document.querySelector(s);
 const view = $('#view');
 const loading = $('#loading');
 
-// Lee session directo de localStorage (bypass supabase-js que cuelga en algunos browsers).
-function readSession() {
-  try {
-    const raw = localStorage.getItem('sb-kdhpbrpeneokvhwyxmwn-auth-token');
-    if (!raw) return null;
-    const s = JSON.parse(raw);
-    if (!s.access_token) return null;
-    // Check expiry (Supabase access tokens duran 1h)
-    if (s.expires_at && s.expires_at * 1000 < Date.now()) {
-      visualLog && visualLog('session expired, clearing');
-      localStorage.removeItem('sb-kdhpbrpeneokvhwyxmwn-auth-token');
-      return null;
-    }
-    return s;
-  } catch (e) {
-    visualLog && visualLog('readSession error: ' + e.message);
-    return null;
-  }
+// Estado auth poblado por checkAuth().
+window.__me = null;
+window.__role = null;
+window.__roles = [];
+
+function hasRole(r) {
+  return Array.isArray(window.__roles) && window.__roles.includes(r);
+}
+window.hasRole = hasRole;
+
+function showAuthBanner(msg) {
+  document.body.insertAdjacentHTML('afterbegin',
+    `<div style="position:fixed;top:0;left:0;right:0;background:#e64a4a;color:white;padding:14px;text-align:center;z-index:9999;font-family:system-ui">Auth error: ${msg}</div>`);
 }
 
-window.__session = null;
-
 async function checkAuth() {
-  let session = readSession();
-  // BYPASS TOTAL temporal: siempre muestra la app, login deshabilitado
-  if (!session) {
-    session = {
-      access_token: 'dev-bypass',
-      user: { email: 'dev@global66.com', app_metadata: { role: 'admin' } },
-    };
+  // Quita banner de error si la URL trae auth_error.
+  const qs = new URLSearchParams(location.search);
+  if (qs.get('auth_error')) {
+    showAuthBanner(qs.get('auth_error'));
+    history.replaceState(null, '', location.pathname);
   }
-  window.__session = session;
-  // Force show app, hide login (defensive)
-  const ls = $('#login-screen'); if (ls) { ls.hidden = true; ls.style.display = 'none'; }
-  const as = $('#app-shell'); if (as) { as.hidden = false; as.style.display = ''; }
-  if (session) {
-    visualLog && visualLog('session found: ' + session.user?.email);
-    $('#login-screen').hidden = true;
-    $('#app-shell').hidden = false;
-    const e = session.user?.email ?? '';
-    $('#user-email').textContent = e;
-    const name = e.split('@')[0].replace(/\./g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-    $('#user-name').textContent = name;
-    $('#avatar').textContent = (e[0] ?? '?').toUpperCase();
-    const role = session.user?.app_metadata?.role ?? 'user';
-    if (role === 'admin') $('#nav-users').hidden = false;
-    window.__role = role;
-    // Hide visual-log box una vez logueado
-    document.getElementById('visual-log')?.style?.setProperty('display', 'none');
-    route();
-  } else {
-    visualLog && visualLog('no session, showing login');
-    $('#login-screen').hidden = false;
+
+  let me = null;
+  try {
+    const r = await fetch('/api/auth/me', { credentials: 'include' });
+    if (r.ok) me = await r.json();
+  } catch {}
+
+  if (!me?.ok) {
+    $('#login-screen').hidden = false; $('#login-screen').style.display = '';
     $('#app-shell').hidden = true;
+    return;
   }
+
+  window.__me = me;
+  window.__roles = me.roles ?? [];
+  window.__role = me.roles?.includes('admin') ? 'admin' : (me.roles?.[0] ?? 'solicitante');
+
+  $('#login-screen').hidden = true; $('#login-screen').style.display = 'none';
+  $('#app-shell').hidden = false;
+
+  const email = me.email ?? '';
+  $('#user-email').textContent = email + (me.bypass ? ' · DEV' : '');
+  const name = me.display_name ?? email.split('@')[0].replace(/\./g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  $('#user-name').textContent = name;
+  $('#avatar').textContent = (email[0] ?? '?').toUpperCase();
+  $('#nav-users').hidden = !hasRole('admin');
+  route();
 }
 
 async function sendMagicLinkViaServer(email) {
   const r = await fetch('/api/auth/magic-link', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({ email }),
   });
   const data = await r.json().catch(() => ({}));
@@ -418,75 +363,37 @@ async function sendMagicLinkViaServer(email) {
   return { ok: true };
 }
 
-function visualLog(msg) {
-  console.log('[login]', msg);
-  let box = document.getElementById('visual-log');
-  if (!box) {
-    box = document.createElement('div');
-    box.id = 'visual-log';
-    box.style.cssText = 'position:fixed;bottom:10px;right:10px;max-width:380px;background:#0b1f4b;color:#33d9b2;padding:10px;border-radius:8px;font:11px/1.4 monospace;z-index:9999;max-height:300px;overflow:auto;box-shadow:0 4px 20px rgba(0,0,0,0.3)';
-    document.body.appendChild(box);
-  }
-  const line = document.createElement('div');
-  line.textContent = new Date().toISOString().slice(11, 19) + ' › ' + msg;
-  box.appendChild(line);
-  box.scrollTop = box.scrollHeight;
-}
-window.visualLog = visualLog;
-
 async function doLogin(ev) {
   if (ev) ev.preventDefault();
-  visualLog('submit fired');
   $('#login-err').hidden = true; $('#login-ok').hidden = true;
   const email = ($('#login-email').value || '').trim();
   const password = $('#login-password').value;
-  visualLog('email=' + email + ' pw_len=' + password.length);
   if (!email) { $('#login-err').textContent = 'Email requerido'; $('#login-err').hidden = false; return; }
 
   if (!password) {
-    visualLog('no password → magic link via server');
     const r = await sendMagicLinkViaServer(email);
-    if (r.error) { visualLog('magic-link error: ' + r.error); $('#login-err').textContent = r.error; $('#login-err').hidden = false; }
+    if (r.error) { $('#login-err').textContent = r.error; $('#login-err').hidden = false; }
     else { $('#login-ok').textContent = 'Revisá tu email — te mandamos un link de acceso'; $('#login-ok').hidden = false; }
     return;
   }
 
-  visualLog('login via server (/api/auth/login)');
   try {
-    const t0 = Date.now();
     const r = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
       credentials: 'include',
+      body: JSON.stringify({ email, password }),
     });
-    visualLog('server response: ' + r.status + ' in ' + (Date.now() - t0) + 'ms');
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) {
-      visualLog('ERROR: ' + (data.error || r.status));
-      $('#login-err').textContent = data.error || 'Login fallido';
-      $('#login-err').hidden = false;
-      return;
-    }
-    visualLog('OK user=' + data.user?.email + ' role=' + data.user?.role);
-    const session = {
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
-      expires_at: data.expires_at,
-      user: { email: data.user.email, app_metadata: { role: data.user.role } },
-    };
-    try { localStorage.setItem('sb-kdhpbrpeneokvhwyxmwn-auth-token', JSON.stringify(session)); } catch {}
-    visualLog('session stored → checkAuth');
+    if (!r.ok) { $('#login-err').textContent = data.error || 'Login fallido'; $('#login-err').hidden = false; return; }
     checkAuth();
   } catch (e) {
-    visualLog('EXCEPTION: ' + (e.message || e.toString()));
     $('#login-err').textContent = 'Excepción: ' + e.message;
     $('#login-err').hidden = false;
   }
 }
 
 $('#login-form').addEventListener('submit', doLogin);
-// Backup: handler directo en el botón por si el form submit no se attach
 document.querySelector('#login-form button[type=submit]')?.addEventListener('click', (ev) => {
   if (!ev.defaultPrevented) doLogin(ev);
 });
@@ -499,12 +406,11 @@ $('#magic-link').addEventListener('click', async () => {
   else { $('#login-ok').textContent = 'Revisá tu email — te mandamos un link'; $('#login-ok').hidden = false; }
 });
 
-$('#logout').addEventListener('click', () => {
-  localStorage.removeItem('sb-kdhpbrpeneokvhwyxmwn-auth-token');
-  try { supabase.auth.signOut(); } catch {}
+$('#logout').addEventListener('click', async () => {
+  try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch {}
+  window.__me = null; window.__roles = []; window.__role = null;
   checkAuth();
 });
-try { supabase.auth.onAuthStateChange(() => checkAuth()); } catch {}
 
 window.addEventListener('hashchange', route);
 
@@ -523,10 +429,10 @@ async function route() {
 }
 
 async function q(table, qs = '') {
-  const sess = window.__session ?? readSession();
-  const token = sess?.access_token && sess.access_token !== 'dev-bypass' ? sess.access_token : SB_KEY;
-  const r = await fetch(`${SB_URL}/rest/v1/${table}?${qs}`, {
-    headers: { apikey: SB_KEY, Authorization: `Bearer ${token}` },
+  // Proxy server-side: la cookie httpOnly viaja sola; el server aplica RLS con el JWT.
+  const params = qs ? `&${qs}` : '';
+  const r = await fetch(`/api/data?table=${encodeURIComponent(table)}${params}`, {
+    credentials: 'include',
   });
   if (!r.ok) throw new Error(`${table}: ${r.status} ${await r.text()}`);
   return r.json();
@@ -941,22 +847,37 @@ function renderApprovalPanel(r) {
 // ─── Users management (admin only) ──────────────────────────────────────────
 
 async function authedFetch(path, opts = {}) {
-  const session = window.__session ?? readSession();
-  if (!session) throw new Error('No session');
+  // Cookie httpOnly viaja sola. No leemos tokens del JS.
   return fetch(path, {
     ...opts,
-    headers: { ...(opts.headers ?? {}), Authorization: `Bearer ${session.access_token}` },
+    credentials: 'include',
+    headers: { ...(opts.headers ?? {}) },
   });
 }
 
+const ALL_ROLES = ['admin', 'aprobador', 'solicitante', 'proveedor'];
+
 async function usersPage() {
-  if (window.__role !== 'admin') {
+  if (!hasRole('admin')) {
     view.innerHTML = '<div class="err">Solo administradores pueden ver esta sección.</div>';
     return;
   }
   const r = await authedFetch('/api/admin/users');
   if (!r.ok) { view.innerHTML = `<div class="err">${await r.text()}</div>`; return; }
   const users = await r.json();
+  const meEmail = window.__me?.email;
+
+  function renderRolesCell(u) {
+    return ALL_ROLES.map((rk) => `
+      <label style="display:inline-flex;align-items:center;gap:4px;margin-right:8px;font-size:12px;font-weight:500">
+        <input type="checkbox" class="role-check" data-id="${u.id}" value="${rk}"
+          ${u.roles?.includes(rk) ? 'checked' : ''}
+          ${u.email === meEmail && rk === 'admin' ? 'disabled' : ''}
+          ${u.admin_via_allowlist && rk === 'admin' ? 'disabled' : ''}>
+        ${rk}
+      </label>
+    `).join('');
+  }
 
   view.innerHTML = `
     <div class="header-row">
@@ -971,12 +892,15 @@ async function usersPage() {
           <label>Email corporativo</label>
           <input type="email" id="new-user-email" placeholder="nombre.apellido@global66.com">
         </div>
-        <div style="min-width:160px">
-          <label>Rol</label>
-          <select id="new-user-role">
-            <option value="user">User</option>
-            <option value="admin">Admin</option>
-          </select>
+        <div style="min-width:240px">
+          <label>Roles</label>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:8px 0">
+            ${ALL_ROLES.map(rk => `
+              <label style="display:inline-flex;align-items:center;gap:4px;font-size:12.5px;font-weight:500">
+                <input type="checkbox" class="new-role" value="${rk}" ${rk === 'solicitante' ? 'checked' : ''}> ${rk}
+              </label>
+            `).join('')}
+          </div>
         </div>
         <button class="primary" id="invite-btn">Invitar →</button>
       </div>
@@ -985,19 +909,15 @@ async function usersPage() {
 
     <div class="table-card">
       <table>
-        <thead><tr><th>Email</th><th>Rol</th><th>Confirmado</th><th>Último login</th><th>Creado</th><th></th></tr></thead>
+        <thead><tr><th>Email</th><th>Roles</th><th>Sociedades</th><th>Confirmado</th><th>Último login</th><th>Creado</th><th></th></tr></thead>
         <tbody>${users.map(u => `<tr data-id="${u.id}" data-email="${u.email}">
-          <td><b>${u.email}</b></td>
-          <td>
-            <select class="role-select" data-id="${u.id}" ${u.email === window.__session?.user?.email ? 'disabled' : ''}>
-              <option value="user" ${u.role === 'user' ? 'selected' : ''}>user</option>
-              <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
-            </select>
-          </td>
+          <td><b>${u.email}</b>${u.admin_via_allowlist ? ' <span class="pill blue">allowlist</span>' : ''}</td>
+          <td>${renderRolesCell(u)}</td>
+          <td class="muted">${(u.sociedades ?? []).join(', ') || '—'}</td>
           <td>${u.confirmed ? '✓' : '—'}</td>
           <td class="muted">${dt(u.last_sign_in_at) || '—'}</td>
           <td class="muted">${dt(u.created_at)}</td>
-          <td><button class="ghost del-btn" data-id="${u.id}" data-email="${u.email}">Eliminar</button></td>
+          <td><button class="ghost del-btn" data-id="${u.id}" data-email="${u.email}" ${u.email === meEmail ? 'disabled' : ''}>Eliminar</button></td>
         </tr>`).join('')}</tbody>
       </table>
     </div>
@@ -1005,12 +925,15 @@ async function usersPage() {
 
   $('#invite-btn').addEventListener('click', async () => {
     const email = $('#new-user-email').value.trim();
-    const role = $('#new-user-role').value;
-    if (!email) return;
+    const roles = Array.from(document.querySelectorAll('.new-role:checked')).map((c) => c.value);
+    if (!email || !roles.length) {
+      $('#invite-result').innerHTML = `<div class="err">Email y al menos un rol son requeridos</div>`;
+      return;
+    }
     const r = await authedFetch('/api/admin/users', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, role }),
+      body: JSON.stringify({ email, roles }),
     });
     const result = await r.json();
     if (!r.ok) {
@@ -1021,13 +944,25 @@ async function usersPage() {
     }
   });
 
-  document.querySelectorAll('.role-select').forEach((sel) => {
-    sel.addEventListener('change', async (e) => {
-      await authedFetch('/api/admin/users/role', {
+  // Cambios de roles via checkbox: re-arma el array y postea.
+  document.querySelectorAll('.role-check').forEach((cb) => {
+    cb.addEventListener('change', async (e) => {
+      const id = e.target.dataset.id;
+      const checked = Array.from(document.querySelectorAll(`.role-check[data-id="${id}"]:checked`)).map((c) => c.value);
+      if (!checked.length) {
+        e.target.checked = true;
+        alert('El usuario debe tener al menos un rol');
+        return;
+      }
+      const r = await authedFetch('/api/admin/users/role', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: e.target.dataset.id, role: e.target.value }),
+        body: JSON.stringify({ user_id: id, roles: checked }),
       });
+      if (!r.ok) {
+        e.target.checked = !e.target.checked;
+        alert(`Error: ${await r.text()}`);
+      }
     });
   });
 
@@ -1049,18 +984,18 @@ window.submitApproval = async function (runId, decision) {
     document.getElementById('approve-err').hidden = false;
     return;
   }
-  const session = window.__session ?? readSession();
   try {
     const r = await fetch('/api/intake/approve', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (session?.access_token ?? '') },
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         run_id: runId,
         decision,
         sociedad_contratante: sociedad || undefined,
         sociedad_apoderado_email: apoderado || undefined,
         comment,
-        approver_email: session?.user?.email,
+        approver_email: window.__me?.email,
       }),
     });
     const result = await r.json();
@@ -1260,9 +1195,8 @@ async function intakeForm() {
   });
 }
 
-// Process URL session first (magic link callback), then check auth
-visualLog('JS loaded');
-processUrlSession().then(() => { visualLog('processUrlSession done'); checkAuth(); }).catch(e => visualLog('init error: ' + e.message));
+// Init: chequear sesión via cookie. Si hay auth_error en la URL, lo muestra checkAuth().
+checkAuth();
 </script>
 </body>
 </html>
