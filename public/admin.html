@@ -203,6 +203,34 @@
 
   pre { background: var(--surface); padding: 12px; border-radius: var(--radius-sm); font-size: 11px; overflow: auto; color: var(--text) }
 
+  /* Matriz admin tabs (PR11) */
+  .matriz-tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--border); padding: 0 4px }
+  .matriz-tab {
+    background: transparent; border: none; padding: 12px 18px; font-size: 13.5px;
+    font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
+    margin-bottom: -2px; transition: all .15s ease;
+  }
+  .matriz-tab:hover { color: var(--text) }
+  .matriz-tab.active { color: var(--blue-500); border-bottom-color: var(--blue-500) }
+
+  /* Signer rows (nodo Firma PR10) */
+  .signer-row {
+    display: flex; gap: 12px; align-items: flex-start;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px;
+  }
+  .signer-row .signer-email {
+    width: 100%; padding: 6px 10px; font-size: 12.5px;
+    border: 1.5px solid var(--border); border-radius: 8px;
+  }
+  .signer-row .signer-email:focus { outline: none; border-color: var(--blue-500); box-shadow: 0 0 0 3px rgba(31,73,182,0.08) }
+  .signer-row .signer-remove {
+    border: none; background: transparent; color: var(--muted); cursor: pointer;
+    font-size: 18px; padding: 4px 10px; border-radius: 8px;
+  }
+  .signer-row .signer-remove:not(:disabled):hover { color: var(--red); background: rgba(230,74,74,0.08) }
+  .signer-row .signer-remove:disabled { cursor: not-allowed; opacity: 0.4 }
+
   /* Flow canvas — workflow stages tipo Finnecto/n8n */
   .flow-canvas {
     display: flex; align-items: stretch; gap: 0; overflow-x: auto;
@@ -591,6 +619,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6m3-3v6"/></svg>
         Usuarios
       </a>
+      <a href="#matriz" id="nav-matriz" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Matriz
+      </a>
     </nav>
 
     <div class="nav-bottom">
@@ -678,6 +710,7 @@ async function checkAuth() {
     $('#avatar').style.display = '';
   }
   $('#nav-users').hidden = !hasRole('admin');
+  $('#nav-matriz').hidden = !hasRole('admin');
   route();
 }
 
@@ -924,6 +957,7 @@ async function route() {
   try {
     if (page === 'intake') return await intakeForm(params);
     if (page === 'users') return await usersPage();
+    if (page === 'matriz') return await matrizPage();
     await (pages[page] ?? pages.dashboard)(params);
   }
   catch (e) { view.innerHTML = `<div class="err">${e.message}</div>`; }
@@ -1282,6 +1316,7 @@ const pages = {
     `;
 
     mountDocViewer(runId);
+    if (shouldShowSignaturePanel(r)) loadSignaturePanel(r);
   },
 
   async providers() {
@@ -1459,31 +1494,77 @@ function shouldShowSignaturePanel(r) {
 }
 
 function renderSignaturePanel(r) {
-  const sociedadOpts = ['Global 81 SpA (Chile)', 'Global Card S.A. (Chile)', '100X (Panamá)', 'Global Colombia 81 (Colombia)'];
-  return `<div class="card" style="margin-bottom:16px;border-left:4px solid var(--mint)">
+  // El placeholder se llena async vía loadSignaturePanel(r) después de mount.
+  return `<div class="card" id="sign-panel" data-run="${r.id}" style="margin-bottom:16px;border-left:4px solid var(--mint)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
       <h3 style="margin:0">✍️ Nodo 5 — Firma</h3>
       <span class="pill blue">paso final</span>
     </div>
-    <p style="color:var(--muted);font-size:13px;margin-bottom:18px">Confirmá la sociedad contratante y asigná el apoderado firmante de Global66. Cuando esté listo, lo mandamos a SignNow.</p>
+    <div id="sign-panel-body" style="padding:14px 0;text-align:center;color:var(--muted);font-size:13px">Cargando apoderados sugeridos…</div>
+  </div>`;
+}
 
-    <div class="grid grid-2" style="margin-bottom:16px">
-      <div>
-        <label>Sociedad contratante (confirmá o cambiá)</label>
-        <select id="sign-sociedad">
-          <option value="">— Elegí —</option>
-          ${sociedadOpts.map((s) => `<option value="${s}" ${r.sociedad_contratante === s ? 'selected' : ''}>${s}</option>`).join('')}
+async function loadSignaturePanel(r) {
+  const body = document.querySelector('#sign-panel-body');
+  if (!body) return;
+
+  // Cargar sociedades + apoderados sugeridos.
+  let sociedades = [];
+  try {
+    const sr = await fetch('/api/matriz/sociedades', { credentials: 'include' });
+    if (sr.ok) sociedades = await sr.json();
+  } catch {}
+
+  const currentSoc = sociedades.find((s) => s.name === r.sociedad_contratante);
+  let suggested = [];
+  if (currentSoc) {
+    try {
+      const ar = await fetch(`/api/matriz/apoderados/suggest?sociedad_id=${currentSoc.id}&tipo_proveedor=${encodeURIComponent(r.tipo_proveedor ?? '')}`, { credentials: 'include' });
+      if (ar.ok) suggested = await ar.json();
+    } catch {}
+  }
+  const persisted = Array.isArray(r.apoderados_firmantes) ? r.apoderados_firmantes : [];
+
+  // Si hay persistidos, usar esos. Sino, los sugeridos.
+  const initial = persisted.length ? persisted : suggested.map((a) => ({
+    apoderado_id: a.id, name: a.name, email: a.email ?? '',
+    role: a.priority === 1 ? 'siempre' : 'secundario',
+    notes: a.notes ?? '',
+    status: 'pending',
+  }));
+
+  window.__signSelected = initial;
+  window.__signAllApoderados = []; // para el dropdown "agregar otro"
+  if (currentSoc) {
+    const ar2 = await fetch(`/api/matriz/apoderados?sociedad_id=${currentSoc.id}`, { credentials: 'include' });
+    if (ar2.ok) window.__signAllApoderados = await ar2.json();
+  }
+
+  body.innerHTML = `
+    <p style="color:var(--muted);font-size:13px;margin-bottom:18px">Confirmá la sociedad + apoderados que firman. Los marcados como <b>"siempre"</b> son obligatorios según la matriz; el secundario se auto-seleccionó según el tipo de proveedor (${r.tipo_proveedor ?? '—'}). Podés cambiarlos.</p>
+
+    <div style="margin-bottom:16px">
+      <label>Sociedad contratante</label>
+      <select id="sign-sociedad-select">
+        <option value="">— Elegí —</option>
+        ${sociedades.map((s) => `<option value="${s.id}" data-name="${s.name}" ${r.sociedad_contratante === s.name ? 'selected' : ''}>${s.name}</option>`).join('')}
+      </select>
+    </div>
+
+    <div style="margin-bottom:16px">
+      <label>Apoderados firmantes</label>
+      <div id="sign-apoderados-list" style="display:flex;flex-direction:column;gap:8px;margin-top:8px"></div>
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+        <select id="sign-add-select" style="flex:1">
+          <option value="">+ Agregar otro apoderado</option>
         </select>
+        <button type="button" class="ghost" id="sign-add-btn" style="padding:8px 14px">Agregar</button>
       </div>
-      <div>
-        <label>Email apoderado Global66 (firmante) *</label>
-        <input type="email" id="sign-apoderado" placeholder="apoderado@global66.com" value="${r.sociedad_apoderado_email ?? ''}">
-        <p style="font-size:11.5px;color:var(--muted);margin-top:4px">El email recibe el link de SignNow para firmar.</p>
-      </div>
-      <div style="grid-column:1/-1">
-        <label>Nota interna (opcional)</label>
-        <textarea id="sign-note" rows="2" placeholder="Ej: 'Apoderado de turno: Andrés; Maria está de vacaciones'"></textarea>
-      </div>
+    </div>
+
+    <div style="margin-bottom:16px">
+      <label>Nota interna (opcional)</label>
+      <textarea id="sign-note" rows="2" placeholder="Ej: 'Apoderado de turno: Andrés; Maria está de vacaciones'"></textarea>
     </div>
 
     <div id="sign-err" class="err" hidden></div>
@@ -1493,20 +1574,110 @@ function renderSignaturePanel(r) {
       <button class="secondary" type="button" onclick="saveSignatureConfig('${r.id}', false)">Guardar config</button>
       <button class="primary" type="button" onclick="saveSignatureConfig('${r.id}', true)">Confirmar y enviar a SignNow →</button>
     </div>
-  </div>`;
+  `;
+
+  renderSignersList();
+  refreshAddDropdown();
+
+  document.querySelector('#sign-sociedad-select').addEventListener('change', async (e) => {
+    const opt = e.target.selectedOptions[0];
+    const socId = opt.value;
+    const socName = opt.dataset.name;
+    if (!socId) return;
+    // Recargar apoderados sugeridos para la nueva sociedad.
+    const ar = await fetch(`/api/matriz/apoderados/suggest?sociedad_id=${socId}&tipo_proveedor=${encodeURIComponent(r.tipo_proveedor ?? '')}`, { credentials: 'include' });
+    if (ar.ok) {
+      const sug = await ar.json();
+      window.__signSelected = sug.map((a) => ({
+        apoderado_id: a.id, name: a.name, email: a.email ?? '',
+        role: a.priority === 1 ? 'siempre' : 'secundario',
+        notes: a.notes ?? '',
+        status: 'pending',
+      }));
+      renderSignersList();
+    }
+    const ar2 = await fetch(`/api/matriz/apoderados?sociedad_id=${socId}`, { credentials: 'include' });
+    if (ar2.ok) {
+      window.__signAllApoderados = await ar2.json();
+      refreshAddDropdown();
+    }
+  });
+
+  document.querySelector('#sign-add-btn').addEventListener('click', () => {
+    const sel = document.querySelector('#sign-add-select');
+    const id = sel.value;
+    if (!id) return;
+    const apo = window.__signAllApoderados.find((a) => a.id === id);
+    if (!apo) return;
+    if (window.__signSelected.find((s) => s.apoderado_id === id)) return;
+    window.__signSelected.push({
+      apoderado_id: apo.id, name: apo.name, email: apo.email ?? '',
+      role: apo.priority === 1 ? 'siempre' : 'secundario',
+      notes: apo.notes ?? '',
+      status: 'pending',
+    });
+    sel.value = '';
+    renderSignersList();
+    refreshAddDropdown();
+  });
+}
+
+function renderSignersList() {
+  const list = document.querySelector('#sign-apoderados-list');
+  if (!list) return;
+  if (!window.__signSelected?.length) {
+    list.innerHTML = '<div class="muted" style="font-size:12.5px;padding:10px;background:var(--surface);border-radius:8px">Sin apoderados sugeridos. Agregá uno abajo.</div>';
+    return;
+  }
+  list.innerHTML = window.__signSelected.map((s, i) => `
+    <div class="signer-row" data-idx="${i}">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <b style="font-size:13.5px">${escapeHtml(s.name)}</b>
+          <span class="pill ${s.role === 'siempre' ? 'green' : 'blue'}" style="font-size:10.5px">${s.role}</span>
+        </div>
+        ${s.notes ? `<div class="muted" style="font-size:11.5px;margin-top:2px">${escapeHtml(s.notes)}</div>` : ''}
+        <input type="email" placeholder="email apoderado@global66.com" value="${escapeHtml(s.email)}" data-idx="${i}" class="signer-email" style="margin-top:6px;font-size:12.5px;padding:6px 10px">
+      </div>
+      <button type="button" class="ghost signer-remove" data-idx="${i}" style="padding:4px 10px" ${s.role === 'siempre' ? 'disabled title="Apoderado obligatorio — no se puede quitar"' : ''}>×</button>
+    </div>
+  `).join('');
+  list.querySelectorAll('.signer-email').forEach((inp) => inp.addEventListener('input', (e) => {
+    window.__signSelected[Number(e.target.dataset.idx)].email = e.target.value;
+  }));
+  list.querySelectorAll('.signer-remove').forEach((btn) => btn.addEventListener('click', (e) => {
+    if (e.currentTarget.disabled) return;
+    window.__signSelected.splice(Number(e.currentTarget.dataset.idx), 1);
+    renderSignersList();
+    refreshAddDropdown();
+  }));
+}
+
+function refreshAddDropdown() {
+  const sel = document.querySelector('#sign-add-select');
+  if (!sel) return;
+  const taken = new Set((window.__signSelected ?? []).map((s) => s.apoderado_id));
+  const available = (window.__signAllApoderados ?? []).filter((a) => !taken.has(a.id));
+  sel.innerHTML = '<option value="">+ Agregar otro apoderado</option>' +
+    available.map((a) => `<option value="${a.id}">${escapeHtml(a.name)}${a.scope === 'siempre' ? ' (siempre)' : ''}</option>`).join('');
 }
 
 window.saveSignatureConfig = async function (runId, sendToSignNow) {
-  const sociedad = document.getElementById('sign-sociedad').value;
-  const apoderado = document.getElementById('sign-apoderado').value.trim();
+  const sociedadOpt = document.querySelector('#sign-sociedad-select')?.selectedOptions[0];
+  const sociedad = sociedadOpt?.dataset.name;
   const note = document.getElementById('sign-note').value.trim();
   const errEl = document.getElementById('sign-err');
   const okEl = document.getElementById('sign-ok');
   errEl.hidden = true; okEl.hidden = true;
-  if (sendToSignNow && (!sociedad || !apoderado)) {
-    errEl.textContent = 'Sociedad y email apoderado son requeridos para enviar a SignNow.';
-    errEl.hidden = false; return;
+  const signers = window.__signSelected ?? [];
+
+  if (sendToSignNow) {
+    if (!sociedad) { errEl.textContent = 'Sociedad requerida.'; errEl.hidden = false; return; }
+    if (!signers.length) { errEl.textContent = 'Al menos 1 apoderado firmante requerido.'; errEl.hidden = false; return; }
+    const missingEmails = signers.filter((s) => !s.email || !/^.+@.+\..+$/.test(s.email));
+    if (missingEmails.length) { errEl.textContent = `Email faltante o inválido para: ${missingEmails.map((s) => s.name).join(', ')}`; errEl.hidden = false; return; }
   }
+
   try {
     const r = await fetch('/api/intake/signature-config', {
       method: 'POST',
@@ -1515,7 +1686,8 @@ window.saveSignatureConfig = async function (runId, sendToSignNow) {
       body: JSON.stringify({
         run_id: runId,
         sociedad_contratante: sociedad || undefined,
-        sociedad_apoderado_email: apoderado || undefined,
+        sociedad_apoderado_email: signers[0]?.email || undefined,
+        apoderados_firmantes: signers,
         note,
         send_to_signnow: !!sendToSignNow,
       }),
@@ -1523,8 +1695,8 @@ window.saveSignatureConfig = async function (runId, sendToSignNow) {
     const result = await r.json();
     if (!r.ok) throw new Error(result.error ?? 'Error');
     okEl.innerHTML = sendToSignNow
-      ? `✓ Enviado a SignNow. Document ID: <code>${result.signnow_document_id ?? '(pendiente)'}</code>`
-      : `✓ Configuración guardada.`;
+      ? `✓ Enviado a SignNow. Document ID: <code>${result.signnow_document_id ?? '(pendiente)'}</code> — ${signers.length} firmante${signers.length > 1 ? 's' : ''}.`
+      : `✓ Configuración guardada (${signers.length} apoderado${signers.length > 1 ? 's' : ''}).`;
     okEl.hidden = false;
     if (sendToSignNow) setTimeout(() => location.reload(), 1500);
   } catch (e) {
@@ -1564,6 +1736,324 @@ function renderApprovalPanel(r) {
       <button class="primary" onclick="submitApproval('${r.id}','approved')">Aprobar e invitar proveedor →</button>
     </div>
   </div>`;
+}
+
+// ─── Matriz admin (PR11) — sociedades + apoderados + docs CRUD ──────────────
+
+async function matrizPage() {
+  if (!hasRole('admin')) {
+    view.innerHTML = '<div class="err">Solo administradores pueden ver esta sección.</div>';
+    return;
+  }
+  view.innerHTML = `
+    <div class="header-row">
+      <h2>Matriz contratos</h2>
+      <span class="muted" style="font-size:13px">Sociedades · apoderados · documentos por país</span>
+    </div>
+    <div class="matriz-tabs">
+      <button type="button" class="matriz-tab active" data-tab="sociedades">🏢 Sociedades</button>
+      <button type="button" class="matriz-tab" data-tab="apoderados">✍️ Apoderados</button>
+      <button type="button" class="matriz-tab" data-tab="documentos">📄 Documentos</button>
+    </div>
+    <div id="matriz-body" class="card" style="margin-top:14px"></div>
+  `;
+  document.querySelectorAll('.matriz-tab').forEach((b) => b.addEventListener('click', (e) => {
+    document.querySelectorAll('.matriz-tab').forEach((x) => x.classList.toggle('active', x === e.currentTarget));
+    renderMatrizTab(e.currentTarget.dataset.tab);
+  }));
+  renderMatrizTab('sociedades');
+}
+
+async function renderMatrizTab(tab) {
+  const body = document.querySelector('#matriz-body');
+  body.innerHTML = '<div class="muted" style="padding:20px;text-align:center">Cargando…</div>';
+  if (tab === 'sociedades') return renderSociedadesTab(body);
+  if (tab === 'apoderados') return renderApoderadosTab(body);
+  if (tab === 'documentos') return renderDocumentosTab(body);
+}
+
+async function renderSociedadesTab(body) {
+  const r = await fetch('/api/matriz/sociedades', { credentials: 'include' });
+  const list = r.ok ? await r.json() : [];
+  body.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h3>Sociedades (${list.length})</h3>
+      <button type="button" class="primary" id="add-soc" style="padding:8px 14px;font-size:13px">+ Nueva sociedad</button>
+    </div>
+    <table>
+      <thead><tr><th>Slug</th><th>Nombre</th><th>País</th><th>Activa</th><th></th></tr></thead>
+      <tbody>${list.map((s) => `<tr data-id="${s.id}">
+        <td><code style="font-size:11px">${escapeHtml(s.slug)}</code></td>
+        <td><b>${escapeHtml(s.name)}</b></td>
+        <td>${escapeHtml(s.country)}</td>
+        <td>${s.active ? '<span class="pill green">activa</span>' : '<span class="pill gray">inactiva</span>'}</td>
+        <td style="text-align:right">
+          <button type="button" class="ghost edit-soc" data-id="${s.id}" data-row='${JSON.stringify(s)}' style="padding:4px 10px;font-size:12px">Editar</button>
+          <button type="button" class="ghost del-soc" data-id="${s.id}" data-name="${escapeHtml(s.name)}" style="padding:4px 10px;font-size:12px;color:var(--red)">×</button>
+        </td>
+      </tr>`).join('') || '<tr><td colspan=5 class="muted" style="text-align:center;padding:24px">Sin sociedades</td></tr>'}</tbody>
+    </table>
+  `;
+  document.querySelector('#add-soc').addEventListener('click', () => sociedadModal());
+  body.querySelectorAll('.edit-soc').forEach((b) => b.addEventListener('click', (e) => sociedadModal(JSON.parse(e.currentTarget.dataset.row))));
+  body.querySelectorAll('.del-soc').forEach((b) => b.addEventListener('click', async (e) => {
+    if (!confirm(`¿Eliminar sociedad "${e.currentTarget.dataset.name}"? Esto también borra sus apoderados y documentos.`)) return;
+    const r = await fetch(`/api/admin/matriz/sociedades?id=${e.currentTarget.dataset.id}`, { method: 'DELETE', credentials: 'include' });
+    if (!r.ok) alert(await r.text());
+    renderSociedadesTab(body);
+  }));
+}
+
+function sociedadModal(existing) {
+  const m = document.createElement('div');
+  m.className = 'ai-modal';
+  m.innerHTML = `
+    <div class="ai-modal-backdrop"></div>
+    <div class="ai-modal-card">
+      <h3>${existing ? 'Editar' : 'Nueva'} sociedad</h3>
+      <div style="margin-top:14px">
+        <label>Slug *</label>
+        <input type="text" id="soc-slug" value="${escapeHtml(existing?.slug ?? '')}" placeholder="global-x-pais" ${existing ? 'disabled' : ''}>
+      </div>
+      <div style="margin-top:10px"><label>Nombre *</label><input type="text" id="soc-name" value="${escapeHtml(existing?.name ?? '')}"></div>
+      <div style="margin-top:10px"><label>País *</label><input type="text" id="soc-country" value="${escapeHtml(existing?.country ?? '')}"></div>
+      <div style="margin-top:10px"><label><input type="checkbox" id="soc-active" ${(existing?.active ?? true) ? 'checked' : ''}> Activa</label></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+        <button type="button" class="secondary" id="soc-cancel">Cancelar</button>
+        <button type="button" class="primary" id="soc-save">Guardar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(m);
+  m.querySelector('.ai-modal-backdrop').addEventListener('click', () => m.remove());
+  m.querySelector('#soc-cancel').addEventListener('click', () => m.remove());
+  m.querySelector('#soc-save').addEventListener('click', async () => {
+    const payload = {
+      slug: m.querySelector('#soc-slug').value.trim(),
+      name: m.querySelector('#soc-name').value.trim(),
+      country: m.querySelector('#soc-country').value.trim(),
+      active: m.querySelector('#soc-active').checked,
+    };
+    if (!payload.name || !payload.country || (!existing && !payload.slug)) {
+      alert('Slug, nombre y país son obligatorios');
+      return;
+    }
+    const url = existing ? `/api/admin/matriz/sociedades?id=${existing.id}` : '/api/admin/matriz/sociedades';
+    const method = existing ? 'PATCH' : 'POST';
+    const r = await fetch(url, { method, credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!r.ok) { alert(await r.text()); return; }
+    m.remove();
+    renderSociedadesTab(document.querySelector('#matriz-body'));
+  });
+}
+
+async function renderApoderadosTab(body) {
+  const [socsR, aposR] = await Promise.all([
+    fetch('/api/matriz/sociedades', { credentials: 'include' }),
+    fetch('/api/matriz/apoderados', { credentials: 'include' }),
+  ]);
+  const socs = socsR.ok ? await socsR.json() : [];
+  const apos = aposR.ok ? await aposR.json() : [];
+  const socById = Object.fromEntries(socs.map((s) => [s.id, s]));
+
+  body.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h3>Apoderados (${apos.length})</h3>
+      <button type="button" class="primary" id="add-apo" style="padding:8px 14px;font-size:13px">+ Nuevo apoderado</button>
+    </div>
+    <table>
+      <thead><tr><th>Nombre</th><th>Email</th><th>Sociedad</th><th>Scope</th><th>Prio</th><th>Tipos</th><th></th></tr></thead>
+      <tbody>${apos.map((a) => `<tr>
+        <td><b>${escapeHtml(a.name)}</b>${a.notes ? `<div class="muted" style="font-size:11px">${escapeHtml(a.notes)}</div>` : ''}</td>
+        <td class="muted" style="font-size:12px">${escapeHtml(a.email ?? '—')}</td>
+        <td>${escapeHtml(socById[a.sociedad_id]?.name ?? '—')}</td>
+        <td><span class="pill ${a.scope === 'siempre' ? 'green' : 'blue'}">${a.scope}</span></td>
+        <td>${a.priority}</td>
+        <td class="muted" style="font-size:11.5px">${(a.tipo_proveedor_match ?? []).join(', ') || '—'}</td>
+        <td style="text-align:right">
+          <button type="button" class="ghost edit-apo" data-row='${JSON.stringify(a)}' style="padding:4px 10px;font-size:12px">Editar</button>
+          <button type="button" class="ghost del-apo" data-id="${a.id}" data-name="${escapeHtml(a.name)}" style="padding:4px 10px;font-size:12px;color:var(--red)">×</button>
+        </td>
+      </tr>`).join('') || '<tr><td colspan=7 class="muted" style="text-align:center;padding:24px">Sin apoderados</td></tr>'}</tbody>
+    </table>
+  `;
+  document.querySelector('#add-apo').addEventListener('click', () => apoderadoModal(null, socs));
+  body.querySelectorAll('.edit-apo').forEach((b) => b.addEventListener('click', (e) => apoderadoModal(JSON.parse(e.currentTarget.dataset.row), socs)));
+  body.querySelectorAll('.del-apo').forEach((b) => b.addEventListener('click', async (e) => {
+    if (!confirm(`¿Eliminar apoderado "${e.currentTarget.dataset.name}"?`)) return;
+    const r = await fetch(`/api/admin/matriz/apoderados?id=${e.currentTarget.dataset.id}`, { method: 'DELETE', credentials: 'include' });
+    if (!r.ok) alert(await r.text());
+    renderApoderadosTab(body);
+  }));
+}
+
+const TIPOS_PROVEEDOR = ['Servicios profesionales','Plataformas SaaS','Marketing y Publicidad','Consultoría/Asesoría','Otro'];
+
+function apoderadoModal(existing, socs) {
+  const m = document.createElement('div');
+  m.className = 'ai-modal';
+  const tipos = existing?.tipo_proveedor_match ?? [];
+  m.innerHTML = `
+    <div class="ai-modal-backdrop"></div>
+    <div class="ai-modal-card">
+      <h3>${existing ? 'Editar' : 'Nuevo'} apoderado</h3>
+      <div style="margin-top:14px"><label>Nombre *</label><input type="text" id="apo-name" value="${escapeHtml(existing?.name ?? '')}"></div>
+      <div style="margin-top:10px"><label>Email</label><input type="email" id="apo-email" value="${escapeHtml(existing?.email ?? '')}" placeholder="apoderado@global66.com"></div>
+      <div style="margin-top:10px"><label>Sociedad *</label>
+        <select id="apo-soc">
+          ${socs.map((s) => `<option value="${s.id}" ${existing?.sociedad_id === s.id ? 'selected' : ''}>${escapeHtml(s.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label>Scope</label>
+          <select id="apo-scope">
+            <option value="siempre" ${existing?.scope === 'siempre' ? 'selected' : ''}>siempre</option>
+            <option value="saas" ${existing?.scope === 'saas' ? 'selected' : ''}>saas</option>
+            <option value="comercial" ${existing?.scope === 'comercial' ? 'selected' : ''}>comercial</option>
+            <option value="general" ${(!existing || existing.scope === 'general') ? 'selected' : ''}>general</option>
+          </select>
+        </div>
+        <div><label>Priority</label>
+          <select id="apo-priority">
+            <option value="1" ${existing?.priority === 1 ? 'selected' : ''}>1 (siempre firma)</option>
+            <option value="2" ${(!existing || existing.priority === 2) ? 'selected' : ''}>2 (secundario)</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <label>Tipos de proveedor que matchean (auto-sugiere a este apoderado)</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;padding:6px 0">
+          ${TIPOS_PROVEEDOR.map((t) => `<label style="font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;gap:4px">
+            <input type="checkbox" class="apo-tipo" value="${t}" ${tipos.includes(t) ? 'checked' : ''}> ${t}
+          </label>`).join('')}
+        </div>
+      </div>
+      <div style="margin-top:10px"><label>Notas</label><textarea id="apo-notes" rows="2">${escapeHtml(existing?.notes ?? '')}</textarea></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+        <button type="button" class="secondary" id="apo-cancel">Cancelar</button>
+        <button type="button" class="primary" id="apo-save">Guardar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(m);
+  m.querySelector('.ai-modal-backdrop').addEventListener('click', () => m.remove());
+  m.querySelector('#apo-cancel').addEventListener('click', () => m.remove());
+  m.querySelector('#apo-save').addEventListener('click', async () => {
+    const payload = {
+      name: m.querySelector('#apo-name').value.trim(),
+      email: m.querySelector('#apo-email').value.trim() || null,
+      sociedad_id: m.querySelector('#apo-soc').value,
+      scope: m.querySelector('#apo-scope').value,
+      priority: Number(m.querySelector('#apo-priority').value),
+      tipo_proveedor_match: Array.from(m.querySelectorAll('.apo-tipo:checked')).map((c) => c.value),
+      notes: m.querySelector('#apo-notes').value.trim() || null,
+    };
+    if (!payload.name || !payload.sociedad_id) { alert('Nombre y sociedad obligatorios'); return; }
+    const url = existing ? `/api/admin/matriz/apoderados?id=${existing.id}` : '/api/admin/matriz/apoderados';
+    const method = existing ? 'PATCH' : 'POST';
+    const r = await fetch(url, { method, credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!r.ok) { alert(await r.text()); return; }
+    m.remove();
+    renderApoderadosTab(document.querySelector('#matriz-body'));
+  });
+}
+
+async function renderDocumentosTab(body) {
+  const socsR = await fetch('/api/matriz/sociedades', { credentials: 'include' });
+  const socs = socsR.ok ? await socsR.json() : [];
+
+  body.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <label style="margin-bottom:0">Sociedad:</label>
+        <select id="doc-soc-filter" style="max-width:300px">${socs.map((s) => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}</select>
+      </div>
+      <button type="button" class="primary" id="add-doc" style="padding:8px 14px;font-size:13px">+ Nuevo documento</button>
+    </div>
+    <div id="doc-list"></div>
+  `;
+  const sel = document.querySelector('#doc-soc-filter');
+  async function loadDocs() {
+    const list = document.querySelector('#doc-list');
+    list.innerHTML = '<div class="muted" style="padding:14px">Cargando…</div>';
+    const r = await fetch(`/api/matriz/documents?sociedad_id=${sel.value}`, { credentials: 'include' });
+    const docs = r.ok ? await r.json() : [];
+    list.innerHTML = `
+      <table>
+        <thead><tr><th>#</th><th>Nombre</th><th>Tipo</th><th>Req</th><th>Vigencia</th><th></th></tr></thead>
+        <tbody>${docs.map((d) => `<tr>
+          <td>${d.sort_order}</td>
+          <td>${escapeHtml(d.name)}</td>
+          <td><span class="pill ${d.kind === 'sign' ? 'yellow' : 'blue'}">${d.kind}</span></td>
+          <td>${d.required ? '✓' : '—'}</td>
+          <td class="muted">${d.valid_months ? d.valid_months + 'm' : '—'}</td>
+          <td style="text-align:right">
+            <button type="button" class="ghost edit-doc" data-row='${JSON.stringify(d)}' style="padding:4px 10px;font-size:12px">Editar</button>
+            <button type="button" class="ghost del-doc" data-id="${d.id}" data-name="${escapeHtml(d.name)}" style="padding:4px 10px;font-size:12px;color:var(--red)">×</button>
+          </td>
+        </tr>`).join('') || '<tr><td colspan=6 class="muted" style="text-align:center;padding:24px">Sin documentos para esta sociedad</td></tr>'}</tbody>
+      </table>
+    `;
+    list.querySelectorAll('.edit-doc').forEach((b) => b.addEventListener('click', (e) => docModal(JSON.parse(e.currentTarget.dataset.row), sel.value)));
+    list.querySelectorAll('.del-doc').forEach((b) => b.addEventListener('click', async (e) => {
+      if (!confirm(`¿Eliminar documento "${e.currentTarget.dataset.name}"?`)) return;
+      const r = await fetch(`/api/admin/matriz/documents?id=${e.currentTarget.dataset.id}`, { method: 'DELETE', credentials: 'include' });
+      if (!r.ok) alert(await r.text());
+      loadDocs();
+    }));
+  }
+  sel.addEventListener('change', loadDocs);
+  document.querySelector('#add-doc').addEventListener('click', () => docModal(null, sel.value));
+  await loadDocs();
+
+  window.__refreshDocs = loadDocs;
+}
+
+function docModal(existing, sociedadId) {
+  const m = document.createElement('div');
+  m.className = 'ai-modal';
+  m.innerHTML = `
+    <div class="ai-modal-backdrop"></div>
+    <div class="ai-modal-card">
+      <h3>${existing ? 'Editar' : 'Nuevo'} documento</h3>
+      <div style="margin-top:14px"><label>Nombre *</label><input type="text" id="doc-name" value="${escapeHtml(existing?.name ?? '')}"></div>
+      <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div><label>Tipo</label>
+          <select id="doc-kind">
+            <option value="base" ${(!existing || existing.kind === 'base') ? 'selected' : ''}>base</option>
+            <option value="sign" ${existing?.kind === 'sign' ? 'selected' : ''}>sign (a firmar)</option>
+          </select>
+        </div>
+        <div><label>Orden</label><input type="number" id="doc-order" value="${existing?.sort_order ?? 99}"></div>
+        <div><label>Vigencia (meses)</label><input type="number" id="doc-valid" value="${existing?.valid_months ?? ''}" placeholder="opcional"></div>
+      </div>
+      <div style="margin-top:10px"><label><input type="checkbox" id="doc-req" ${(existing?.required ?? true) ? 'checked' : ''}> Obligatorio</label></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+        <button type="button" class="secondary" id="doc-cancel">Cancelar</button>
+        <button type="button" class="primary" id="doc-save">Guardar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(m);
+  m.querySelector('.ai-modal-backdrop').addEventListener('click', () => m.remove());
+  m.querySelector('#doc-cancel').addEventListener('click', () => m.remove());
+  m.querySelector('#doc-save').addEventListener('click', async () => {
+    const payload = {
+      sociedad_id: sociedadId,
+      name: m.querySelector('#doc-name').value.trim(),
+      kind: m.querySelector('#doc-kind').value,
+      sort_order: Number(m.querySelector('#doc-order').value) || 0,
+      valid_months: m.querySelector('#doc-valid').value ? Number(m.querySelector('#doc-valid').value) : null,
+      required: m.querySelector('#doc-req').checked,
+    };
+    if (!payload.name) { alert('Nombre obligatorio'); return; }
+    const url = existing ? `/api/admin/matriz/documents?id=${existing.id}` : '/api/admin/matriz/documents';
+    const method = existing ? 'PATCH' : 'POST';
+    const r = await fetch(url, { method, credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (!r.ok) { alert(await r.text()); return; }
+    m.remove();
+    if (window.__refreshDocs) window.__refreshDocs();
+  });
 }
 
 // ─── Users management (admin only) ──────────────────────────────────────────

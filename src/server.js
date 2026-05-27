@@ -338,12 +338,15 @@ const routes = {
     const patch = {};
     if (body.sociedad_contratante) patch.sociedad_contratante = body.sociedad_contratante;
     if (body.sociedad_apoderado_email) patch.sociedad_apoderado_email = body.sociedad_apoderado_email;
+    if (Array.isArray(body.apoderados_firmantes)) patch.apoderados_firmantes = body.apoderados_firmantes;
     if (Object.keys(patch).length) {
       const { error } = await sb.from('workflow_runs').update(patch).eq('id', body.run_id);
       if (error) return json(res, 500, { error: error.message });
     }
     await logAudit(body.run_id, auth.email, 'signature.config_saved', 'workflow_run', body.run_id, {
-      sociedad: body.sociedad_contratante, apoderado: body.sociedad_apoderado_email, note: body.note,
+      sociedad: body.sociedad_contratante,
+      signers_count: body.apoderados_firmantes?.length ?? 0,
+      note: body.note,
     });
 
     if (!body.send_to_signnow) return json(res, 200, { ok: true, saved: true });
