@@ -18,17 +18,24 @@ export async function upsertProviderFromIntake(intake, { runId } = {}) {
     .maybeSingle();
 
   if (existing) {
-    // Merge: solo actualiza campos vacíos
+    // Overwrite: si intake trae un valor distinto al existente, actualizar (solicitante puede corregir info vieja).
     const patch = {};
-    const fields = ['razon_social','tipo_proveedor','email_contacto','email_facturacion','representante_legal','sociedad_contratante','servicio_descripcion'];
+    const changes = [];
+    const fields = ['razon_social','tipo_proveedor','email_contacto','email_facturacion','representante_legal','sociedad_contratante','servicio_descripcion','pais'];
     for (const f of fields) {
-      if (!existing[f] && intake[f]) patch[f] = intake[f];
+      if (intake[f] != null && intake[f] !== '' && intake[f] !== existing[f]) {
+        patch[f] = intake[f];
+        changes.push({ field: f, from: existing[f], to: intake[f] });
+      }
     }
     if (Object.keys(patch).length) {
+      patch.updated_at = new Date().toISOString();
       const { data } = await sb.from('providers').update(patch).eq('id', existing.id).select().single();
       existing = data;
+      await logAudit(runId, 'system', 'provider.updated_from_intake', 'provider', existing.id, { tax_id: intake.rut, changes });
+    } else {
+      await logAudit(runId, 'system', 'provider.reused', 'provider', existing.id, { tax_id: intake.rut });
     }
-    await logAudit(runId, 'system', 'provider.reused', 'provider', existing.id, { tax_id: intake.rut });
     return { provider: existing, isNew: false };
   }
 

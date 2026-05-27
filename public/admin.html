@@ -1864,17 +1864,18 @@ async function intakeForm() {
     setLookupBanner('Buscando…', 'info');
     try {
       const r = await fetch(`/api/providers/lookup?tax_id=${encodeURIComponent(v)}`, { credentials: 'include' });
-      if (r.status === 404) { setLookupBanner('Proveedor nuevo. Completá los datos abajo.', 'info'); return; }
+      if (r.status === 404) { setLookupBanner('🆕 Proveedor nuevo. Completá los datos abajo.', 'info'); return; }
       if (!r.ok) { setLookupBanner('Error consulta: ' + r.status, 'warn'); return; }
       const p = await r.json();
-      // Prefill todos los campos que correspondan
+      const pd = p.profile_data ?? {};
+
       const map = {
         razon_social: p.razon_social,
         pais: p.pais,
         tipo_proveedor: p.tipo_proveedor,
-        representante_legal: p.representante_legal,
-        email_contacto: p.email_contacto,
-        email_facturacion: p.email_facturacion,
+        representante_legal: p.representante_legal ?? pd.representante_legal,
+        email_contacto: p.email_contacto ?? pd.contacto_comercial_email,
+        email_facturacion: p.email_facturacion ?? pd.email_facturacion,
         proveedor_existente: 'true',
       };
       for (const [field, value] of Object.entries(map)) {
@@ -1882,14 +1883,20 @@ async function intakeForm() {
         const el = document.querySelector(`[name=${field}]`);
         if (!el) continue;
         if (el.tagName === 'SELECT') {
-          // Si la option existe, seleccionarla
           const opt = Array.from(el.options).find((o) => o.value === value || o.text === value);
           if (opt) el.value = opt.value;
         } else {
           el.value = value;
         }
+        // Trigger change para que se actualicen los conditionals (sociedad por país, etc.).
+        el.dispatchEvent(new Event('change', { bubbles: true }));
       }
-      setLookupBanner(`✓ Proveedor existente encontrado: <b>${p.razon_social}</b> · ${p.status}. Campos autocompletados.`, 'ok');
+      const runCount = p.run_count ?? 0;
+      const profileDone = p.profile_completed_at ? 'perfil completo ✓' : 'perfil pendiente';
+      setLookupBanner(
+        `✓ <b>${p.razon_social}</b> ya registrado · ${runCount > 0 ? `${runCount} solicitud${runCount > 1 ? 'es' : ''} previa${runCount > 1 ? 's' : ''}` : 'sin solicitudes previas'} · ${profileDone}.<br><span style="font-size:11.5px">Campos autocompletados. Podés editar lo que necesites — los cambios actualizan el registro del proveedor.</span>`,
+        'ok'
+      );
     } catch (e) {
       setLookupBanner('Error: ' + e.message, 'warn');
     }

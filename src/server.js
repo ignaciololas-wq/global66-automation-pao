@@ -76,6 +76,21 @@ import {
   discardAiDraft,
   listJobsForRun as listAiJobs,
 } from './ai_edit.js';
+import {
+  listSociedades,
+  listApoderados,
+  suggestApoderados,
+  listSociedadDocs,
+  createSociedad,
+  updateSociedad,
+  deleteSociedad,
+  createApoderado,
+  updateApoderado,
+  deleteApoderado,
+  createSociedadDoc,
+  updateSociedadDoc,
+  deleteSociedadDoc,
+} from './matriz.js';
 
 const PORT = process.env.PORT ?? 3000;
 
@@ -409,19 +424,33 @@ const routes = {
   },
 
   'GET /api/providers/lookup': async (req, res, url) => {
-    // Autocomplete intake: buscá por tax_id (exact match) y devolvé datos prefill.
+    // Autocomplete intake: buscá por tax_id y devolvé todos los campos disponibles
+    // + último profile_data (contacto comercial, datos bancarios, certificaciones).
     const auth = await getUserFromRequest(req);
     if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
     const taxId = (url.searchParams.get('tax_id') ?? '').trim();
     if (!taxId) return json(res, 400, { error: 'tax_id required' });
     const { data, error } = await sb
       .from('providers')
-      .select('id, razon_social, tax_id, pais, tipo_proveedor, email_contacto, email_facturacion, representante_legal, domicilio, nivel_acceso, criticidad, sociedad_contratante, servicio_descripcion, status')
+      .select('id, razon_social, tax_id, pais, tipo_proveedor, email_contacto, email_facturacion, representante_legal, domicilio, nivel_acceso, criticidad, sociedad_contratante, servicio_descripcion, status, profile_data, profile_completed_at, created_at')
       .eq('tax_id', taxId)
       .maybeSingle();
     if (error) return json(res, 500, { error: error.message });
     if (!data) return json(res, 404, { error: 'not found' });
-    json(res, 200, data);
+
+    // Resumen último flow del provider (cuántas solicitudes, última sociedad usada).
+    const { data: runs } = await sb
+      .from('workflow_runs')
+      .select('id, sociedad_contratante, tipo_proveedor, current_phase, created_at')
+      .eq('tax_id', taxId)
+      .order('created_at', { ascending: false })
+      .limit(3);
+
+    json(res, 200, {
+      ...data,
+      recent_runs: runs ?? [],
+      run_count: runs?.length ?? 0,
+    });
   },
 
   'GET /api/sociedades': async (req, res) => {
@@ -968,6 +997,124 @@ const routes = {
     }
   },
 
+  // ─── Matriz (PR7) ────────────────────────────────────────────────────────
+  'GET /api/matriz/sociedades': async (req, res, url) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const country = url.searchParams.get('country');
+    try { json(res, 200, await listSociedades({ country })); }
+    catch (e) { json(res, 500, { error: e.message }); }
+  },
+
+  'GET /api/matriz/apoderados': async (req, res, url) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const sociedadId = url.searchParams.get('sociedad_id');
+    try { json(res, 200, await listApoderados({ sociedadId })); }
+    catch (e) { json(res, 500, { error: e.message }); }
+  },
+
+  'GET /api/matriz/apoderados/suggest': async (req, res, url) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const sociedadId = url.searchParams.get('sociedad_id');
+    const tipoProveedor = url.searchParams.get('tipo_proveedor');
+    if (!sociedadId) return json(res, 400, { error: 'sociedad_id required' });
+    try { json(res, 200, await suggestApoderados({ sociedadId, tipoProveedor })); }
+    catch (e) { json(res, 500, { error: e.message }); }
+  },
+
+  'GET /api/matriz/documents': async (req, res, url) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const sociedadId = url.searchParams.get('sociedad_id');
+    if (!sociedadId) return json(res, 400, { error: 'sociedad_id required' });
+    try { json(res, 200, await listSociedadDocs(sociedadId)); }
+    catch (e) { json(res, 500, { error: e.message }); }
+  },
+
+  // Admin CRUD.
+  'POST /api/admin/matriz/sociedades': async (req, res, url) => {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) return json(res, auth.status, { error: auth.error });
+    const body = JSON.parse(await readBody(req));
+    try { json(res, 200, await createSociedad(body)); }
+    catch (e) { json(res, 400, { error: e.message }); }
+  },
+
+  'PATCH /api/admin/matriz/sociedades': async (req, res, url) => {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) return json(res, auth.status, { error: auth.error });
+    const id = url.searchParams.get('id');
+    if (!id) return json(res, 400, { error: 'id required' });
+    const body = JSON.parse(await readBody(req));
+    try { json(res, 200, await updateSociedad(id, body)); }
+    catch (e) { json(res, 400, { error: e.message }); }
+  },
+
+  'DELETE /api/admin/matriz/sociedades': async (req, res, url) => {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) return json(res, auth.status, { error: auth.error });
+    const id = url.searchParams.get('id');
+    if (!id) return json(res, 400, { error: 'id required' });
+    try { await deleteSociedad(id); json(res, 200, { ok: true }); }
+    catch (e) { json(res, 400, { error: e.message }); }
+  },
+
+  'POST /api/admin/matriz/apoderados': async (req, res) => {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) return json(res, auth.status, { error: auth.error });
+    const body = JSON.parse(await readBody(req));
+    try { json(res, 200, await createApoderado(body)); }
+    catch (e) { json(res, 400, { error: e.message }); }
+  },
+
+  'PATCH /api/admin/matriz/apoderados': async (req, res, url) => {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) return json(res, auth.status, { error: auth.error });
+    const id = url.searchParams.get('id');
+    if (!id) return json(res, 400, { error: 'id required' });
+    const body = JSON.parse(await readBody(req));
+    try { json(res, 200, await updateApoderado(id, body)); }
+    catch (e) { json(res, 400, { error: e.message }); }
+  },
+
+  'DELETE /api/admin/matriz/apoderados': async (req, res, url) => {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) return json(res, auth.status, { error: auth.error });
+    const id = url.searchParams.get('id');
+    if (!id) return json(res, 400, { error: 'id required' });
+    try { await deleteApoderado(id); json(res, 200, { ok: true }); }
+    catch (e) { json(res, 400, { error: e.message }); }
+  },
+
+  'POST /api/admin/matriz/documents': async (req, res) => {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) return json(res, auth.status, { error: auth.error });
+    const body = JSON.parse(await readBody(req));
+    try { json(res, 200, await createSociedadDoc(body)); }
+    catch (e) { json(res, 400, { error: e.message }); }
+  },
+
+  'PATCH /api/admin/matriz/documents': async (req, res, url) => {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) return json(res, auth.status, { error: auth.error });
+    const id = url.searchParams.get('id');
+    if (!id) return json(res, 400, { error: 'id required' });
+    const body = JSON.parse(await readBody(req));
+    try { json(res, 200, await updateSociedadDoc(id, body)); }
+    catch (e) { json(res, 400, { error: e.message }); }
+  },
+
+  'DELETE /api/admin/matriz/documents': async (req, res, url) => {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) return json(res, auth.status, { error: auth.error });
+    const id = url.searchParams.get('id');
+    if (!id) return json(res, 400, { error: 'id required' });
+    try { await deleteSociedadDoc(id); json(res, 200, { ok: true }); }
+    catch (e) { json(res, 400, { error: e.message }); }
+  },
+
   'POST /api/profile/avatar': async (req, res) => {
     const auth = await getUserFromRequest(req);
     if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
@@ -1000,6 +1147,21 @@ const routes = {
     await sb.from('user_profiles').update({ avatar_url: publicUrl, updated_at: new Date().toISOString() }).eq('email', auth.email.toLowerCase());
 
     json(res, 200, { avatar_url: publicUrl });
+  },
+
+  'DELETE /api/profile/avatar': async (req, res) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    if (!auth.email) return json(res, 400, { error: 'no email' });
+
+    const safeEmail = auth.email.toLowerCase().replace(/[^a-z0-9._-]+/g, '_');
+    const { data: list } = await sb.storage.from('avatars').list(safeEmail);
+    if (Array.isArray(list) && list.length) {
+      const paths = list.map((o) => `${safeEmail}/${o.name}`);
+      await sb.storage.from('avatars').remove(paths);
+    }
+    await sb.from('user_profiles').update({ avatar_url: null, updated_at: new Date().toISOString() }).eq('email', auth.email.toLowerCase());
+    json(res, 200, { ok: true });
   },
 
   'POST /api/profile/me': async (req, res) => {

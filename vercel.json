@@ -53,7 +53,14 @@
     { "source": "/api/files/discard-v2", "destination": "/api" },
     { "source": "/api/files/ai-jobs", "destination": "/api" },
     { "source": "/api/profile/avatar", "destination": "/api" },
-    { "source": "/api/profile/me", "destination": "/api" }
+    { "source": "/api/profile/me", "destination": "/api" },
+    { "source": "/api/matriz/sociedades", "destination": "/api" },
+    { "source": "/api/matriz/apoderados", "destination": "/api" },
+    { "source": "/api/matriz/apoderados/suggest", "destination": "/api" },
+    { "source": "/api/matriz/documents", "destination": "/api" },
+    { "source": "/api/admin/matriz/sociedades", "destination": "/api" },
+    { "source": "/api/admin/matriz/apoderados", "destination": "/api" },
+    { "source": "/api/admin/matriz/documents", "destination": "/api" }
   ],
   "headers": [
     {
