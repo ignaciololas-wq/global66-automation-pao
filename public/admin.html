@@ -2564,7 +2564,7 @@ async function intakeForm() {
             </select>
           </div>
           <div id="fecha-inicio-wrap" hidden>
-            <label>Fecha de inicio *</label>
+            <label id="fecha-inicio-label">Fecha de inicio *</label>
             <div class="date-field">
               <input type="date" name="fecha_inicio" id="fecha-inicio">
               <span class="date-icon" aria-hidden="true">📅</span>
@@ -2634,22 +2634,35 @@ async function intakeForm() {
     wrap.hidden = e.target.value !== 'false';
   });
 
-  // Fechas: AMBAS solo si plazo_fijo. Indefinido y por_proyecto NO piden fechas.
+  // Fechas:
+  //  plazo_fijo  → ambas obligatorias
+  //  indefinido  → fecha_inicio opcional visible, fecha_fin oculta
+  //  por_proyecto→ fecha_inicio opcional visible, fecha_fin oculta
+  //  '' (sin tipo) → ambas ocultas
   const durToggle = document.querySelector('#duracion-toggle');
   const fpInstances = { inicio: null, fin: null };
   function syncFechas() {
-    const show = durToggle.value === 'plazo_fijo';
+    const v = durToggle.value;
     const wi = document.querySelector('#fecha-inicio-wrap');
     const wf = document.querySelector('#fecha-fin-wrap');
     const fi = document.querySelector('#fecha-inicio');
     const ff = document.querySelector('#fecha-fin');
-    wi.hidden = !show; wf.hidden = !show;
-    fi.required = show; ff.required = show;
-    if (!show) {
-      fi.value = ''; ff.value = '';
-      fi.removeAttribute('required'); ff.removeAttribute('required');
-      fpInstances.inicio?.clear(); fpInstances.fin?.clear();
-    }
+    const labelInicio = document.querySelector('#fecha-inicio-label');
+
+    const showInicio = !!v;
+    const showFin = v === 'plazo_fijo';
+    const inicioRequired = v === 'plazo_fijo';
+
+    wi.hidden = !showInicio;
+    wf.hidden = !showFin;
+
+    if (inicioRequired) { fi.required = true; labelInicio.textContent = 'Fecha de inicio *'; }
+    else { fi.removeAttribute('required'); labelInicio.textContent = 'Fecha de inicio (opcional)'; }
+
+    if (showFin) ff.required = true;
+    else { ff.removeAttribute('required'); ff.value = ''; fpInstances.fin?.clear(); }
+
+    if (!showInicio) { fi.value = ''; fpInstances.inicio?.clear(); }
   }
   durToggle.addEventListener('change', syncFechas);
   syncFechas();
