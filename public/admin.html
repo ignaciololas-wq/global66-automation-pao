@@ -51,6 +51,22 @@
 
   /* ─── Layout ─────────────────────────────────────────── */
   /* .shell rule overridden below — line ~132 */
+  .shell.sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr) }
+  .shell.sidebar-collapsed aside { transform: translateX(-100%); pointer-events: none }
+  aside { transition: transform .25s ease }
+  .sidebar-toggle {
+    position: fixed; top: 16px; z-index: 150;
+    width: 36px; height: 36px; border-radius: 10px;
+    background: var(--blue-900); color: white;
+    border: 1px solid rgba(255,255,255,0.15);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+    left: 196px;
+    transition: left .25s ease, background .15s ease;
+  }
+  .sidebar-toggle:hover { background: var(--blue-800) }
+  body.sidebar-collapsed .sidebar-toggle { left: 16px }
+  .sidebar-toggle svg { width: 16px; height: 16px }
   aside {
     background: var(--blue-900); color: white;
     padding: 24px 16px; display: flex; flex-direction: column; gap: 4px;
@@ -80,22 +96,35 @@
 
   .nav-bottom { margin-top: auto; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 12px; color: var(--blue-200) }
   .profile-trigger {
-    display: flex; align-items: center; gap: 10px;
-    width: 100%; padding: 8px 10px; background: transparent;
-    border: 1px solid transparent; border-radius: 10px;
-    color: white; cursor: pointer; font: inherit;
+    display: flex; align-items: center; gap: 12px;
+    width: 100%; padding: 10px 12px; background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;
+    color: white; cursor: pointer; font: inherit; box-sizing: border-box;
     transition: background .15s ease, border-color .15s ease;
   }
-  .profile-trigger:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1) }
-  .profile-trigger.open { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15) }
-  .profile-info { display: flex; flex-direction: column; min-width: 0; flex: 1; text-align: left }
-  .profile-name { font-size: 13px; font-weight: 600; color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-  .profile-role { font-size: 11px; color: var(--blue-200); font-weight: 500 }
+  .profile-trigger:hover { background: rgba(255,255,255,0.09); border-color: rgba(255,255,255,0.15) }
+  .profile-trigger.open { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2) }
+  .profile-info { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; flex: 1; text-align: left; gap: 2px }
+  .profile-name { font-size: 13.5px; font-weight: 600; color: white; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2 }
+  .profile-role {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--mint); background: rgba(51,217,178,0.12);
+    padding: 2px 8px; border-radius: 99px; line-height: 1.4;
+  }
   .profile-chevron { color: var(--blue-200); flex-shrink: 0; transition: transform .2s ease }
   .profile-trigger.open .profile-chevron { transform: rotate(180deg) }
-  .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--blue-500); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 13px; font-family: 'Montserrat'; flex-shrink: 0 }
-  .avatar-wrap { position: relative; width: 32px; height: 32px; flex-shrink: 0 }
-  .avatar-img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; display: block }
+  .avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--blue-400), var(--mint));
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 14px; font-family: 'Montserrat';
+    flex-shrink: 0; box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  }
+  .avatar-wrap { position: relative; width: 36px; height: 36px; flex-shrink: 0 }
+  .avatar-img {
+    width: 36px; height: 36px; border-radius: 50%; object-fit: cover; display: block;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  }
 
   /* Profile popup (ChatGPT-style) */
   .profile-popup {
@@ -627,6 +656,9 @@
 </div>
 
 <!-- App -->
+<button type="button" id="sidebar-toggle" class="sidebar-toggle" title="Mostrar/ocultar barra lateral" aria-label="Toggle sidebar">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+</button>
 <div id="app-shell" class="shell">
   <aside>
     <div class="logo">
@@ -1048,6 +1080,20 @@ $('#magic-link').addEventListener('click', async () => {
 });
 
 // Logout movido a profile popup (PR14).
+
+// Sidebar toggle (PR14)
+const SIDEBAR_KEY = 'g66_sidebar_collapsed';
+const shellEl = document.querySelector('#app-shell');
+function applyCollapsed(collapsed) {
+  shellEl?.classList.toggle('sidebar-collapsed', collapsed);
+  document.body.classList.toggle('sidebar-collapsed', collapsed);
+}
+applyCollapsed(localStorage.getItem(SIDEBAR_KEY) === '1');
+document.querySelector('#sidebar-toggle').addEventListener('click', () => {
+  const collapsed = !shellEl.classList.contains('sidebar-collapsed');
+  applyCollapsed(collapsed);
+  localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0');
+});
 
 window.addEventListener('hashchange', route);
 
