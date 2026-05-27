@@ -990,8 +990,35 @@ const routes = {
     }
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Set-Cookie', buildClearCookie());
+    // Emitir múltiples variantes de Set-Cookie para cubrir edge cases de browser.
+    const variants = [
+      `g66_session=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; SameSite=Lax; HttpOnly; Secure`,
+      `g66_session=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; SameSite=Lax`,
+      `g66_session=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/`,
+    ];
+    res.setHeader('Set-Cookie', variants);
     res.end(JSON.stringify({ ok: true }));
+  },
+
+  'GET /api/auth/logout': async (req, res, url) => {
+    // GET-redirect variant: full HTTP nav que evita pitfalls del fetch+SPA.
+    // El mismo request que setea cookie cleared es el que el browser sigue al redirect.
+    const session = readSessionCookie(req);
+    if (session?.access_token) {
+      try { await sb.auth.admin.signOut(session.access_token); } catch {}
+    }
+    const next = url.searchParams.get('next') ?? '/admin';
+    const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '/admin';
+    const variants = [
+      `g66_session=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; SameSite=Lax; HttpOnly; Secure`,
+      `g66_session=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; SameSite=Lax`,
+      `g66_session=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/`,
+    ];
+    res.statusCode = 302;
+    res.setHeader('Set-Cookie', variants);
+    res.setHeader('Location', `${siteUrl()}${safeNext}?logout=${Date.now()}`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.end();
   },
 
   // ─── Files (PR2) ────────────────────────────────────────────────────────
