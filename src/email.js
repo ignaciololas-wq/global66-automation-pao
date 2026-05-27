@@ -11,9 +11,13 @@ import { MOCK } from './mock_mode.js';
 const N8N_WEBHOOK = process.env.N8N_EMAIL_WEBHOOK_URL;
 const N8N_SECRET = process.env.N8N_EMAIL_WEBHOOK_SECRET; // header opcional
 const RESEND_KEY = process.env.RESEND_API_KEY;
-const FROM = process.env.EMAIL_FROM ?? process.env.RESEND_FROM ?? 'Global66 Contratos <contratos@global66.com>';
+const FROM = process.env.EMAIL_FROM ?? process.env.RESEND_FROM ?? 'Global66 Contratos <onboarding@resend.dev>';
+// Reply-To por default (si no se pasa explícito por call). Mientras dominio no esté verificado,
+// usar EMAIL_REPLY_TO para que destinatarios respondan a humano real, no a onboarding@resend.dev.
+const DEFAULT_REPLY_TO = process.env.EMAIL_REPLY_TO;
 
 export async function sendEmail({ to, subject, html, text, replyTo, tags }) {
+  const effectiveReplyTo = replyTo ?? DEFAULT_REPLY_TO;
   if (MOCK || (!N8N_WEBHOOK && !RESEND_KEY)) {
     console.log('\n📧 [MOCK email]');
     console.log('  to:', to);
@@ -34,7 +38,7 @@ export async function sendEmail({ to, subject, html, text, replyTo, tags }) {
         subject,
         html,
         text,
-        replyTo,
+        replyTo: effectiveReplyTo,
         tags,
         sentAt: new Date().toISOString(),
       }),
@@ -54,7 +58,7 @@ export async function sendEmail({ to, subject, html, text, replyTo, tags }) {
       subject,
       html,
       text,
-      reply_to: replyTo,
+      reply_to: effectiveReplyTo,
     }),
   });
   if (!r.ok) throw new Error(`Resend ${r.status}: ${await r.text()}`);
