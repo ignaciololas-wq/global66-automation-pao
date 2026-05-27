@@ -1189,11 +1189,42 @@ async function loadBranding() {
     if (logoUrl) {
       const img = document.querySelector('#brand-logo-img');
       const mark = document.querySelector('#brand-logo-mark');
-      img.src = logoUrl;
-      img.hidden = false;
-      mark.style.display = 'none';
+      if (img && mark) {
+        img.src = logoUrl;
+        img.hidden = false;
+        mark.style.display = 'none';
+      }
     }
+    renderTopBanner(settings.banner);
   } catch {}
+}
+
+function renderTopBanner(banner) {
+  let host = document.querySelector('#top-banner');
+  if (!banner?.enabled || !banner.text) {
+    if (host) host.remove();
+    return;
+  }
+  // Dismiss persistente por hash del contenido (vuelve a aparecer si cambian)
+  const fp = btoa(unescape(encodeURIComponent(`${banner.text}|${banner.link}|${banner.bg_color}`))).slice(0, 24);
+  if (localStorage.getItem('g66_banner_dismiss') === fp) {
+    if (host) host.remove();
+    return;
+  }
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'top-banner';
+    document.body.insertBefore(host, document.body.firstChild);
+  }
+  host.style.cssText = `padding:11px 18px;color:white;background:${banner.bg_color || '#1F49B6'};display:flex;justify-content:space-between;align-items:center;font-size:13.5px;font-weight:500;position:sticky;top:0;z-index:50;box-shadow:0 2px 8px rgba(0,0,0,0.08)`;
+  const textHtml = banner.link
+    ? `<a href="${banner.link}" target="_blank" style="color:white;text-decoration:underline">${banner.text}</a>`
+    : `<span>${banner.text}</span>`;
+  host.innerHTML = `${textHtml}<button type="button" id="top-banner-close" style="background:none;border:none;color:white;cursor:pointer;font-size:18px;padding:0 6px;line-height:1;opacity:0.8">✕</button>`;
+  document.querySelector('#top-banner-close').addEventListener('click', () => {
+    localStorage.setItem('g66_banner_dismiss', fp);
+    host.remove();
+  });
 }
 loadBranding();
 
@@ -1300,7 +1331,7 @@ const money = (n, c) => n != null ? new Intl.NumberFormat('es-CL').format(n) + (
 
 const pages = {
   async dashboard() {
-    const [phases, approvals, costs, sanctions, runs, providers, contracts] = await Promise.all([
+    const [phases, approvals, costs, sanctions, runs, providers, contracts, regcheqStats] = await Promise.all([
       q('v_runs_by_phase').catch(() => []),
       q('v_avg_approval_time').catch(() => []),
       q('v_extraction_costs', 'limit=7').catch(() => []),
@@ -1308,7 +1339,10 @@ const pages = {
       q('workflow_runs', 'order=created_at.desc&limit=10'),
       q('v_providers_by_country').catch(() => []),
       q('v_contracts_by_status').catch(() => []),
+      q('regcheq_checks', 'select=decision,reason,created_at&order=created_at.desc&limit=200').catch(() => []),
     ]);
+    const rcqCounts = { block: 0, review: 0, approve_flag: 0, approve: 0, total: regcheqStats.length };
+    regcheqStats.forEach((c) => { if (rcqCounts[c.decision] != null) rcqCounts[c.decision]++; });
 
     const totalRuns = phases.reduce((a, p) => a + (p.total ?? 0), 0);
     const totalProv = providers.reduce((a, p) => a + (p.total ?? 0), 0);
@@ -1349,6 +1383,38 @@ const pages = {
           <a href="#workflows" style="font-size:12.5px;color:var(--blue-500);font-weight:600">Ver todas →</a>
         </div>
         ${renderFunnel(phases)}
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <div>
+            <h3 style="margin:0">Validación PEP/AML (RegCheq)</h3>
+            <p style="color:var(--muted);font-size:12.5px;margin-top:4px">Últimos ${rcqCounts.total} chequeos</p>
+          </div>
+          <a href="#workflows" style="font-size:12.5px;color:var(--blue-500);font-weight:600">Ver detalle →</a>
+        </div>
+        <div class="grid grid-4">
+          <div style="padding:14px;border:1px solid var(--border);border-radius:10px;background:rgba(230,74,74,0.04)">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--red);font-weight:600">Bloqueados</div>
+            <div style="font-size:28px;font-weight:800;color:var(--red);margin-top:4px">${rcqCounts.block}</div>
+            <div style="font-size:11px;color:var(--muted)">OFAC/ONU/UE match</div>
+          </div>
+          <div style="padding:14px;border:1px solid var(--border);border-radius:10px;background:rgba(230,162,0,0.05)">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#c87f00;font-weight:600">En revisión</div>
+            <div style="font-size:28px;font-weight:800;color:#c87f00;margin-top:4px">${rcqCounts.review}</div>
+            <div style="font-size:11px;color:var(--muted)">PEP/PDI/RTP/GAFI</div>
+          </div>
+          <div style="padding:14px;border:1px solid var(--border);border-radius:10px;background:rgba(31,73,182,0.04)">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--blue-700);font-weight:600">Aprobados c/ flag</div>
+            <div style="font-size:28px;font-weight:800;color:var(--blue-700);margin-top:4px">${rcqCounts.approve_flag}</div>
+            <div style="font-size:11px;color:var(--muted)">Riesgo medio</div>
+          </div>
+          <div style="padding:14px;border:1px solid var(--border);border-radius:10px;background:rgba(2,167,87,0.04)">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--green);font-weight:600">Aprobados</div>
+            <div style="font-size:28px;font-weight:800;color:var(--green);margin-top:4px">${rcqCounts.approve}</div>
+            <div style="font-size:11px;color:var(--muted)">Sin matches</div>
+          </div>
+        </div>
       </div>
 
       <div class="card" style="margin-bottom:16px">
@@ -2151,10 +2217,11 @@ async function renderBrandingTab(body) {
   const r = await fetch('/api/settings?t=' + Date.now(), { credentials: 'include' });
   const settings = r.ok ? await r.json() : {};
   const currentLogo = settings.logo_url?.url;
+  const banner = settings.banner ?? { enabled: false, text: '', link: '', bg_color: '#1F49B6' };
   body.innerHTML = `
     <h3 style="margin-bottom:14px">Logo de la plataforma</h3>
     <p style="color:var(--muted);font-size:13px;margin-bottom:18px">Aparece arriba a la izquierda del sidebar. PNG/JPG/WebP/SVG, máx 2MB. Idealmente cuadrado (32×32 o más).</p>
-    <div style="display:flex;align-items:center;gap:24px;margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:24px;margin-bottom:32px;padding-bottom:24px;border-bottom:1px solid var(--border)">
       <div style="width:80px;height:80px;border-radius:14px;background:linear-gradient(135deg,var(--blue-400),var(--mint));display:flex;align-items:center;justify-content:center;overflow:hidden">
         ${currentLogo ? `<img src="${currentLogo}" style="width:100%;height:100%;object-fit:cover" alt="Logo actual">` : '<span style="color:white;font-family:Montserrat;font-weight:800;font-size:36px">G</span>'}
       </div>
@@ -2163,6 +2230,41 @@ async function renderBrandingTab(body) {
         <button type="button" class="primary" id="brand-logo-pick" style="padding:10px 18px;font-size:13px">${currentLogo ? 'Cambiar logo' : 'Subir logo'}</button>
         ${currentLogo ? `<button type="button" class="ghost" id="brand-logo-remove" style="padding:10px 14px;font-size:13px;margin-left:8px;color:var(--red)">Quitar</button>` : ''}
         <div id="brand-status" style="margin-top:10px;font-size:12.5px"></div>
+      </div>
+    </div>
+
+    <h3 style="margin-bottom:14px">Banner superior</h3>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:18px">Mensaje destacado arriba de la app. Se muestra a todos los usuarios. Botón X de cierre por usuario.</p>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:14px">
+      <div class="question" style="margin:0">
+        <label>Texto</label>
+        <input type="text" id="banner-text" maxlength="200" placeholder="Ej: 🚀 Nueva versión disponible — descubre lo nuevo" value="${escapeHtml(banner.text ?? '')}">
+      </div>
+      <div class="question" style="margin:0">
+        <label>Link (opcional)</label>
+        <input type="text" id="banner-link" placeholder="https://..." value="${escapeHtml(banner.link ?? '')}">
+      </div>
+      <div class="question" style="margin:0">
+        <label>Color de fondo</label>
+        <input type="color" id="banner-bg" value="${banner.bg_color ?? '#1F49B6'}" style="height:44px;padding:4px;cursor:pointer">
+      </div>
+      <div class="question" style="margin:0">
+        <label>Estado</label>
+        <select id="banner-enabled">
+          <option value="false" ${!banner.enabled ? 'selected' : ''}>Inactivo</option>
+          <option value="true" ${banner.enabled ? 'selected' : ''}>Activo</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+      <button type="button" class="primary" id="banner-save" style="padding:10px 18px;font-size:13px">Guardar banner</button>
+      <div id="banner-status" style="font-size:12.5px"></div>
+    </div>
+    <div id="banner-preview-wrap" style="margin-top:14px">
+      <p style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);font-weight:600;margin-bottom:8px">Preview</p>
+      <div id="banner-preview" style="padding:12px 18px;border-radius:8px;color:white;background:${banner.bg_color ?? '#1F49B6'};display:flex;justify-content:space-between;align-items:center;font-size:13.5px">
+        <span id="banner-preview-text">${escapeHtml(banner.text || '— sin texto —')}</span>
+        <span style="opacity:0.7">✕</span>
       </div>
     </div>
   `;
@@ -2192,6 +2294,34 @@ async function renderBrandingTab(body) {
     document.querySelector('#brand-logo-img').hidden = true;
     document.querySelector('#brand-logo-mark').style.display = '';
     renderBrandingTab(body);
+  });
+
+  // Banner — preview en vivo + save
+  const previewText = document.querySelector('#banner-preview-text');
+  const preview = document.querySelector('#banner-preview');
+  document.querySelector('#banner-text').addEventListener('input', (e) => {
+    previewText.textContent = e.target.value || '— sin texto —';
+  });
+  document.querySelector('#banner-bg').addEventListener('input', (e) => {
+    preview.style.background = e.target.value;
+  });
+  document.querySelector('#banner-save').addEventListener('click', async () => {
+    const value = {
+      enabled: document.querySelector('#banner-enabled').value === 'true',
+      text: document.querySelector('#banner-text').value.trim(),
+      link: document.querySelector('#banner-link').value.trim(),
+      bg_color: document.querySelector('#banner-bg').value,
+    };
+    const status = document.querySelector('#banner-status');
+    status.innerHTML = '<span class="muted">Guardando…</span>';
+    const r = await fetch('/api/admin/settings', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'banner', value }),
+    });
+    if (!r.ok) { status.innerHTML = `<span style="color:var(--red)">${await r.text()}</span>`; return; }
+    status.innerHTML = '<span style="color:var(--green)">✓ Banner guardado</span>';
+    setTimeout(() => loadBranding(), 500);
   });
 }
 
