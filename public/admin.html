@@ -86,6 +86,7 @@
   }
   .logo-text { font-family: 'Montserrat'; font-weight: 800; font-size: 15px; letter-spacing: -0.02em; line-height: 1.1 }
   .logo-text small { display: block; color: var(--blue-200); font-weight: 500; font-size: 11px; letter-spacing: 0 }
+  #brand-logo-img { width: 32px; height: 32px; border-radius: 8px; object-fit: cover; display: block }
 
   nav a {
     display: flex; align-items: center; gap: 12px;
@@ -681,7 +682,8 @@
 <div id="app-shell" class="shell">
   <aside>
     <div class="logo">
-      <div class="logo-mark">G</div>
+      <div class="logo-mark" id="brand-logo-mark">G</div>
+      <img id="brand-logo-img" hidden alt="">
       <div class="logo-text">global66<small>contratos</small></div>
     </div>
 
@@ -1105,6 +1107,24 @@ $('#magic-link').addEventListener('click', async () => {
 });
 
 // Logout movido a profile popup (PR14).
+
+// Branding logo load
+async function loadBranding() {
+  try {
+    const r = await fetch('/api/settings?t=' + Date.now());
+    if (!r.ok) return;
+    const settings = await r.json();
+    const logoUrl = settings.logo_url?.url;
+    if (logoUrl) {
+      const img = document.querySelector('#brand-logo-img');
+      const mark = document.querySelector('#brand-logo-mark');
+      img.src = logoUrl;
+      img.hidden = false;
+      mark.style.display = 'none';
+    }
+  } catch {}
+}
+loadBranding();
 
 // Sidebar toggle (PR14)
 const SIDEBAR_KEY = 'g66_sidebar_collapsed';
@@ -1994,6 +2014,7 @@ async function matrizPage() {
       <button type="button" class="matriz-tab active" data-tab="sociedades">🏢 Sociedades</button>
       <button type="button" class="matriz-tab" data-tab="apoderados">✍️ Apoderados</button>
       <button type="button" class="matriz-tab" data-tab="documentos">📄 Documentos</button>
+      <button type="button" class="matriz-tab" data-tab="branding">🎨 Branding</button>
     </div>
     <div id="matriz-body" class="card" style="margin-top:14px"></div>
   `;
@@ -2010,6 +2031,55 @@ async function renderMatrizTab(tab) {
   if (tab === 'sociedades') return renderSociedadesTab(body);
   if (tab === 'apoderados') return renderApoderadosTab(body);
   if (tab === 'documentos') return renderDocumentosTab(body);
+  if (tab === 'branding') return renderBrandingTab(body);
+}
+
+async function renderBrandingTab(body) {
+  const r = await fetch('/api/settings?t=' + Date.now(), { credentials: 'include' });
+  const settings = r.ok ? await r.json() : {};
+  const currentLogo = settings.logo_url?.url;
+  body.innerHTML = `
+    <h3 style="margin-bottom:14px">Logo de la plataforma</h3>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:18px">Aparece arriba a la izquierda del sidebar. PNG/JPG/WebP/SVG, máx 2MB. Idealmente cuadrado (32×32 o más).</p>
+    <div style="display:flex;align-items:center;gap:24px;margin-bottom:20px">
+      <div style="width:80px;height:80px;border-radius:14px;background:linear-gradient(135deg,var(--blue-400),var(--mint));display:flex;align-items:center;justify-content:center;overflow:hidden">
+        ${currentLogo ? `<img src="${currentLogo}" style="width:100%;height:100%;object-fit:cover" alt="Logo actual">` : '<span style="color:white;font-family:Montserrat;font-weight:800;font-size:36px">G</span>'}
+      </div>
+      <div style="flex:1">
+        <input type="file" id="brand-logo-input" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden>
+        <button type="button" class="primary" id="brand-logo-pick" style="padding:10px 18px;font-size:13px">${currentLogo ? 'Cambiar logo' : 'Subir logo'}</button>
+        ${currentLogo ? `<button type="button" class="ghost" id="brand-logo-remove" style="padding:10px 14px;font-size:13px;margin-left:8px;color:var(--red)">Quitar</button>` : ''}
+        <div id="brand-status" style="margin-top:10px;font-size:12.5px"></div>
+      </div>
+    </div>
+  `;
+
+  document.querySelector('#brand-logo-pick').addEventListener('click', () => document.querySelector('#brand-logo-input').click());
+  document.querySelector('#brand-logo-input').addEventListener('change', async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const status = document.querySelector('#brand-status');
+    status.innerHTML = '<span class="muted">Subiendo…</span>';
+    const fd = new FormData(); fd.append('file', f);
+    const r = await fetch('/api/admin/upload-logo', { method: 'POST', credentials: 'include', body: fd });
+    if (!r.ok) { status.innerHTML = `<span style="color:var(--red)">${await r.text()}</span>`; return; }
+    const out = await r.json();
+    status.innerHTML = `<span style="color:var(--green)">✓ Logo actualizado</span>`;
+    setTimeout(() => { loadBranding(); renderBrandingTab(body); }, 500);
+  });
+
+  document.querySelector('#brand-logo-remove')?.addEventListener('click', async () => {
+    if (!confirm('¿Quitar el logo actual?')) return;
+    const r = await fetch('/api/admin/settings', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'logo_url', value: {} }),
+    });
+    if (!r.ok) { alert(await r.text()); return; }
+    document.querySelector('#brand-logo-img').hidden = true;
+    document.querySelector('#brand-logo-mark').style.display = '';
+    renderBrandingTab(body);
+  });
 }
 
 async function renderSociedadesTab(body) {
@@ -2635,10 +2705,10 @@ async function intakeForm() {
   });
 
   // Fechas:
-  //  plazo_fijo  → ambas obligatorias
-  //  indefinido  → fecha_inicio opcional visible, fecha_fin oculta
-  //  por_proyecto→ fecha_inicio opcional visible, fecha_fin oculta
-  //  '' (sin tipo) → ambas ocultas
+  //  cualquier tipo → fecha_inicio OBLIGATORIA (visible).
+  //  plazo_fijo     → además fecha_fin OBLIGATORIA.
+  //  indefinido / por_proyecto → fecha_fin oculta.
+  //  '' (sin tipo)  → ambas ocultas.
   const durToggle = document.querySelector('#duracion-toggle');
   const fpInstances = { inicio: null, fin: null };
   function syncFechas() {
@@ -2651,18 +2721,15 @@ async function intakeForm() {
 
     const showInicio = !!v;
     const showFin = v === 'plazo_fijo';
-    const inicioRequired = v === 'plazo_fijo';
 
     wi.hidden = !showInicio;
     wf.hidden = !showFin;
 
-    if (inicioRequired) { fi.required = true; labelInicio.textContent = 'Fecha de inicio *'; }
-    else { fi.removeAttribute('required'); labelInicio.textContent = 'Fecha de inicio (opcional)'; }
+    if (showInicio) { fi.required = true; labelInicio.textContent = 'Fecha de inicio *'; }
+    else { fi.removeAttribute('required'); fi.value = ''; fpInstances.inicio?.clear(); }
 
     if (showFin) ff.required = true;
     else { ff.removeAttribute('required'); ff.value = ''; fpInstances.fin?.clear(); }
-
-    if (!showInicio) { fi.value = ''; fpInstances.inicio?.clear(); }
   }
   durToggle.addEventListener('change', syncFechas);
   syncFechas();

@@ -12,6 +12,7 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
 import { URL } from 'node:url';
+import busboy from 'busboy';
 import { computeSemaphore } from './hito1_semaforo.js';
 import {
   sb,
@@ -458,18 +459,52 @@ const routes = {
     const { findByToken } = await import('./provider_profile.js');
 
     if (ct.startsWith('multipart/form-data')) {
-      const boundaryMatch = ct.match(/boundary=([^;]+)/);
-      if (!boundaryMatch) return json(res, 400, { error: 'multipart boundary missing' });
-      const raw = await readRawBody(req);
-      const { fields, file } = parseMultipart(raw, boundaryMatch[1].trim());
-
-      if (!fields.token || !fields.doc_type) return json(res, 400, { error: 'token, doc_type required' });
-      if (!file || !file.buffer.length) return json(res, 400, { error: 'file required' });
-
       const ALLOWED = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/webp']);
-      if (!ALLOWED.has(file.mimeType)) return json(res, 400, { error: `mime not allowed: ${file.mimeType}` });
       const MAX = 10 * 1024 * 1024;
-      if (file.buffer.length > MAX) return json(res, 413, { error: 'file too large (max 10MB)' });
+
+      let parsed;
+      try {
+        parsed = await new Promise((resolve, reject) => {
+          const fields = {};
+          let fileResult = null;
+          let fileError = null;
+          const bb = busboy({ headers: req.headers, limits: { fileSize: MAX, files: 1 } });
+          bb.on('field', (name, val) => { fields[name] = val; });
+          bb.on('file', (name, stream, info) => {
+            const chunks = [];
+            let size = 0;
+            let truncated = false;
+            stream.on('data', (c) => { chunks.push(c); size += c.length; });
+            stream.on('limit', () => { truncated = true; });
+            stream.on('end', () => {
+              if (truncated) { fileError = 'file too large (max 10MB)'; return; }
+              fileResult = {
+                field: name,
+                filename: info.filename,
+                mimeType: info.mimeType,
+                buffer: Buffer.concat(chunks),
+              };
+            });
+            stream.on('error', (e) => { fileError = e.message; });
+          });
+          bb.on('error', reject);
+          bb.on('close', () => resolve({ fields, file: fileResult, fileError }));
+          req.pipe(bb);
+        });
+      } catch (e) {
+        console.error('[upload] busboy parse failed:', e.message);
+        return json(res, 400, { error: `multipart parse: ${e.message}` });
+      }
+
+      const { fields, file, fileError } = parsed;
+      if (fileError) return json(res, 413, { error: fileError });
+
+      if (!fields.token || !fields.doc_type) {
+        console.error('[upload] missing fields, got keys:', Object.keys(fields));
+        return json(res, 400, { error: 'token, doc_type required', got_fields: Object.keys(fields) });
+      }
+      if (!file || !file.buffer.length) return json(res, 400, { error: 'file required' });
+      if (!ALLOWED.has(file.mimeType)) return json(res, 400, { error: `mime not allowed: ${file.mimeType}` });
 
       const provider = await findByToken(fields.token);
       if (!provider) return json(res, 404, { error: 'token invalid' });
@@ -1245,6 +1280,65 @@ const routes = {
     if (!id) return json(res, 400, { error: 'id required' });
     try { await deleteSociedadDoc(id); json(res, 200, { ok: true }); }
     catch (e) { json(res, 400, { error: e.message }); }
+  },
+
+  'GET /api/settings': async (req, res) => {
+    const { data, error } = await sb.from('app_settings').select('key, value');
+    if (error) return json(res, 500, { error: error.message });
+    const out = {};
+    for (const row of (data ?? [])) out[row.key] = row.value;
+    json(res, 200, out);
+  },
+
+  'POST /api/admin/settings': async (req, res) => {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) return json(res, auth.status, { error: auth.error });
+    const body = JSON.parse(await readBody(req));
+    if (!body.key) return json(res, 400, { error: 'key required' });
+    const { data, error } = await sb.from('app_settings').upsert({
+      key: body.key,
+      value: body.value ?? {},
+      updated_at: new Date().toISOString(),
+      updated_by: auth.email,
+    }, { onConflict: 'key' }).select().single();
+    if (error) return json(res, 500, { error: error.message });
+    json(res, 200, data);
+  },
+
+  'POST /api/admin/upload-logo': async (req, res) => {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) return json(res, auth.status, { error: auth.error });
+    const ct = req.headers['content-type'] ?? '';
+    const m = ct.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
+    if (!m) return json(res, 400, { error: 'multipart/form-data required' });
+    const boundary = (m[1] ?? m[2]).trim();
+    const raw = await readRawBody(req);
+    const { file } = parseMultipart(raw, boundary);
+    if (!file) return json(res, 400, { error: 'file required' });
+    if (!['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'].includes(file.mimeType)) {
+      return json(res, 415, { error: 'solo png/jpg/webp/svg' });
+    }
+    if (file.buffer.length > 2 * 1024 * 1024) return json(res, 413, { error: 'max 2MB' });
+
+    const ext = file.mimeType.split('/')[1].replace('jpeg', 'jpg').replace('svg+xml', 'svg');
+    const path = `brand/logo-${Date.now()}.${ext}`;
+    const up = await sb.storage.from('avatars').upload(path, file.buffer, {
+      contentType: file.mimeType,
+      upsert: true,
+    });
+    if (up.error) return json(res, 500, { error: up.error.message });
+    const { data: pub } = sb.storage.from('avatars').getPublicUrl(path);
+    const logoUrl = pub.publicUrl;
+
+    await sb.from('app_settings').upsert({
+      key: 'logo_url',
+      value: { url: logoUrl },
+      updated_at: new Date().toISOString(),
+      updated_by: auth.email,
+    }, { onConflict: 'key' });
+
+    await logAudit(null, auth.email, 'settings.logo_uploaded', 'app_settings', 'logo_url', { url: logoUrl });
+    json(res, 200, { ok: true, logo_url: logoUrl });
   },
 
   'POST /api/profile/avatar': async (req, res) => {

@@ -60,7 +60,10 @@
     { "source": "/api/matriz/documents", "destination": "/api" },
     { "source": "/api/admin/matriz/sociedades", "destination": "/api" },
     { "source": "/api/admin/matriz/apoderados", "destination": "/api" },
-    { "source": "/api/admin/matriz/documents", "destination": "/api" }
+    { "source": "/api/admin/matriz/documents", "destination": "/api" },
+    { "source": "/api/settings", "destination": "/api" },
+    { "source": "/api/admin/settings", "destination": "/api" },
+    { "source": "/api/admin/upload-logo", "destination": "/api" }
   ],
   "headers": [
     {
