@@ -32,6 +32,7 @@
     { "source": "/api/provider/fill", "destination": "/api" },
     { "source": "/api/provider/upload", "destination": "/api" },
     { "source": "/api/sociedades", "destination": "/api" },
+    { "source": "/api/providers/lookup", "destination": "/api" },
     { "source": "/api/admin/users", "destination": "/api" },
     { "source": "/api/admin/users/role", "destination": "/api" },
     { "source": "/api/auth/magic-link", "destination": "/api" },

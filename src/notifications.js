@@ -125,6 +125,75 @@ export async function sendMentionNotification({ mentionedEmails, authorEmail, bo
   }
 }
 
+// Notif a solicitante/owner cuando alguien comenta su run (sin mención).
+// Slack DM + email + in-app row. Idéntico flow que mention, distinta kind/copy.
+export async function sendCommentNotification({ recipients, authorEmail, body, fileId, workflowRunId, commentId, pageNumber }) {
+  if (!recipients?.length) return;
+
+  const rows = recipients.map((e) => ({
+    recipient_email: e,
+    kind: 'comment_reply',
+    workflow_run_id: workflowRunId,
+    payload: { author: authorEmail, body, file_id: fileId, comment_id: commentId, page: pageNumber },
+  }));
+  const { data: created } = await sb.from('notifications').insert(rows).select('id, recipient_email');
+
+  const { data: profiles } = await sb.from('user_profiles').select('user_id, email').in('email', recipients);
+  const byEmail = Object.fromEntries((profiles ?? []).map((p) => [p.email.toLowerCase(), p.user_id]));
+  if (created?.length) {
+    await Promise.all(created.map((n) => byEmail[n.recipient_email.toLowerCase()] && sb
+      .from('notifications')
+      .update({ recipient_id: byEmail[n.recipient_email.toLowerCase()] })
+      .eq('id', n.id)));
+  }
+
+  const { sendEmail } = await import('./email.js');
+  const previewUrl = `${SITE_URL}/admin#workflows/${workflowRunId}?file=${fileId}`;
+  const pageLine = pageNumber ? ` · página ${pageNumber}` : '';
+  const tpl = {
+    subject: `Nuevo comentario en tu solicitud · ${authorEmail}`,
+    html: `
+      <div style="font-family:Inter,system-ui,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#132046">
+        <h2 style="font-family:Montserrat,sans-serif;font-size:20px;margin-bottom:12px">Comentario en tu solicitud</h2>
+        <p><b>${authorEmail}</b> dejó un comentario en el contrato${pageLine}:</p>
+        <blockquote style="background:#f5f7fe;border-left:3px solid #1F49B6;padding:12px 16px;margin:12px 0;border-radius:6px">
+          ${escapeHtml(body).replace(/\n/g, '<br>')}
+        </blockquote>
+        <p><a href="${previewUrl}" style="display:inline-block;background:#1F49B6;color:white;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:600">Ver y responder →</a></p>
+        <p style="color:#565656;font-size:12px;margin-top:24px">Global66 Contratos</p>
+      </div>
+    `,
+    text: `${authorEmail} comentó${pageLine}:\n\n${body}\n\nVer: ${previewUrl}`,
+  };
+
+  const blocks = [
+    { type: 'section', text: { type: 'mrkdwn', text: `💬 *${authorEmail}* comentó en tu solicitud${pageNumber ? ` (p.${pageNumber})` : ''}` } },
+    { type: 'section', text: { type: 'mrkdwn', text: '> ' + body.replace(/\n/g, '\n> ').slice(0, 600) } },
+    { type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Ver y responder' }, url: previewUrl }] },
+  ];
+
+  for (const email of recipients) {
+    Promise.all([
+      slackDM(email, blocks, `${authorEmail} comentó en tu solicitud`).then((r) => sb
+        .from('notifications')
+        .update({ delivered_slack: !!r.ok })
+        .eq('recipient_email', email)
+        .eq('kind', 'comment_reply')
+        .eq('workflow_run_id', workflowRunId)
+        .order('created_at', { ascending: false })
+        .limit(1)).catch((e) => console.error('[slack DM comment]', email, e.message)),
+      sendEmail({ to: email, ...tpl, tags: ['comment', 'workflow'] })
+        .then(() => sb
+          .from('notifications')
+          .update({ delivered_email: true })
+          .eq('recipient_email', email)
+          .eq('kind', 'comment_reply')
+          .eq('workflow_run_id', workflowRunId))
+        .catch((e) => console.error('[email comment]', email, e.message)),
+    ]).catch(() => {});
+  }
+}
+
 export async function listForUser(email, { limit = 50, unreadOnly = false } = {}) {
   let q = sb
     .from('notifications')

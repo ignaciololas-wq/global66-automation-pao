@@ -1181,10 +1181,8 @@ async function intakeForm() {
               <option value="por_proyecto">Por proyecto o entregable</option>
             </select>
           </div>
-          <div id="fechas-wrap" hidden style="display:contents">
-            <div><label>Fecha inicio *</label><input type="date" name="fecha_inicio" id="fecha-inicio"></div>
-            <div><label>Fecha fin *</label><input type="date" name="fecha_fin" id="fecha-fin"></div>
-          </div>
+          <div id="fecha-inicio-wrap" hidden><label>Fecha inicio *</label><input type="date" name="fecha_inicio" id="fecha-inicio"></div>
+          <div id="fecha-fin-wrap" hidden><label>Fecha fin *</label><input type="date" name="fecha_fin" id="fecha-fin"></div>
         </div>
       </div>
 
@@ -1232,15 +1230,72 @@ async function intakeForm() {
     wrap.hidden = e.target.value !== 'false';
   });
 
-  // Conditional: Fechas aparecen solo si plazo_fijo
+  // Conditional: Fechas aparecen solo si plazo_fijo (indefinido + por_proyecto NO piden fechas).
   const durToggle = document.querySelector('#duracion-toggle');
-  durToggle.addEventListener('change', (e) => {
-    const wrap = document.querySelector('#fechas-wrap');
-    const show = e.target.value === 'plazo_fijo';
-    wrap.hidden = !show;
-    document.querySelector('#fecha-inicio').required = show;
-    document.querySelector('#fecha-fin').required = show;
-  });
+  function syncFechas() {
+    const show = durToggle.value === 'plazo_fijo';
+    const wi = document.querySelector('#fecha-inicio-wrap');
+    const wf = document.querySelector('#fecha-fin-wrap');
+    wi.hidden = !show; wf.hidden = !show;
+    const fi = document.querySelector('#fecha-inicio');
+    const ff = document.querySelector('#fecha-fin');
+    fi.required = show; ff.required = show;
+    if (!show) { fi.value = ''; ff.value = ''; }
+  }
+  durToggle.addEventListener('change', syncFechas);
+  syncFechas();
+
+  // Autocomplete provider por RUT/Tax ID (lookup en /api/providers/lookup).
+  const rutInput = document.querySelector('[name=rut]');
+  let lookupBanner = null;
+  function setLookupBanner(html, kind) {
+    if (!lookupBanner) {
+      lookupBanner = document.createElement('div');
+      lookupBanner.style.cssText = 'margin-top:8px;padding:8px 12px;border-radius:8px;font-size:12.5px';
+      rutInput.parentNode.appendChild(lookupBanner);
+    }
+    lookupBanner.innerHTML = html;
+    lookupBanner.style.background = kind === 'ok' ? 'rgba(2,167,87,0.08)' : kind === 'info' ? 'rgba(31,73,182,0.08)' : 'rgba(240,180,41,0.08)';
+    lookupBanner.style.color = kind === 'ok' ? '#02A757' : kind === 'info' ? '#1F49B6' : '#a8780a';
+  }
+  async function lookupProvider() {
+    const v = rutInput.value.trim();
+    if (!v) { lookupBanner?.remove(); lookupBanner = null; return; }
+    setLookupBanner('Buscando…', 'info');
+    try {
+      const r = await fetch(`/api/providers/lookup?tax_id=${encodeURIComponent(v)}`, { credentials: 'include' });
+      if (r.status === 404) { setLookupBanner('Proveedor nuevo. Completá los datos abajo.', 'info'); return; }
+      if (!r.ok) { setLookupBanner('Error consulta: ' + r.status, 'warn'); return; }
+      const p = await r.json();
+      // Prefill todos los campos que correspondan
+      const map = {
+        razon_social: p.razon_social,
+        pais: p.pais,
+        tipo_proveedor: p.tipo_proveedor,
+        representante_legal: p.representante_legal,
+        email_contacto: p.email_contacto,
+        email_facturacion: p.email_facturacion,
+        proveedor_existente: 'true',
+      };
+      for (const [field, value] of Object.entries(map)) {
+        if (value == null || value === '') continue;
+        const el = document.querySelector(`[name=${field}]`);
+        if (!el) continue;
+        if (el.tagName === 'SELECT') {
+          // Si la option existe, seleccionarla
+          const opt = Array.from(el.options).find((o) => o.value === value || o.text === value);
+          if (opt) el.value = opt.value;
+        } else {
+          el.value = value;
+        }
+      }
+      setLookupBanner(`✓ Proveedor existente encontrado: <b>${p.razon_social}</b> · ${p.status}. Campos autocompletados.`, 'ok');
+    } catch (e) {
+      setLookupBanner('Error: ' + e.message, 'warn');
+    }
+  }
+  rutInput.addEventListener('blur', lookupProvider);
+  rutInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); lookupProvider(); } });
 
   // Auto: si soy Owner, prefill email
   document.querySelector('#owner-toggle').addEventListener('change', (e) => {

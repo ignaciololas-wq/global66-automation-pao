@@ -1,7 +1,7 @@
 // PR2: thread comentarios por archivo + parsing @menciones + fanout notif.
 
 import { sb, logAudit } from './supabase_audit.js';
-import { sendMentionNotification } from './notifications.js';
+import { sendMentionNotification, sendCommentNotification } from './notifications.js';
 
 const MENTION_RE = /@([a-z0-9._-]+@[a-z0-9.-]+\.[a-z]{2,})/gi;
 
@@ -52,16 +52,15 @@ export async function createComment({
     .single();
   if (error) throw new Error(error.message);
 
-  const emails = parseMentions(body).filter((e) => e !== authorEmail.toLowerCase());
-  if (emails.length) {
-    const rows = emails.map((e) => ({ comment_id: comment.id, mentioned_email: e }));
+  const mentionEmails = parseMentions(body).filter((e) => e !== authorEmail.toLowerCase());
+  if (mentionEmails.length) {
+    const rows = mentionEmails.map((e) => ({ comment_id: comment.id, mentioned_email: e }));
     await sb.from('file_comment_mentions').upsert(rows, { onConflict: 'comment_id,mentioned_email' });
 
-    // Resolve mentioned users (auth.users.id por email) en background.
-    sb.from('user_profiles').select('user_id, email').in('email', emails).then(({ data }) => {
+    sb.from('user_profiles').select('user_id, email').in('email', mentionEmails).then(({ data }) => {
       if (!data?.length) return;
       const byEmail = Object.fromEntries(data.map((p) => [p.email.toLowerCase(), p.user_id]));
-      const updates = emails.map((e) => byEmail[e] && sb
+      const updates = mentionEmails.map((e) => byEmail[e] && sb
         .from('file_comment_mentions')
         .update({ mentioned_id: byEmail[e] })
         .eq('comment_id', comment.id)
@@ -69,9 +68,8 @@ export async function createComment({
       Promise.all(updates.filter(Boolean)).catch(() => {});
     });
 
-    // Fanout notif (Slack DM + email + in-app row).
     sendMentionNotification({
-      mentionedEmails: emails,
+      mentionedEmails: mentionEmails,
       authorEmail,
       body: comment.body,
       fileId,
@@ -80,6 +78,34 @@ export async function createComment({
       pageNumber: pageNumber ?? null,
     }).catch((e) => console.error('[mention notif]', e.message));
   }
+
+  // Notif a solicitante + owner del workflow (sin importar mención), excepto si son el autor o ya mencionados.
+  (async () => {
+    const { data: run } = await sb
+      .from('workflow_runs')
+      .select('solicitante_email, owner_email')
+      .eq('id', workflowRunId)
+      .maybeSingle();
+    if (!run) return;
+    const targets = new Set();
+    [run.solicitante_email, run.owner_email].forEach((e) => {
+      if (!e) return;
+      const lc = e.toLowerCase();
+      if (lc === authorEmail.toLowerCase()) return;
+      if (mentionEmails.includes(lc)) return; // ya notificado por mention
+      targets.add(lc);
+    });
+    if (!targets.size) return;
+    await sendCommentNotification({
+      recipients: Array.from(targets),
+      authorEmail,
+      body: comment.body,
+      fileId,
+      workflowRunId,
+      commentId: comment.id,
+      pageNumber: pageNumber ?? null,
+    });
+  })().catch((e) => console.error('[comment notif solicitante]', e.message));
 
   await logAudit(workflowRunId, authorEmail, 'comment.created', 'file_comment', comment.id, {
     file_id: fileId, mentions: emails.length, page: pageNumber,

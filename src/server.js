@@ -366,6 +366,22 @@ const routes = {
     json(res, 200, { upload_id: data.id, rag_status: 'pending' });
   },
 
+  'GET /api/providers/lookup': async (req, res, url) => {
+    // Autocomplete intake: buscá por tax_id (exact match) y devolvé datos prefill.
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const taxId = (url.searchParams.get('tax_id') ?? '').trim();
+    if (!taxId) return json(res, 400, { error: 'tax_id required' });
+    const { data, error } = await sb
+      .from('providers')
+      .select('id, razon_social, tax_id, pais, tipo_proveedor, email_contacto, email_facturacion, representante_legal, domicilio, nivel_acceso, criticidad, sociedad_contratante, servicio_descripcion, status')
+      .eq('tax_id', taxId)
+      .maybeSingle();
+    if (error) return json(res, 500, { error: error.message });
+    if (!data) return json(res, 404, { error: 'not found' });
+    json(res, 200, data);
+  },
+
   'GET /api/sociedades': async (req, res) => {
     const { SOCIEDADES, getDocsForSociedad } = await import('./sociedad.js');
     json(res, 200, SOCIEDADES.map((s) => ({ id: s, ...getDocsForSociedad(s) })));
