@@ -291,6 +291,42 @@ const routes = {
     }
   },
 
+  'POST /api/intake/signature-config': async (req, res) => {
+    // Nodo 5 (Firma): guarda sociedad+apoderado y opcionalmente dispara SignNow.
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    if (!auth.roles?.some((r) => r === 'admin' || r === 'aprobador')) {
+      return json(res, 403, { error: 'admin o aprobador required' });
+    }
+    const body = JSON.parse(await readBody(req));
+    if (!body.run_id) return json(res, 400, { error: 'run_id required' });
+
+    const patch = {};
+    if (body.sociedad_contratante) patch.sociedad_contratante = body.sociedad_contratante;
+    if (body.sociedad_apoderado_email) patch.sociedad_apoderado_email = body.sociedad_apoderado_email;
+    if (Object.keys(patch).length) {
+      const { error } = await sb.from('workflow_runs').update(patch).eq('id', body.run_id);
+      if (error) return json(res, 500, { error: error.message });
+    }
+    await logAudit(body.run_id, auth.email, 'signature.config_saved', 'workflow_run', body.run_id, {
+      sociedad: body.sociedad_contratante, apoderado: body.sociedad_apoderado_email, note: body.note,
+    });
+
+    if (!body.send_to_signnow) return json(res, 200, { ok: true, saved: true });
+
+    try {
+      const { sendToSignNow } = await import('./signnow.js').catch(() => ({}));
+      if (!sendToSignNow) return json(res, 200, { ok: true, saved: true, signnow: 'not_implemented_yet' });
+      const result = await sendToSignNow({ runId: body.run_id });
+      await sb.from('workflow_runs').update({ current_phase: 'fase3' }).eq('id', body.run_id);
+      await logAudit(body.run_id, auth.email, 'signature.sent_to_signnow', 'workflow_run', body.run_id, result);
+      json(res, 200, { ok: true, saved: true, signnow_document_id: result?.document_id ?? null });
+    } catch (e) {
+      console.error('[signature signnow]', e);
+      json(res, 500, { error: 'SignNow falló: ' + e.message });
+    }
+  },
+
   'POST /api/intake/approve': async (req, res) => {
     // Aprobador interno aprueba/rechaza la solicitud. Si aprueba → manda email al proveedor.
     const body = JSON.parse(await readBody(req));
@@ -652,6 +688,7 @@ const routes = {
       roles: auth.roles,
       sociedades: auth.sociedades,
       display_name: auth.display_name,
+      avatar_url: auth.avatar_url,
     });
   },
 
@@ -931,14 +968,59 @@ const routes = {
     }
   },
 
+  'POST /api/profile/avatar': async (req, res) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    if (!auth.email) return json(res, 400, { error: 'no email' });
+
+    const ct = req.headers['content-type'] ?? '';
+    const m = ct.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
+    if (!m) return json(res, 400, { error: 'multipart/form-data required' });
+    const boundary = (m[1] ?? m[2]).trim();
+
+    const raw = await readRawBody(req);
+    const { file } = parseMultipart(raw, boundary);
+    if (!file) return json(res, 400, { error: 'file field required' });
+    if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.mimeType)) {
+      return json(res, 415, { error: 'solo png/jpg/webp/gif' });
+    }
+    if (file.buffer.length > 2 * 1024 * 1024) return json(res, 413, { error: 'max 2MB' });
+
+    const ext = file.mimeType.split('/')[1].replace('jpeg', 'jpg');
+    const safeEmail = auth.email.toLowerCase().replace(/[^a-z0-9._-]+/g, '_');
+    const path = `${safeEmail}/${Date.now()}.${ext}`;
+    const up = await sb.storage.from('avatars').upload(path, file.buffer, {
+      contentType: file.mimeType,
+      upsert: true,
+    });
+    if (up.error) return json(res, 500, { error: up.error.message });
+
+    const { data: urlData } = sb.storage.from('avatars').getPublicUrl(path);
+    const publicUrl = urlData.publicUrl;
+    await sb.from('user_profiles').update({ avatar_url: publicUrl, updated_at: new Date().toISOString() }).eq('email', auth.email.toLowerCase());
+
+    json(res, 200, { avatar_url: publicUrl });
+  },
+
+  'POST /api/profile/me': async (req, res) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const body = JSON.parse(await readBody(req));
+    const patch = { updated_at: new Date().toISOString() };
+    if (typeof body.display_name === 'string') patch.display_name = body.display_name;
+    if (typeof body.avatar_url === 'string') patch.avatar_url = body.avatar_url;
+    const { data, error } = await sb.from('user_profiles').update(patch).eq('email', auth.email.toLowerCase()).select().single();
+    if (error) return json(res, 500, { error: error.message });
+    json(res, 200, data);
+  },
+
   'GET /api/users/mentions': async (req, res, url) => {
-    // Autocomplete @ mention. Devuelve emails (+display_name) que matchean query.
     const auth = await getUserFromRequest(req);
     if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
     const q = (url.searchParams.get('q') ?? '').toLowerCase();
     const { data, error } = await sb
       .from('user_profiles')
-      .select('email, display_name, roles')
+      .select('email, display_name, roles, avatar_url')
       .order('email', { ascending: true })
       .limit(50);
     if (error) return json(res, 500, { error: error.message });

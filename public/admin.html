@@ -76,7 +76,15 @@
 
   .nav-bottom { margin-top: auto; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 12px; color: var(--blue-200) }
   .nav-bottom .user-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px }
-  .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--blue-500); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 13px; font-family: 'Montserrat' }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--blue-500); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 13px; font-family: 'Montserrat'; flex-shrink: 0 }
+  .avatar-wrap { position: relative; width: 32px; height: 32px; flex-shrink: 0 }
+  .avatar-img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; display: block }
+  .avatar-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.5); border-radius: 50%; display: none; align-items: center; justify-content: center; font-size: 14px }
+  .avatar-wrap:hover .avatar-overlay { display: flex }
+  .comment-avatar { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; background: var(--blue-500); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px; font-family: 'Montserrat'; overflow: hidden }
+  .comment-avatar img { width: 100%; height: 100%; object-fit: cover; display: block }
+  .mention-avatar { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; background: var(--blue-100); color: var(--blue-700); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 11px; overflow: hidden }
+  .mention-avatar img { width: 100%; height: 100%; object-fit: cover; display: block }
   .nav-bottom button { width: 100%; margin-top: 8px; background: transparent; border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.8); padding: 8px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 500 }
   .nav-bottom button:hover { background: rgba(255,255,255,0.06); color: white }
 
@@ -194,6 +202,98 @@
   .empty p { margin-top: 8px; font-size: 13px }
 
   pre { background: var(--surface); padding: 12px; border-radius: var(--radius-sm); font-size: 11px; overflow: auto; color: var(--text) }
+
+  /* Flow canvas — workflow stages tipo Finnecto/n8n */
+  .flow-canvas {
+    display: flex; align-items: stretch; gap: 0; overflow-x: auto;
+    padding: 24px 12px;
+    background:
+      linear-gradient(white, white) padding-box,
+      radial-gradient(circle, rgba(31,73,182,0.08) 1px, transparent 1px) 0 0 / 18px 18px;
+    background-color: #fafbff;
+    border: 1px solid var(--border); border-radius: 14px;
+    margin-bottom: 24px;
+    box-shadow: inset 0 0 60px rgba(31,73,182,0.04);
+  }
+  .flow-node {
+    position: relative;
+    flex: 0 0 168px; max-width: 168px;
+    background: white; border: 1.5px solid var(--border); border-radius: 12px;
+    padding: 12px; text-align: left;
+    box-shadow: 0 2px 8px rgba(19,32,70,0.06);
+    transition: all .2s ease;
+  }
+  .flow-node:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(19,32,70,0.12) }
+  .flow-node-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px }
+  .flow-node-icon { font-size: 20px }
+  .flow-node-num { width: 24px; height: 24px; border-radius: 50%; background: var(--border); color: var(--muted); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; font-family: 'Montserrat', sans-serif }
+  .flow-node-label { font-weight: 700; font-size: 13px; color: var(--text); margin-bottom: 2px; letter-spacing: -0.01em }
+  .flow-node-who { font-size: 11px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600 }
+  .flow-node-assignee {
+    font-size: 11.5px; color: var(--blue-700); font-weight: 500;
+    background: var(--blue-50); padding: 4px 8px; border-radius: 6px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .flow-node-done { border-color: var(--green); background: linear-gradient(180deg, white, rgba(2,167,87,0.04)) }
+  .flow-node-done .flow-node-num { background: var(--green); color: white }
+  .flow-node-done .flow-node-assignee { background: rgba(2,167,87,0.1); color: var(--green) }
+
+  .flow-node-active { border-color: var(--blue-500); border-width: 2px; box-shadow: 0 6px 24px rgba(31,73,182,0.2) }
+  .flow-node-active .flow-node-num { background: var(--blue-500); color: white }
+  .flow-node-active .flow-node-label { color: var(--blue-700) }
+
+  .flow-node-pulse {
+    position: absolute; inset: -6px; border-radius: 14px;
+    border: 2px solid var(--blue-500); opacity: 0;
+    animation: flow-pulse 2s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes flow-pulse {
+    0%   { opacity: 0.7; transform: scale(0.98) }
+    100% { opacity: 0;   transform: scale(1.04) }
+  }
+
+  .flow-node-rejected { border-color: var(--red); background: linear-gradient(180deg, white, rgba(230,74,74,0.04)) }
+  .flow-node-rejected .flow-node-num { background: var(--red); color: white }
+  .flow-node-rejected .flow-node-label { color: var(--red) }
+
+  .flow-node-pending { opacity: 0.55 }
+  .flow-node-pending:hover { opacity: 1 }
+
+  .flow-edge { display: flex; align-items: center; padding: 0 4px; color: var(--blue-200) }
+  .flow-node-done + .flow-edge, .flow-node-active + .flow-edge { color: var(--blue-500) }
+
+  @media (max-width: 1100px) {
+    .flow-canvas { padding: 16px 8px }
+    .flow-node { flex-basis: 150px; max-width: 150px }
+  }
+
+  /* Dashboard funnel (PR3-fix UX) */
+  .funnel { display: flex; align-items: stretch; gap: 6px; overflow-x: auto; padding: 4px 0 }
+  .funnel-stage {
+    flex: 1; min-width: 140px;
+    background: linear-gradient(180deg, white, color-mix(in srgb, var(--funnel-color) 8%, white));
+    border: 1px solid color-mix(in srgb, var(--funnel-color) 20%, var(--border));
+    border-radius: 12px; padding: 14px 12px; text-align: center;
+    box-shadow: 0 1px 3px rgba(19,32,70,0.04);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .funnel-stage:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(19,32,70,0.08) }
+  .funnel-icon { font-size: 22px; margin-bottom: 4px }
+  .funnel-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 600; margin-bottom: 6px }
+  .funnel-count { font-family: 'Montserrat', sans-serif; font-size: 28px; font-weight: 700; color: var(--funnel-color); line-height: 1; letter-spacing: -0.02em }
+  .funnel-bar { height: 4px; background: var(--border); border-radius: 99px; margin: 8px 0 6px; overflow: hidden }
+  .funnel-bar-fill { height: 100%; background: var(--funnel-color); border-radius: 99px; transition: width .6s ease }
+  .funnel-semaforos { font-size: 10.5px; color: var(--muted); display: flex; gap: 6px; justify-content: center; min-height: 14px }
+  .funnel-arrow { display: flex; align-items: center; color: var(--muted); font-size: 18px; opacity: 0.5; padding: 0 2px }
+
+  .approval-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px }
+  .approval-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px }
+  .approval-team { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; margin-bottom: 6px }
+  .approval-hours { font-family: 'Montserrat', sans-serif; font-size: 26px; font-weight: 700; color: var(--blue-800); line-height: 1 }
+  .approval-hours small { font-size: 11px; color: var(--muted); font-weight: 500; margin-left: 4px; letter-spacing: 0 }
+  .approval-counts { display: flex; gap: 6px; margin-top: 10px }
 
   /* Date field — pill styling consistente (PR3-fix) */
   .date-field { position: relative }
@@ -402,10 +502,15 @@
 
     <div class="nav-bottom">
       <div class="user-row">
-        <div class="avatar" id="avatar">?</div>
-        <div>
-          <div id="user-name" style="color:white;font-size:13px;font-weight:500">—</div>
-          <div id="user-email" style="font-size:11px">—</div>
+        <label for="avatar-input" class="avatar-wrap" title="Cambiar foto" style="cursor:pointer">
+          <div class="avatar" id="avatar">?</div>
+          <img id="avatar-img" class="avatar-img" hidden alt="">
+          <div class="avatar-overlay">📷</div>
+        </label>
+        <input type="file" id="avatar-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+        <div style="min-width:0;flex:1">
+          <div id="user-name" style="color:white;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
+          <div id="user-email" style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
         </div>
       </div>
       <button id="logout">Cerrar sesión</button>
@@ -470,9 +575,39 @@ async function checkAuth() {
   const name = me.display_name ?? email.split('@')[0].replace(/\./g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   $('#user-name').textContent = name;
   $('#avatar').textContent = (email[0] ?? '?').toUpperCase();
+  const avImg = $('#avatar-img');
+  if (me.avatar_url) {
+    avImg.src = me.avatar_url + '?t=' + Date.now();
+    avImg.hidden = false;
+    $('#avatar').style.display = 'none';
+  } else {
+    avImg.hidden = true;
+    $('#avatar').style.display = '';
+  }
   $('#nav-users').hidden = !hasRole('admin');
   route();
 }
+
+// Avatar upload
+document.addEventListener('change', async (e) => {
+  if (e.target.id !== 'avatar-input') return;
+  const f = e.target.files[0];
+  if (!f) return;
+  const fd = new FormData();
+  fd.append('file', f);
+  try {
+    const r = await fetch('/api/profile/avatar', { method: 'POST', credentials: 'include', body: fd });
+    if (!r.ok) throw new Error(await r.text());
+    const { avatar_url } = await r.json();
+    window.__me.avatar_url = avatar_url;
+    const img = document.querySelector('#avatar-img');
+    img.src = avatar_url + '?t=' + Date.now();
+    img.hidden = false;
+    document.querySelector('#avatar').style.display = 'none';
+  } catch (err) {
+    alert('Error subir avatar: ' + err.message);
+  }
+});
 
 async function sendMagicLinkViaServer(email) {
   const r = await fetch('/api/auth/magic-link', {
@@ -575,6 +710,48 @@ const PHASE_LABELS = {
   cancelled: 'Cancelado',
 };
 const phaseLabel = (p) => PHASE_LABELS[p] ?? (p ?? '—');
+
+const FUNNEL_ORDER = ['fase1', 'hito1', 'fase2', 'fase3', 'signed'];
+const FUNNEL_META = {
+  fase1:  { label: 'Solicitud',         icon: '📝', color: '#3F5EDF' },
+  hito1:  { label: 'Aprobación interna',icon: '✅', color: '#1F49B6' },
+  fase2:  { label: 'Datos proveedor',   icon: '🏢', color: '#0b6bc4' },
+  fase3:  { label: 'Validación docs',   icon: '🔍', color: '#02A757' },
+  signed: { label: 'Firmado',           icon: '✍️', color: '#1c8a4a' },
+};
+function renderFunnel(phasesData) {
+  const byPhase = Object.fromEntries((phasesData ?? []).map((r) => [r.current_phase, r]));
+  const rejected = byPhase['rejected']?.total ?? 0;
+  const totalIn = FUNNEL_ORDER.reduce((a, p) => a + (byPhase[p]?.total ?? 0), 0);
+  return `
+    <div class="funnel">
+      ${FUNNEL_ORDER.map((p, i) => {
+        const row = byPhase[p];
+        const total = row?.total ?? 0;
+        const greenC = row?.green ?? 0;
+        const yellowC = row?.yellow ?? 0;
+        const redC = row?.red ?? 0;
+        const meta = FUNNEL_META[p];
+        const pct = totalIn ? Math.round((total / totalIn) * 100) : 0;
+        return `
+          <div class="funnel-stage" style="--funnel-color:${meta.color}">
+            <div class="funnel-icon">${meta.icon}</div>
+            <div class="funnel-label">${i + 1}. ${meta.label}</div>
+            <div class="funnel-count">${total}</div>
+            <div class="funnel-bar"><div class="funnel-bar-fill" style="width:${pct}%"></div></div>
+            <div class="funnel-semaforos">
+              ${greenC ? `<span title="Verde">🟢 ${greenC}</span>` : ''}
+              ${yellowC ? `<span title="Amarillo">🟡 ${yellowC}</span>` : ''}
+              ${redC ? `<span title="Rojo">🔴 ${redC}</span>` : ''}
+            </div>
+          </div>
+          ${i < FUNNEL_ORDER.length - 1 ? '<div class="funnel-arrow">→</div>' : ''}
+        `;
+      }).join('')}
+    </div>
+    ${rejected ? `<div style="margin-top:12px;padding:10px 14px;background:rgba(230,74,74,0.08);border-radius:10px;font-size:13px;color:var(--red)">⊘ ${rejected} solicitud${rejected > 1 ? 'es' : ''} rechazada${rejected > 1 ? 's' : ''}</div>` : ''}
+  `;
+}
 const statusKind = (s) => s === 'aceptado' || s === 'signed' || s === 'active' ? 'green' : s === 'rechazado' || s === 'cancelled' || s === 'expired' ? 'red' : s === 'expiring' || s === 'pendiente_revision' ? 'yellow' : s === 'inactivo' ? 'gray' : 'blue';
 const dt = (iso) => (iso ?? '').slice(0, 16).replace('T', ' · ');
 const money = (n, c) => n != null ? new Intl.NumberFormat('es-CL').format(n) + (c ? ' ' + c : '') : '—';
@@ -624,21 +801,27 @@ const pages = {
         </div>
       </div>
 
-      <div class="grid grid-2">
-        <div class="table-card">
-          <div style="padding:16px 18px;border-bottom:1px solid var(--border)"><h3>Solicitudes por fase</h3></div>
-          <table>
-            <thead><tr><th>Fase</th><th>Total</th><th>🟢</th><th>🟡</th><th>🔴</th></tr></thead>
-            <tbody>${phases.length ? phases.map(p => `<tr><td>${dotPill(phaseLabel(p.current_phase), phaseKind(p.current_phase))}</td><td>${p.total}</td><td>${p.green}</td><td>${p.yellow}</td><td>${p.red}</td></tr>`).join('') : '<tr><td colspan=5 class=muted style="text-align:center;padding:24px">Sin datos</td></tr>'}</tbody>
-          </table>
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <h3>Pipeline de solicitudes</h3>
+          <a href="#workflows" style="font-size:12.5px;color:var(--blue-500);font-weight:600">Ver todas →</a>
         </div>
+        ${renderFunnel(phases)}
+      </div>
 
-        <div class="table-card">
-          <div style="padding:16px 18px;border-bottom:1px solid var(--border)"><h3>Tiempo aprobación por equipo</h3></div>
-          <table>
-            <thead><tr><th>Equipo</th><th>Horas avg</th><th>✅</th><th>❌</th></tr></thead>
-            <tbody>${approvals.length ? approvals.map(a => `<tr><td><b>${a.team}</b></td><td>${a.avg_hours_to_decide ?? '—'}h</td><td>${a.approved}</td><td>${a.rejected}</td></tr>`).join('') : '<tr><td colspan=4 class=muted style="text-align:center;padding:24px">Aún sin decisiones</td></tr>'}</tbody>
-          </table>
+      <div class="card" style="margin-bottom:16px">
+        <h3 style="margin-bottom:14px">Tiempo de aprobación por equipo</h3>
+        <div class="approval-cards">
+          ${approvals.length ? approvals.map(a => `
+            <div class="approval-card">
+              <div class="approval-team">${a.team}</div>
+              <div class="approval-hours">${a.avg_hours_to_decide ?? '—'}<small>h promedio</small></div>
+              <div class="approval-counts">
+                <span class="pill green" style="font-size:11px"><span class="dot"></span>${a.approved} OK</span>
+                <span class="pill red" style="font-size:11px"><span class="dot"></span>${a.rejected} rechazadas</span>
+              </div>
+            </div>
+          `).join('') : '<div class="muted" style="grid-column:1/-1;text-align:center;padding:30px">Aún sin decisiones registradas</div>'}
         </div>
       </div>
 
@@ -732,6 +915,7 @@ const pages = {
       ${renderStepper(r)}
 
       ${r.internal_approval_status === 'pending' ? renderApprovalPanel(r) : ''}
+      ${shouldShowSignaturePanel(r) ? renderSignaturePanel(r) : ''}
 
       <div class="grid grid-4">
         <div class="card"><div class="stat-label">Monto</div><div class="stat-num" style="font-size:22px">${money(r.monto, r.moneda)}</div></div>
@@ -917,15 +1101,14 @@ function renderStepper(r) {
   const intApproved = r.internal_approval_status === 'approved';
   const intRejected = r.internal_approval_status === 'rejected';
   const stages = [
-    { num: 1, label: 'Solicitud', who: 'Solicitante interno' },
-    { num: 2, label: 'Aprobación interna', who: 'Aprobador Global66' },
-    { num: 3, label: 'Datos proveedor', who: 'Proveedor' },
-    { num: 4, label: 'Validación docs', who: 'IA + Compliance' },
-    { num: 5, label: 'Firma', who: 'Apoderado + Proveedor' },
-    { num: 6, label: 'Cerrado', who: '—' },
+    { num: 1, label: 'Solicitud',           who: 'Solicitante interno', icon: '📝', assignee: r.solicitante_email },
+    { num: 2, label: 'Aprobación interna',  who: 'Aprobador Global66',  icon: '✅', assignee: r.internal_approver_email ?? 'Pendiente asignar' },
+    { num: 3, label: 'Datos proveedor',     who: 'Proveedor',           icon: '🏢', assignee: r.email_contacto ?? '—' },
+    { num: 4, label: 'Validación docs',     who: 'IA + Compliance',     icon: '🔍', assignee: 'IA Claude + Compliance' },
+    { num: 5, label: 'Firma',               who: 'Apoderado + Proveedor', icon: '✍️', assignee: r.sociedad_apoderado_email ?? 'Pendiente apoderado' },
+    { num: 6, label: 'Cerrado',             who: 'Sistema',             icon: '🏁', assignee: '—' },
   ];
 
-  // Determine current step index 0..5
   let cur = 0;
   if (intRejected || phase === 'rejected') cur = 1;
   else if (!intApproved && phase === 'fase1') cur = 1;
@@ -937,15 +1120,109 @@ function renderStepper(r) {
 
   const rejected = intRejected || phase === 'rejected';
 
-  return `<div class="stepper">${stages.map((s, i) => {
-    const cls = rejected && i === cur ? 'rejected' : i < cur ? 'done' : i === cur ? 'active' : '';
-    return `<div class="step ${cls}">
-      <div class="num">${i < cur ? '✓' : s.num}</div>
-      <div class="label">${s.label}</div>
-      <div class="who">${s.who}</div>
-    </div>`;
-  }).join('')}</div>`;
+  return `<div class="flow-canvas">
+    ${stages.map((s, i) => {
+      const isDone = i < cur;
+      const isActive = i === cur && !rejected;
+      const isRejected = rejected && i === cur;
+      const cls = isRejected ? 'flow-node-rejected' : isDone ? 'flow-node-done' : isActive ? 'flow-node-active' : 'flow-node-pending';
+      return `<div class="flow-node ${cls}">
+        <div class="flow-node-header">
+          <span class="flow-node-icon">${s.icon}</span>
+          <span class="flow-node-num">${isDone ? '✓' : isRejected ? '✗' : s.num}</span>
+        </div>
+        <div class="flow-node-label">${s.label}</div>
+        <div class="flow-node-who">${s.who}</div>
+        <div class="flow-node-assignee" title="${s.assignee}">${(s.assignee ?? '—').slice(0, 28)}${(s.assignee ?? '').length > 28 ? '…' : ''}</div>
+        ${isActive ? '<div class="flow-node-pulse"></div>' : ''}
+      </div>
+      ${i < stages.length - 1 ? '<div class="flow-edge"><svg width="48" height="14" viewBox="0 0 48 14"><path d="M0 7 L40 7 M34 1 L40 7 L34 13" fill="none" stroke="currentColor" stroke-width="2"/></svg></div>' : ''}
+      `;
+    }).join('')}
+  </div>`;
 }
+
+function shouldShowSignaturePanel(r) {
+  // Nodo 5: aprobación interna completada + docs validados o avanzados, sin firma todavía.
+  if (!r) return false;
+  if (r.current_phase === 'signed' || r.current_phase === 'rejected' || r.current_phase === 'cancelled') return false;
+  return r.internal_approval_status === 'approved' && ['fase2', 'fase3'].includes(r.current_phase);
+}
+
+function renderSignaturePanel(r) {
+  const sociedadOpts = ['Global 81 SpA (Chile)', 'Global Card S.A. (Chile)', '100X (Panamá)', 'Global Colombia 81 (Colombia)'];
+  return `<div class="card" style="margin-bottom:16px;border-left:4px solid var(--mint)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <h3 style="margin:0">✍️ Nodo 5 — Firma</h3>
+      <span class="pill blue">paso final</span>
+    </div>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:18px">Confirmá la sociedad contratante y asigná el apoderado firmante de Global66. Cuando esté listo, lo mandamos a SignNow.</p>
+
+    <div class="grid grid-2" style="margin-bottom:16px">
+      <div>
+        <label>Sociedad contratante (confirmá o cambiá)</label>
+        <select id="sign-sociedad">
+          <option value="">— Elegí —</option>
+          ${sociedadOpts.map((s) => `<option value="${s}" ${r.sociedad_contratante === s ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label>Email apoderado Global66 (firmante) *</label>
+        <input type="email" id="sign-apoderado" placeholder="apoderado@global66.com" value="${r.sociedad_apoderado_email ?? ''}">
+        <p style="font-size:11.5px;color:var(--muted);margin-top:4px">El email recibe el link de SignNow para firmar.</p>
+      </div>
+      <div style="grid-column:1/-1">
+        <label>Nota interna (opcional)</label>
+        <textarea id="sign-note" rows="2" placeholder="Ej: 'Apoderado de turno: Andrés; Maria está de vacaciones'"></textarea>
+      </div>
+    </div>
+
+    <div id="sign-err" class="err" hidden></div>
+    <div id="sign-ok" class="ok" hidden></div>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
+      <button class="secondary" type="button" onclick="saveSignatureConfig('${r.id}', false)">Guardar config</button>
+      <button class="primary" type="button" onclick="saveSignatureConfig('${r.id}', true)">Confirmar y enviar a SignNow →</button>
+    </div>
+  </div>`;
+}
+
+window.saveSignatureConfig = async function (runId, sendToSignNow) {
+  const sociedad = document.getElementById('sign-sociedad').value;
+  const apoderado = document.getElementById('sign-apoderado').value.trim();
+  const note = document.getElementById('sign-note').value.trim();
+  const errEl = document.getElementById('sign-err');
+  const okEl = document.getElementById('sign-ok');
+  errEl.hidden = true; okEl.hidden = true;
+  if (sendToSignNow && (!sociedad || !apoderado)) {
+    errEl.textContent = 'Sociedad y email apoderado son requeridos para enviar a SignNow.';
+    errEl.hidden = false; return;
+  }
+  try {
+    const r = await fetch('/api/intake/signature-config', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        run_id: runId,
+        sociedad_contratante: sociedad || undefined,
+        sociedad_apoderado_email: apoderado || undefined,
+        note,
+        send_to_signnow: !!sendToSignNow,
+      }),
+    });
+    const result = await r.json();
+    if (!r.ok) throw new Error(result.error ?? 'Error');
+    okEl.innerHTML = sendToSignNow
+      ? `✓ Enviado a SignNow. Document ID: <code>${result.signnow_document_id ?? '(pendiente)'}</code>`
+      : `✓ Configuración guardada.`;
+    okEl.hidden = false;
+    if (sendToSignNow) setTimeout(() => location.reload(), 1500);
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.hidden = false;
+  }
+};
 
 function renderApprovalPanel(r) {
   return `<div class="card" style="margin-bottom:16px;border-left:4px solid var(--blue-500)">
@@ -1895,10 +2172,16 @@ async function loadComments(fileId, runId) {
     listEl.innerHTML = '<div class="muted" style="padding:16px;font-size:12.5px">Aún sin comentarios. Iniciá el hilo abajo.</div>';
   } else {
     const meEmail = window.__me?.email;
-    listEl.innerHTML = comments.map((c) => `
+    listEl.innerHTML = comments.map((c) => {
+      const avatar = c.author_avatar_url
+        ? `<div class="comment-avatar"><img src="${c.author_avatar_url}" alt=""></div>`
+        : `<div class="comment-avatar">${(c.author_email[0] ?? '?').toUpperCase()}</div>`;
+      const displayName = c.author_display_name ?? c.author_email.split('@')[0].replace(/\./g, ' ');
+      return `
       <div class="comment ${c.author_email === meEmail ? 'is-mine' : ''}" data-comment="${c.id}">
         <div class="comment-meta">
-          <span class="comment-author">${c.author_email}</span>
+          ${avatar}
+          <span class="comment-author" title="${c.author_email}">${escapeHtml(displayName)}</span>
           ${c.page_number ? `<span class="comment-page">p.${c.page_number}</span>` : ''}
           ${c.resolved ? '<span class="pill green" style="font-size:10px">resuelto</span>' : ''}
           <span class="ts" style="margin-left:auto">${dt(c.created_at)}</span>
@@ -1906,7 +2189,8 @@ async function loadComments(fileId, runId) {
         ${c.anchor_text ? `<div class="anchor-quote">📌 "${escapeHtml(c.anchor_text.slice(0, 100))}${c.anchor_text.length > 100 ? '…' : ''}"</div>` : ''}
         <div class="comment-body">${highlightMentions(escapeHtml(c.body))}</div>
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
   renderComposer(fileId, runId);
 }
@@ -2078,12 +2362,18 @@ function wireMentionAutocomplete(textarea) {
       popup.className = 'mention-popup';
       textarea.closest('.comment-composer').appendChild(popup);
     }
-    popup.innerHTML = items.map((u, i) => `
+    popup.innerHTML = items.map((u, i) => {
+      const av = u.avatar_url
+        ? `<div class="mention-avatar"><img src="${u.avatar_url}"></div>`
+        : `<div class="mention-avatar">${(u.email[0] ?? '?').toUpperCase()}</div>`;
+      return `
       <div class="mention-item ${i === focusIdx ? 'focus' : ''}" data-email="${u.email}">
-        <span>${u.display_name ?? u.email.split('@')[0]}</span>
+        ${av}
+        <span>${escapeHtml(u.display_name ?? u.email.split('@')[0])}</span>
         <span class="mention-roles">${(u.roles ?? []).join(', ')}</span>
       </div>
-    `).join('');
+    `;
+    }).join('');
     popup.querySelectorAll('.mention-item').forEach((el, i) => el.addEventListener('click', () => insert(items[i].email)));
   }
 

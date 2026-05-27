@@ -27,6 +27,7 @@
     { "source": "/contracts/sign", "destination": "/api" },
     { "source": "/api/intake", "destination": "/api" },
     { "source": "/api/intake/approve", "destination": "/api" },
+    { "source": "/api/intake/signature-config", "destination": "/api" },
     { "source": "/api/provider", "destination": "/api" },
     { "source": "/api/provider/fill", "destination": "/api" },
     { "source": "/api/provider/upload", "destination": "/api" },
@@ -50,7 +51,9 @@
     { "source": "/api/files/ai-edit", "destination": "/api" },
     { "source": "/api/files/apply-v2", "destination": "/api" },
     { "source": "/api/files/discard-v2", "destination": "/api" },
-    { "source": "/api/files/ai-jobs", "destination": "/api" }
+    { "source": "/api/files/ai-jobs", "destination": "/api" },
+    { "source": "/api/profile/avatar", "destination": "/api" },
+    { "source": "/api/profile/me", "destination": "/api" }
   ],
   "headers": [
     {

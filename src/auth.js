@@ -81,7 +81,7 @@ async function loadProfile(email, userId) {
   if (!email) return null;
   const { data } = await sb
     .from('user_profiles')
-    .select('user_id, email, roles, sociedades, display_name')
+    .select('user_id, email, roles, sociedades, display_name, avatar_url')
     .eq(userId ? 'user_id' : 'email', userId ?? email.toLowerCase())
     .maybeSingle();
   return data ?? null;
@@ -149,6 +149,7 @@ export async function getUserFromRequest(req) {
       roles,
       sociedades: profile?.sociedades ?? [],
       display_name: profile?.display_name ?? user.user_metadata?.name ?? null,
+      avatar_url: profile?.avatar_url ?? null,
       session: cookieSession,
     };
   } catch (e) {

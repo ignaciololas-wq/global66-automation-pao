@@ -21,7 +21,15 @@ export async function listComments(fileId) {
     .is('deleted_at', null)
     .order('created_at', { ascending: true });
   if (error) throw new Error(error.message);
-  return data ?? [];
+  if (!data?.length) return [];
+  const emails = Array.from(new Set(data.map((c) => c.author_email.toLowerCase())));
+  const { data: profiles } = await sb.from('user_profiles').select('email, display_name, avatar_url').in('email', emails);
+  const byEmail = Object.fromEntries((profiles ?? []).map((p) => [p.email.toLowerCase(), p]));
+  return data.map((c) => ({
+    ...c,
+    author_display_name: byEmail[c.author_email.toLowerCase()]?.display_name ?? null,
+    author_avatar_url: byEmail[c.author_email.toLowerCase()]?.avatar_url ?? null,
+  }));
 }
 
 export async function createComment({
