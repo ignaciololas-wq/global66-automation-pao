@@ -1,15 +1,15 @@
-// PR3: aplicar comentarios al borrador con Gemini → genera v2 (draft).
+// PR3: aplicar comentarios al borrador con Claude Sonnet → genera v2 (draft).
 
 import crypto from 'node:crypto';
-import { GoogleGenAI } from '@google/genai';
+import Anthropic from '@anthropic-ai/sdk';
 import pdfParse from 'pdf-parse';
 import { sb, logAudit } from './supabase_audit.js';
 import { MOCK } from './mock_mode.js';
 
-const API_KEY = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
-const MODEL = process.env.GEMINI_MODEL ?? 'gemini-2.5-pro';
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+const MODEL = process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-6';
 const BUCKET = 'contracts';
-const ai = MOCK ? null : new GoogleGenAI({ apiKey: API_KEY });
+const ai = MOCK || !ANTHROPIC_KEY ? null : new Anthropic({ apiKey: ANTHROPIC_KEY });
 
 const SYSTEM_PROMPT = `Sos un asistente experto en redacción contractual para Global66.
 Vas a recibir el texto de un contrato (borrador) y una lista de comentarios hechos por aprobadores internos (Legal, Compliance, Admin).
@@ -79,7 +79,7 @@ async function extractText(buffer, mimeType) {
 }
 
 export async function runAiEdit({ workflowRunId, sourceFileId, requestedBy, requestedById, extraPrompt }) {
-  if (!ai) throw new Error('GEMINI_API_KEY no seteada');
+  if (!ai) throw new Error('ANTHROPIC_API_KEY no seteada (o MOCK_MODE=true)');
 
   const { data: source, error } = await sb
     .from('contract_files')
@@ -117,25 +117,28 @@ export async function runAiEdit({ workflowRunId, sourceFileId, requestedBy, requ
       .map((c, i) => `### Comentario ${i + 1} (id=${c.id}, por ${c.author_email}${c.page_number ? `, p.${c.page_number}` : ''})\n${c.body}`)
       .join('\n\n');
 
-    const userPrompt = `${extraPrompt ? `Instrucción extra del usuario: ${extraPrompt}\n\n---\n\n` : ''}TEXTO DEL CONTRATO ACTUAL:\n\n\`\`\`\n${text.slice(0, 60000)}\n\`\`\`\n\n---\n\nCOMENTARIOS DE LOS APROBADORES (aplicalos):\n\n${commentsBlock}`;
+    const userPrompt = `${extraPrompt ? `Instrucción extra del usuario: ${extraPrompt}\n\n---\n\n` : ''}TEXTO DEL CONTRATO ACTUAL:\n\n\`\`\`\n${text.slice(0, 80000)}\n\`\`\`\n\n---\n\nCOMENTARIOS DE LOS APROBADORES (aplicalos):\n\n${commentsBlock}\n\nDevolvé SOLO el JSON, sin texto extra antes ni después.`;
 
-    const r = await ai.models.generateContent({
+    const r = await ai.messages.create({
       model: MODEL,
-      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-      config: {
-        systemInstruction: SYSTEM_PROMPT,
-        responseMimeType: 'application/json',
-        temperature: 0.2,
-      },
+      max_tokens: 8192,
+      temperature: 0.2,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: userPrompt }],
     });
 
-    const raw = r.text ?? r.response?.text?.() ?? '';
+    const raw = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('');
     let parsed;
     try { parsed = JSON.parse(raw); } catch {
       const m = raw.match(/\{[\s\S]*\}/);
       if (m) parsed = JSON.parse(m[0]);
-      else throw new Error('IA no devolvió JSON parseable');
+      else throw new Error('IA no devolvió JSON parseable: ' + raw.slice(0, 200));
     }
+
+    // Costo aproximado (Sonnet 4.6: $3/$15 per MTok).
+    const inputTok = r.usage?.input_tokens ?? 0;
+    const outputTok = r.usage?.output_tokens ?? 0;
+    const costUsd = (inputTok * 0.000003) + (outputTok * 0.000015);
 
     // Generar PDF simple del texto modificado (markdown → texto plano fitted en PDF).
     const newPdf = await renderMarkdownToPdf(parsed.updated_markdown, source.filename);
@@ -160,6 +163,7 @@ export async function runAiEdit({ workflowRunId, sourceFileId, requestedBy, requ
       status: 'ready_for_review',
       finished_at: new Date().toISOString(),
       diff_summary: parsed.diff_summary ?? null,
+      llm_cost_usd: Number(costUsd.toFixed(4)),
     }).eq('id', jobId);
 
     await logAudit(workflowRunId, requestedBy, 'ai_edit.generated', 'ai_edit_job', jobId, {

@@ -29,6 +29,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.99.0",
     "@google/genai": "^2.5.0",
     "@slack/bolt": "^4.7.2",
     "@supabase/supabase-js": "^2.105.4",
