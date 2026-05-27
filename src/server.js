@@ -51,6 +51,25 @@ import {
   siteUrl,
   callbackUrl,
 } from './auth.js';
+import {
+  uploadFile,
+  listFiles,
+  getSignedUrl,
+  deleteFile,
+  isAllowedMime,
+} from './files.js';
+import {
+  listComments,
+  createComment,
+  updateComment,
+  deleteComment as deleteFileComment,
+} from './comments.js';
+import {
+  listForUser as listNotifications,
+  markRead as markNotificationsRead,
+  markAllRead as markAllNotificationsRead,
+  unreadCount as notificationUnreadCount,
+} from './notifications.js';
 
 const PORT = process.env.PORT ?? 3000;
 
@@ -58,6 +77,57 @@ async function readBody(req) {
   let raw = '';
   for await (const chunk of req) raw += chunk;
   return raw;
+}
+
+async function readRawBody(req) {
+  const chunks = [];
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
+// Parser multipart/form-data minimal (sin dependencias). Soporta un file + campos.
+function parseMultipart(buffer, boundary) {
+  const delim = Buffer.from(`--${boundary}`);
+  const parts = [];
+  let start = 0;
+  while (start < buffer.length) {
+    const idx = buffer.indexOf(delim, start);
+    if (idx < 0) break;
+    const next = buffer.indexOf(delim, idx + delim.length);
+    if (next < 0) break;
+    const slice = buffer.slice(idx + delim.length, next);
+    parts.push(slice);
+    start = next;
+  }
+  const fields = {};
+  let file = null;
+  for (const raw of parts) {
+    const headerEnd = raw.indexOf(Buffer.from('\r\n\r\n'));
+    if (headerEnd < 0) continue;
+    const headerStr = raw.slice(2, headerEnd).toString('utf8');
+    let bodyBuf = raw.slice(headerEnd + 4);
+    if (bodyBuf.length >= 2 && bodyBuf[bodyBuf.length - 2] === 0x0d && bodyBuf[bodyBuf.length - 1] === 0x0a) {
+      bodyBuf = bodyBuf.slice(0, bodyBuf.length - 2);
+    }
+    const nameMatch = headerStr.match(/name="([^"]+)"/);
+    const filenameMatch = headerStr.match(/filename="([^"]+)"/);
+    const ctMatch = headerStr.match(/Content-Type:\s*([^\r\n]+)/i);
+    if (!nameMatch) continue;
+    const name = nameMatch[1];
+    if (filenameMatch) {
+      file = {
+        field: name,
+        filename: filenameMatch[1],
+        mimeType: ctMatch ? ctMatch[1].trim() : 'application/octet-stream',
+        buffer: bodyBuf,
+      };
+    } else {
+      fields[name] = bodyBuf.toString('utf8');
+    }
+  }
+  return { fields, file };
 }
 
 function json(res, status, payload) {
@@ -596,6 +666,190 @@ const routes = {
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Set-Cookie', buildClearCookie());
     res.end(JSON.stringify({ ok: true }));
+  },
+
+  // ─── Files (PR2) ────────────────────────────────────────────────────────
+  'POST /api/files/upload': async (req, res) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+
+    const ct = req.headers['content-type'] ?? '';
+    const m = ct.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
+    if (!m) return json(res, 400, { error: 'multipart/form-data required' });
+    const boundary = (m[1] ?? m[2]).trim();
+
+    const raw = await readRawBody(req);
+    const { fields, file } = parseMultipart(raw, boundary);
+    if (!file) return json(res, 400, { error: 'file field required' });
+    if (!fields.workflow_run_id) return json(res, 400, { error: 'workflow_run_id required' });
+    if (!isAllowedMime(file.mimeType)) return json(res, 415, { error: `mime ${file.mimeType} not allowed` });
+
+    try {
+      const created = await uploadFile({
+        workflowRunId: fields.workflow_run_id,
+        providerId: fields.provider_id || null,
+        kind: fields.kind || 'anexo',
+        filename: file.filename,
+        mimeType: file.mimeType,
+        buffer: file.buffer,
+        uploadedBy: auth.email,
+        uploadedById: auth.user_id,
+      });
+      json(res, 200, created);
+    } catch (e) {
+      json(res, 400, { error: e.message });
+    }
+  },
+
+  'GET /api/files': async (req, res, url) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const runId = url.searchParams.get('workflow_run_id');
+    if (!runId) return json(res, 400, { error: 'workflow_run_id required' });
+    try {
+      const files = await listFiles(runId);
+      json(res, 200, files);
+    } catch (e) {
+      json(res, 500, { error: e.message });
+    }
+  },
+
+  'GET /api/files/url': async (req, res, url) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const id = url.searchParams.get('id');
+    const download = url.searchParams.get('download') === '1';
+    if (!id) return json(res, 400, { error: 'id required' });
+    try {
+      const out = await getSignedUrl(id, { download });
+      json(res, 200, out);
+    } catch (e) {
+      json(res, 404, { error: e.message });
+    }
+  },
+
+  'DELETE /api/files': async (req, res, url) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const id = url.searchParams.get('id');
+    if (!id) return json(res, 400, { error: 'id required' });
+    try {
+      await deleteFile(id, { by: auth.email });
+      json(res, 200, { ok: true });
+    } catch (e) {
+      json(res, 400, { error: e.message });
+    }
+  },
+
+  // ─── Comments (PR2) ─────────────────────────────────────────────────────
+  'GET /api/comments': async (req, res, url) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const fileId = url.searchParams.get('file_id');
+    if (!fileId) return json(res, 400, { error: 'file_id required' });
+    try {
+      json(res, 200, await listComments(fileId));
+    } catch (e) {
+      json(res, 500, { error: e.message });
+    }
+  },
+
+  'POST /api/comments': async (req, res) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const body = JSON.parse(await readBody(req));
+    if (!body.file_id || !body.workflow_run_id || !body.body) {
+      return json(res, 400, { error: 'file_id + workflow_run_id + body required' });
+    }
+    try {
+      const comment = await createComment({
+        fileId: body.file_id,
+        workflowRunId: body.workflow_run_id,
+        parentId: body.parent_id ?? null,
+        authorEmail: auth.email,
+        authorId: auth.user_id,
+        body: body.body,
+        pageNumber: body.page_number ?? null,
+      });
+      json(res, 200, comment);
+    } catch (e) {
+      json(res, 400, { error: e.message });
+    }
+  },
+
+  'PATCH /api/comments': async (req, res, url) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const id = url.searchParams.get('id');
+    if (!id) return json(res, 400, { error: 'id required' });
+    const body = JSON.parse(await readBody(req));
+    try {
+      const updated = await updateComment({ commentId: id, authorEmail: auth.email, body: body.body, resolved: body.resolved });
+      json(res, 200, updated);
+    } catch (e) {
+      json(res, 400, { error: e.message });
+    }
+  },
+
+  'DELETE /api/comments': async (req, res, url) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const id = url.searchParams.get('id');
+    if (!id) return json(res, 400, { error: 'id required' });
+    try {
+      await deleteFileComment({ commentId: id, authorEmail: auth.email });
+      json(res, 200, { ok: true });
+    } catch (e) {
+      json(res, 400, { error: e.message });
+    }
+  },
+
+  // ─── Notifications (PR2) ────────────────────────────────────────────────
+  'GET /api/notifications': async (req, res, url) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const unreadOnly = url.searchParams.get('unread') === '1';
+    const limit = Number(url.searchParams.get('limit') ?? 50);
+    try {
+      const [items, count] = await Promise.all([
+        listNotifications(auth.email, { limit, unreadOnly }),
+        notificationUnreadCount(auth.email),
+      ]);
+      json(res, 200, { items, unread_count: count });
+    } catch (e) {
+      json(res, 500, { error: e.message });
+    }
+  },
+
+  'POST /api/notifications/read': async (req, res) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const body = JSON.parse(await readBody(req));
+    try {
+      if (body.all) await markAllNotificationsRead(auth.email);
+      else if (Array.isArray(body.ids) && body.ids.length) await markNotificationsRead({ ids: body.ids, email: auth.email });
+      else return json(res, 400, { error: 'ids[] or all=true required' });
+      json(res, 200, { ok: true });
+    } catch (e) {
+      json(res, 400, { error: e.message });
+    }
+  },
+
+  'GET /api/users/mentions': async (req, res, url) => {
+    // Autocomplete @ mention. Devuelve emails (+display_name) que matchean query.
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const q = (url.searchParams.get('q') ?? '').toLowerCase();
+    const { data, error } = await sb
+      .from('user_profiles')
+      .select('email, display_name, roles')
+      .order('email', { ascending: true })
+      .limit(50);
+    if (error) return json(res, 500, { error: error.message });
+    const filtered = q
+      ? (data ?? []).filter((u) => u.email.toLowerCase().includes(q) || (u.display_name ?? '').toLowerCase().includes(q))
+      : (data ?? []);
+    json(res, 200, filtered.slice(0, 8));
   },
 
   'POST /api/provider/fill': async (req, res) => {

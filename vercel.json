@@ -2,7 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "api/index.js": {
-      "maxDuration": 30,
+      "maxDuration": 60,
+      "memory": 1024,
       "includeFiles": "public/**"
     }
   },
@@ -37,7 +38,14 @@
     { "source": "/api/auth/callback", "destination": "/api" },
     { "source": "/api/auth/me", "destination": "/api" },
     { "source": "/api/auth/logout", "destination": "/api" },
-    { "source": "/api/data", "destination": "/api" }
+    { "source": "/api/data", "destination": "/api" },
+    { "source": "/api/files", "destination": "/api" },
+    { "source": "/api/files/upload", "destination": "/api" },
+    { "source": "/api/files/url", "destination": "/api" },
+    { "source": "/api/comments", "destination": "/api" },
+    { "source": "/api/notifications", "destination": "/api" },
+    { "source": "/api/notifications/read", "destination": "/api" },
+    { "source": "/api/users/mentions", "destination": "/api" }
   ],
   "headers": [
     {

@@ -195,6 +195,75 @@
 
   pre { background: var(--surface); padding: 12px; border-radius: var(--radius-sm); font-size: 11px; overflow: auto; color: var(--text) }
 
+  /* Dropzones (PR2) */
+  .dropzone { border: 1.5px dashed var(--blue-100); border-radius: var(--radius); padding: 18px; background: var(--blue-50); transition: all .15s ease }
+  .dropzone.drag { border-color: var(--blue-500); background: rgba(31,73,182,0.05) }
+  .drop-hint { font-size: 13.5px; color: var(--muted); text-align: center }
+  .drop-hint a { font-weight: 600 }
+  .drop-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px }
+  .drop-list:empty { margin: 0 }
+  .drop-item { display: flex; gap: 10px; align-items: center; background: white; border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; font-size: 13px }
+  .drop-icon { font-size: 18px }
+  .drop-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500 }
+  .drop-size { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums }
+  .drop-status { font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600 }
+  .drop-status[data-status="ready"] { background: var(--blue-100); color: var(--blue-700) }
+  .drop-status[data-status="uploading"] { background: rgba(240,180,41,0.15); color: #a8780a }
+  .drop-status[data-status="done"] { background: rgba(2,167,87,0.12); color: var(--green) }
+  .drop-status[data-status="error"] { background: rgba(230,74,74,0.12); color: var(--red) }
+  .drop-remove { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 18px; padding: 0 4px }
+  .drop-remove:hover { color: var(--red) }
+
+  /* Doc viewer + comments (PR2) */
+  .doc-viewer-wrap { display: grid; grid-template-columns: minmax(0,1fr) 360px; gap: 16px; margin-top: 16px }
+  .doc-preview { background: white; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; min-height: 520px; display: flex; flex-direction: column }
+  .doc-preview-header { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; font-size: 13px; background: var(--surface) }
+  .doc-preview-body { flex: 1; overflow: auto; padding: 16px; background: #fafbff }
+  .doc-preview-body iframe { width: 100%; height: 100%; min-height: 480px; border: none }
+  .doc-preview-body .docx-render { background: white; padding: 28px; max-width: 760px; margin: 0 auto; box-shadow: 0 1px 6px rgba(19,32,70,0.08); font-family: 'Inter', sans-serif }
+  .doc-preview-body .docx-render p { margin: 8px 0 }
+  .doc-preview-body .docx-render h1, .doc-preview-body .docx-render h2 { margin: 12px 0 6px }
+
+  .doc-files-list { display: flex; flex-direction: column; gap: 4px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: white; font-size: 12.5px }
+  .doc-files-list .file-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--blue-50); color: var(--blue-700); cursor: pointer; border: 1px solid transparent }
+  .doc-files-list .file-pill.active { background: var(--blue-500); color: white }
+  .doc-files-list .file-pill:hover:not(.active) { border-color: var(--blue-200) }
+
+  .comments-panel { background: white; border: 1px solid var(--border); border-radius: var(--radius); display: flex; flex-direction: column; max-height: 720px }
+  .comments-header { padding: 12px 14px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 13px; display: flex; justify-content: space-between; align-items: center }
+  .comments-list { flex: 1; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 12px }
+  .comment { background: var(--surface); border-radius: 10px; padding: 10px 12px; font-size: 13px }
+  .comment.is-mine { background: var(--blue-50) }
+  .comment-meta { display: flex; gap: 8px; align-items: center; font-size: 11.5px; color: var(--muted); margin-bottom: 4px }
+  .comment-author { font-weight: 600; color: var(--text) }
+  .comment-page { background: var(--blue-100); color: var(--blue-700); padding: 1px 6px; border-radius: 999px; font-weight: 600 }
+  .comment-body { white-space: pre-wrap; word-break: break-word }
+  .comment-body .mention { background: rgba(31,73,182,0.1); color: var(--blue-700); padding: 1px 6px; border-radius: 999px; font-weight: 500 }
+  .comment-composer { border-top: 1px solid var(--border); padding: 12px 14px; position: relative }
+  .comment-composer textarea { min-height: 60px; resize: vertical; font-size: 13px }
+  .comment-composer .composer-row { display: flex; gap: 8px; align-items: center; margin-top: 8px }
+  .comment-composer input[type=number] { width: 80px }
+  .mention-popup { position: absolute; bottom: 80px; left: 14px; right: 14px; background: white; border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); max-height: 220px; overflow-y: auto; z-index: 20 }
+  .mention-popup .mention-item { padding: 8px 12px; cursor: pointer; font-size: 13px; display: flex; gap: 8px; align-items: center }
+  .mention-popup .mention-item:hover, .mention-popup .mention-item.focus { background: var(--blue-50) }
+  .mention-popup .mention-roles { color: var(--muted); font-size: 11px; margin-left: auto }
+
+  /* Notif badge */
+  .notif-bell { position: relative; cursor: pointer; padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.06); color: white; font-size: 14px }
+  .notif-bell .badge { position: absolute; top: -2px; right: -2px; background: var(--red); color: white; border-radius: 999px; font-size: 10px; font-weight: 700; padding: 0 5px; min-width: 16px; text-align: center; line-height: 16px }
+  .notif-popup { position: absolute; right: 16px; top: 60px; width: 340px; background: white; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); z-index: 100; max-height: 480px; display: flex; flex-direction: column }
+  .notif-popup-header { padding: 12px 14px; border-bottom: 1px solid var(--border); font-weight: 600; font-size: 13px; display: flex; justify-content: space-between; align-items: center }
+  .notif-popup-list { flex: 1; overflow-y: auto }
+  .notif-item { padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 13px }
+  .notif-item:hover { background: var(--surface) }
+  .notif-item.unread { background: var(--blue-50) }
+  .notif-item .notif-author { font-weight: 600; color: var(--blue-700) }
+  .notif-item .notif-time { color: var(--muted); font-size: 11px }
+
+  @media (max-width: 900px) {
+    .doc-viewer-wrap { grid-template-columns: 1fr }
+  }
+
   /* Risk severity */
   .risk { display: flex; gap: 10px; padding: 10px 0; align-items: flex-start; border-bottom: 1px solid var(--border) }
   .risk:last-child { border-bottom: none }
@@ -676,6 +745,11 @@ const pages = {
         </table>
       </div>` : ''}
 
+      <div class="card" id="doc-viewer-card" style="margin-bottom:16px">
+        <h3 style="margin-bottom:8px">Borrador y anexos</h3>
+        <div id="doc-viewer-host"><div class="muted" style="padding:16px">Cargando archivos…</div></div>
+      </div>
+
       <div class="card">
         <h3 style="margin-bottom:16px">Timeline</h3>
         <ul class="timeline">${audits.map(a => `<li>
@@ -685,6 +759,8 @@ const pages = {
         </li>`).join('') || '<li class="muted">Sin eventos</li>'}</ul>
       </div>
     `;
+
+    mountDocViewer(runId);
   },
 
   async providers() {
@@ -1113,12 +1189,28 @@ async function intakeForm() {
       </div>
 
       <div class="card" style="margin-bottom:20px">
-        <h3 style="margin-bottom:18px">4. Adjuntos</h3>
+        <h3 style="margin-bottom:6px">4. Adjuntos</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:14px">Subí los archivos directo en la plataforma. PDF y Word soportados. Hasta 50 MB por archivo.</p>
+
         <div class="question">
-          <label>Link al borrador del contrato (PDF en Drive) *</label>
-          <input type="url" name="link_drive" placeholder="https://drive.google.com/..." required>
-          <p style="font-size:12px;color:var(--muted);margin-top:4px">Subí el PDF a Drive (compartido con tu equipo) y pegá el link.</p>
+          <label>Borrador del contrato (PDF o Word) *</label>
+          <div id="drop-main" class="dropzone" data-kind="main" data-required="1">
+            <input type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+            <div class="drop-hint">📄 Arrastrá el archivo o <a href="#" class="drop-pick">elegí desde tu equipo</a></div>
+            <div class="drop-list"></div>
+          </div>
+          <p style="font-size:12px;color:var(--muted);margin-top:6px">Requerido. Será el documento principal del flujo.</p>
         </div>
+
+        <div class="question">
+          <label>Anexos opcionales (NDA, propuesta, cédulas, etc.)</label>
+          <div id="drop-anexos" class="dropzone" data-kind="anexo">
+            <input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/png,image/jpeg" hidden multiple>
+            <div class="drop-hint">📎 Arrastrá uno o más archivos o <a href="#" class="drop-pick">elegí desde tu equipo</a></div>
+            <div class="drop-list"></div>
+          </div>
+        </div>
+
         <div class="question">
           <label>Notas adicionales</label>
           <textarea name="notas" rows="2" placeholder="Cualquier contexto adicional"></textarea>
@@ -1159,6 +1251,63 @@ async function intakeForm() {
     }
   });
 
+  // Dropzones: registrar y mantener archivos pendientes en memoria.
+  const pendingFiles = { main: null, anexo: [] };
+  function wireDropzone(el) {
+    const kind = el.dataset.kind;
+    const input = el.querySelector('input[type=file]');
+    const list = el.querySelector('.drop-list');
+    el.querySelector('.drop-pick').addEventListener('click', (e) => { e.preventDefault(); input.click(); });
+    ['dragenter', 'dragover'].forEach((ev) => el.addEventListener(ev, (e) => { e.preventDefault(); el.classList.add('drag'); }));
+    ['dragleave', 'drop'].forEach((ev) => el.addEventListener(ev, (e) => { e.preventDefault(); el.classList.remove('drag'); }));
+    el.addEventListener('drop', (e) => { input.files = e.dataTransfer.files; addFiles(input.files); });
+    input.addEventListener('change', () => addFiles(input.files));
+
+    function addFiles(fileList) {
+      const arr = Array.from(fileList ?? []);
+      if (!arr.length) return;
+      if (kind === 'main') pendingFiles.main = arr[0];
+      else pendingFiles.anexo.push(...arr);
+      render();
+    }
+    function render() {
+      const items = kind === 'main' ? (pendingFiles.main ? [pendingFiles.main] : []) : pendingFiles.anexo;
+      list.innerHTML = items.map((f, i) => `
+        <div class="drop-item" data-idx="${i}">
+          <span class="drop-icon">${f.type.includes('pdf') ? '📕' : f.type.includes('word') || f.name.match(/\\.docx?$/) ? '📘' : '📎'}</span>
+          <span class="drop-name">${f.name}</span>
+          <span class="drop-size">${(f.size / 1024 / 1024).toFixed(2)} MB</span>
+          <span class="drop-status" data-status="ready">listo</span>
+          <button type="button" class="drop-remove" aria-label="Quitar">×</button>
+        </div>
+      `).join('');
+      list.querySelectorAll('.drop-remove').forEach((b) => b.addEventListener('click', (e) => {
+        const idx = Number(e.target.closest('.drop-item').dataset.idx);
+        if (kind === 'main') pendingFiles.main = null;
+        else pendingFiles.anexo.splice(idx, 1);
+        render();
+      }));
+    }
+  }
+  document.querySelectorAll('#drop-main, #drop-anexos').forEach(wireDropzone);
+
+  async function uploadOne(runId, providerId, kind, file, statusEl) {
+    if (statusEl) { statusEl.dataset.status = 'uploading'; statusEl.textContent = 'subiendo…'; }
+    const fd = new FormData();
+    fd.append('workflow_run_id', runId);
+    if (providerId) fd.append('provider_id', providerId);
+    fd.append('kind', kind);
+    fd.append('file', file);
+    const r = await fetch('/api/files/upload', { method: 'POST', credentials: 'include', body: fd });
+    if (!r.ok) {
+      const err = await r.text();
+      if (statusEl) { statusEl.dataset.status = 'error'; statusEl.textContent = 'error'; }
+      throw new Error(err);
+    }
+    if (statusEl) { statusEl.dataset.status = 'done'; statusEl.textContent = '✓ subido'; }
+    return r.json();
+  }
+
   document.querySelector('#intake-form').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const data = Object.fromEntries(new FormData(ev.target));
@@ -1167,25 +1316,55 @@ async function intakeForm() {
     data.proveedor_existente = data.proveedor_existente === 'true';
     data.id = `intake-${Date.now()}`;
 
+    if (!pendingFiles.main) {
+      document.querySelector('#intake-err').textContent = 'El borrador del contrato (archivo principal) es obligatorio.';
+      document.querySelector('#intake-err').hidden = false;
+      return;
+    }
+
     const btn = document.querySelector('#submit-intake');
-    btn.disabled = true; btn.textContent = 'Enviando…';
+    btn.disabled = true; btn.textContent = 'Creando solicitud…';
     document.querySelector('#intake-err').hidden = true;
 
     try {
-      const r = await fetch('/api/intake', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+      const r = await fetch('/api/intake', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
       const result = await r.json();
       if (!r.ok) throw new Error(result.error ?? 'Error');
 
+      btn.textContent = 'Subiendo archivos…';
+
+      const runId = result.run_id;
+      const provId = result.provider_id;
+      const statusEls = Array.from(document.querySelectorAll('.drop-status'));
+      const uploads = [];
+      uploads.push(uploadOne(runId, provId, 'main', pendingFiles.main, statusEls[0]));
+      pendingFiles.anexo.forEach((f, i) => uploads.push(uploadOne(runId, provId, 'anexo', f, statusEls[i + 1])));
+      const results = await Promise.allSettled(uploads);
+      const okCount = results.filter((r) => r.status === 'fulfilled').length;
+      const failed = results.filter((r) => r.status === 'rejected');
+
       const ok = document.querySelector('#intake-ok');
       ok.innerHTML = `
-        ✓ Solicitud creada · <code>${result.run_id.slice(0, 8)}</code><br>
-        ${result.provider_new ? `📨 Email enviado al proveedor con link para completar perfil` : `📂 Proveedor existente — perfil reusado`}
-        <div style="margin-top:12px"><a href="#workflows/${result.run_id}">Ver detalle →</a></div>
+        ✓ Solicitud creada · <code>${runId.slice(0, 8)}</code><br>
+        ${result.provider_new ? `📨 Email al proveedor enviado` : `📂 Proveedor reusado`}<br>
+        📎 ${okCount} de ${uploads.length} archivos subidos correctamente${failed.length ? ` (${failed.length} con error)` : ''}
+        <div style="margin-top:12px"><a href="#workflows/${runId}">Ver detalle →</a></div>
       `;
       ok.hidden = false;
+      if (failed.length) {
+        document.querySelector('#intake-err').textContent = 'Errores en uploads: ' + failed.map((f) => f.reason?.message ?? 'unknown').join('; ');
+        document.querySelector('#intake-err').hidden = false;
+      }
       btn.textContent = 'Crear otra';
       btn.disabled = false;
       ev.target.reset();
+      pendingFiles.main = null; pendingFiles.anexo = [];
+      document.querySelectorAll('.drop-list').forEach((el) => el.innerHTML = '');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e) {
       document.querySelector('#intake-err').textContent = e.message;
@@ -1195,8 +1374,343 @@ async function intakeForm() {
   });
 }
 
-// Init: chequear sesión via cookie. Si hay auth_error en la URL, lo muestra checkAuth().
-checkAuth();
+// ─── Doc viewer + comments + mentions (PR2) ──────────────────────────────
+
+let pdfjsLoaded = null;
+async function ensurePdfJs() {
+  if (pdfjsLoaded) return pdfjsLoaded;
+  pdfjsLoaded = (async () => {
+    const mod = await import('https://esm.sh/pdfjs-dist@4.7.76/build/pdf.mjs');
+    mod.GlobalWorkerOptions.workerSrc = 'https://esm.sh/pdfjs-dist@4.7.76/build/pdf.worker.mjs';
+    return mod;
+  })();
+  return pdfjsLoaded;
+}
+
+let mammothLoaded = null;
+async function ensureMammoth() {
+  if (mammothLoaded) return mammothLoaded;
+  mammothLoaded = (async () => {
+    const mod = await import('https://esm.sh/mammoth@1.8.0/mammoth.browser.js');
+    return mod.default ?? mod;
+  })();
+  return mammothLoaded;
+}
+
+async function fetchSignedUrl(fileId, { download = false } = {}) {
+  const r = await fetch(`/api/files/url?id=${fileId}${download ? '&download=1' : ''}`, { credentials: 'include' });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+async function renderPdf(container, url) {
+  const pdfjs = await ensurePdfJs();
+  const doc = await pdfjs.getDocument(url).promise;
+  container.innerHTML = '';
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p);
+    const viewport = page.getViewport({ scale: 1.4 });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width; canvas.height = viewport.height;
+    canvas.style.maxWidth = '100%'; canvas.style.boxShadow = '0 1px 6px rgba(19,32,70,0.1)'; canvas.style.marginBottom = '12px';
+    container.appendChild(canvas);
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+  }
+}
+
+async function renderDocx(container, url) {
+  const mammoth = await ensureMammoth();
+  const r = await fetch(url);
+  const buf = await r.arrayBuffer();
+  const { value } = await mammoth.convertToHtml({ arrayBuffer: buf });
+  const wrap = document.createElement('div');
+  wrap.className = 'docx-render';
+  wrap.innerHTML = value;
+  container.innerHTML = '';
+  container.appendChild(wrap);
+}
+
+async function mountDocViewer(runId) {
+  const host = document.querySelector('#doc-viewer-host');
+  if (!host) return;
+  const files = await fetch(`/api/files?workflow_run_id=${runId}`, { credentials: 'include' }).then((r) => r.json()).catch(() => []);
+  if (!files.length) {
+    host.innerHTML = '<div class="muted" style="padding:16px">Aún no hay archivos subidos para este flujo.</div>';
+    return;
+  }
+
+  const sorted = files.sort((a, b) => (a.kind === 'main' ? -1 : 1));
+  host.innerHTML = `
+    <div class="doc-files-list">
+      ${sorted.map((f) => `
+        <span class="file-pill" data-id="${f.id}" data-mime="${f.mime_type}" data-name="${f.filename}">
+          ${f.kind === 'main' ? '⭐' : f.kind === 'anexo' ? '📎' : '📁'} ${f.filename}
+          <span class="muted" style="margin-left:6px;font-size:11px">${(f.size_bytes / 1024 / 1024).toFixed(1)}MB</span>
+        </span>
+      `).join('')}
+    </div>
+    <div class="doc-viewer-wrap">
+      <div class="doc-preview">
+        <div class="doc-preview-header">
+          <span id="doc-active-name" style="font-weight:600">Seleccioná un archivo</span>
+          <span style="margin-left:auto;display:flex;gap:6px">
+            <button type="button" class="ghost" id="doc-download">Descargar</button>
+          </span>
+        </div>
+        <div class="doc-preview-body" id="doc-preview-body"><div class="muted" style="padding:16px">Click un archivo arriba para previsualizar.</div></div>
+      </div>
+      <div class="comments-panel" id="comments-panel">
+        <div class="comments-header"><span>Comentarios</span><span class="muted" id="comments-count" style="font-size:12px"></span></div>
+        <div class="comments-list" id="comments-list"><div class="muted" style="padding:16px;font-size:12.5px">Seleccioná un archivo para ver el hilo.</div></div>
+      </div>
+    </div>
+  `;
+
+  let activeFileId = null;
+  let cachedUrl = null;
+
+  async function selectFile(fileId, mime, name) {
+    activeFileId = fileId;
+    host.querySelectorAll('.file-pill').forEach((p) => p.classList.toggle('active', p.dataset.id === fileId));
+    document.querySelector('#doc-active-name').textContent = name;
+    const body = document.querySelector('#doc-preview-body');
+    body.innerHTML = '<div class="muted" style="padding:16px">Cargando preview…</div>';
+    try {
+      const signed = await fetchSignedUrl(fileId, { download: false });
+      cachedUrl = signed.url;
+      if (mime === 'application/pdf') {
+        body.innerHTML = '';
+        await renderPdf(body, signed.url);
+      } else if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || name.toLowerCase().endsWith('.docx')) {
+        await renderDocx(body, signed.url);
+      } else if (mime?.startsWith('image/')) {
+        body.innerHTML = `<img src="${signed.url}" style="max-width:100%;border-radius:8px">`;
+      } else {
+        body.innerHTML = `<div class="muted" style="padding:16px">Preview no soportado para ${mime}. <a href="${signed.url}" target="_blank">Descargar</a></div>`;
+      }
+    } catch (e) {
+      body.innerHTML = `<div class="err">Error: ${e.message}</div>`;
+    }
+    await loadComments(fileId, runId);
+  }
+
+  document.querySelector('#doc-download').addEventListener('click', async () => {
+    if (!activeFileId) return;
+    const signed = await fetchSignedUrl(activeFileId, { download: true });
+    const a = document.createElement('a'); a.href = signed.url; a.download = signed.filename ?? 'archivo'; a.click();
+  });
+
+  host.querySelectorAll('.file-pill').forEach((p) => p.addEventListener('click', () => selectFile(p.dataset.id, p.dataset.mime, p.dataset.name)));
+  // Auto-select main file.
+  const main = sorted.find((f) => f.kind === 'main') ?? sorted[0];
+  if (main) selectFile(main.id, main.mime_type, main.filename);
+}
+
+const canCommentRoles = () => hasRole('admin') || hasRole('aprobador');
+
+async function loadComments(fileId, runId) {
+  const listEl = document.querySelector('#comments-list');
+  const countEl = document.querySelector('#comments-count');
+  listEl.innerHTML = '<div class="muted" style="padding:16px;font-size:12.5px">Cargando…</div>';
+  const r = await fetch(`/api/comments?file_id=${fileId}`, { credentials: 'include' });
+  if (!r.ok) { listEl.innerHTML = `<div class="err">${await r.text()}</div>`; return; }
+  const comments = await r.json();
+  countEl.textContent = comments.length ? `${comments.length} comentarios` : '';
+  if (!comments.length) {
+    listEl.innerHTML = '<div class="muted" style="padding:16px;font-size:12.5px">Aún sin comentarios. Iniciá el hilo abajo.</div>';
+  } else {
+    const meEmail = window.__me?.email;
+    listEl.innerHTML = comments.map((c) => `
+      <div class="comment ${c.author_email === meEmail ? 'is-mine' : ''}">
+        <div class="comment-meta">
+          <span class="comment-author">${c.author_email}</span>
+          ${c.page_number ? `<span class="comment-page">p.${c.page_number}</span>` : ''}
+          <span class="ts" style="margin-left:auto">${dt(c.created_at)}</span>
+        </div>
+        <div class="comment-body">${highlightMentions(escapeHtml(c.body))}</div>
+      </div>
+    `).join('');
+  }
+  renderComposer(fileId, runId);
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function highlightMentions(html) {
+  return html.replace(/@([a-z0-9._-]+@[a-z0-9.-]+\.[a-z]{2,})/gi, '<span class="mention">@$1</span>');
+}
+
+function renderComposer(fileId, runId) {
+  const panel = document.querySelector('#comments-panel');
+  if (!canCommentRoles()) {
+    panel.querySelector('.comment-composer')?.remove();
+    panel.insertAdjacentHTML('beforeend', '<div class="comment-composer"><div class="muted" style="font-size:12px">Solo aprobadores pueden comentar este flujo.</div></div>');
+    return;
+  }
+  panel.querySelector('.comment-composer')?.remove();
+  panel.insertAdjacentHTML('beforeend', `
+    <div class="comment-composer">
+      <textarea id="composer-body" placeholder="Escribí tu comentario. Usá @ para mencionar."></textarea>
+      <div class="composer-row">
+        <input type="number" id="composer-page" min="1" placeholder="p.">
+        <button class="primary" id="composer-send" type="button" style="margin-left:auto;padding:8px 14px;font-size:13px">Comentar</button>
+      </div>
+    </div>
+  `);
+  wireMentionAutocomplete(document.querySelector('#composer-body'));
+  document.querySelector('#composer-send').addEventListener('click', async () => {
+    const body = document.querySelector('#composer-body').value.trim();
+    const page = Number(document.querySelector('#composer-page').value) || null;
+    if (!body) return;
+    const r = await fetch('/api/comments', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_id: fileId, workflow_run_id: runId, body, page_number: page }),
+    });
+    if (!r.ok) { alert(await r.text()); return; }
+    document.querySelector('#composer-body').value = '';
+    document.querySelector('#composer-page').value = '';
+    loadComments(fileId, runId);
+  });
+}
+
+function wireMentionAutocomplete(textarea) {
+  let popup = null; let focusIdx = 0; let items = [];
+
+  function close() { popup?.remove(); popup = null; items = []; focusIdx = 0; }
+  async function showAt(query) {
+    const r = await fetch(`/api/users/mentions?q=${encodeURIComponent(query)}`, { credentials: 'include' });
+    items = r.ok ? await r.json() : [];
+    if (!items.length) { close(); return; }
+    if (!popup) {
+      popup = document.createElement('div');
+      popup.className = 'mention-popup';
+      textarea.closest('.comment-composer').appendChild(popup);
+    }
+    popup.innerHTML = items.map((u, i) => `
+      <div class="mention-item ${i === focusIdx ? 'focus' : ''}" data-email="${u.email}">
+        <span>${u.display_name ?? u.email.split('@')[0]}</span>
+        <span class="mention-roles">${(u.roles ?? []).join(', ')}</span>
+      </div>
+    `).join('');
+    popup.querySelectorAll('.mention-item').forEach((el, i) => el.addEventListener('click', () => insert(items[i].email)));
+  }
+
+  function insert(email) {
+    const v = textarea.value;
+    const caret = textarea.selectionStart;
+    const before = v.slice(0, caret);
+    const after = v.slice(caret);
+    const m = before.match(/@[^\s@]*$/);
+    const start = m ? caret - m[0].length : caret;
+    textarea.value = v.slice(0, start) + `@${email} ` + after;
+    textarea.focus();
+    const pos = start + email.length + 2;
+    textarea.setSelectionRange(pos, pos);
+    close();
+  }
+
+  textarea.addEventListener('input', () => {
+    const caret = textarea.selectionStart;
+    const before = textarea.value.slice(0, caret);
+    const m = before.match(/@([^\s@]*)$/);
+    if (m) showAt(m[1]);
+    else close();
+  });
+  textarea.addEventListener('keydown', (e) => {
+    if (!popup) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); focusIdx = Math.min(items.length - 1, focusIdx + 1); showAt(''); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); focusIdx = Math.max(0, focusIdx - 1); showAt(''); }
+    else if (e.key === 'Enter' && items[focusIdx]) { e.preventDefault(); insert(items[focusIdx].email); }
+    else if (e.key === 'Escape') close();
+  });
+  textarea.addEventListener('blur', () => setTimeout(close, 200));
+}
+
+// ─── Notif bell ──────────────────────────────────────────────────────────
+async function refreshNotifBadge() {
+  if (!window.__me) return;
+  try {
+    const r = await fetch('/api/notifications?limit=10', { credentials: 'include' });
+    if (!r.ok) return;
+    const { items, unread_count } = await r.json();
+    window.__notifications = items;
+    const bell = document.querySelector('#notif-bell-badge');
+    if (bell) {
+      bell.textContent = unread_count > 0 ? (unread_count > 99 ? '99+' : String(unread_count)) : '';
+      bell.style.display = unread_count > 0 ? '' : 'none';
+    }
+  } catch {}
+}
+
+function mountNotifBell() {
+  if (document.querySelector('#notif-bell')) return;
+  const aside = document.querySelector('aside .nav-bottom');
+  if (!aside) return;
+  const row = aside.querySelector('.user-row');
+  row?.insertAdjacentHTML('afterbegin', `
+    <button id="notif-bell" class="notif-bell" title="Notificaciones" type="button" style="border:none;cursor:pointer">
+      🔔<span id="notif-bell-badge" class="badge" style="display:none">0</span>
+    </button>
+  `);
+  document.querySelector('#notif-bell').addEventListener('click', toggleNotifPopup);
+}
+
+function toggleNotifPopup() {
+  let pop = document.querySelector('#notif-popup');
+  if (pop) { pop.remove(); return; }
+  const items = window.__notifications ?? [];
+  pop = document.createElement('div');
+  pop.id = 'notif-popup';
+  pop.className = 'notif-popup';
+  pop.innerHTML = `
+    <div class="notif-popup-header">
+      <span>Notificaciones</span>
+      <button type="button" class="ghost" id="notif-mark-all" style="padding:2px 8px;font-size:11px">Marcar leídas</button>
+    </div>
+    <div class="notif-popup-list">
+      ${items.length ? items.map((n) => `
+        <div class="notif-item ${n.read_at ? '' : 'unread'}" data-id="${n.id}" data-run="${n.workflow_run_id ?? ''}" data-file="${n.payload?.file_id ?? ''}">
+          <div><span class="notif-author">${n.payload?.author ?? '—'}</span> te mencionó${n.payload?.page ? ` · p.${n.payload.page}` : ''}</div>
+          <div class="muted" style="font-size:12px;margin-top:2px">${(n.payload?.body ?? '').slice(0, 100)}</div>
+          <div class="notif-time">${dt(n.created_at)}</div>
+        </div>
+      `).join('') : '<div class="muted" style="padding:20px;text-align:center;font-size:12.5px">Sin notificaciones</div>'}
+    </div>
+  `;
+  document.body.appendChild(pop);
+  pop.querySelector('#notif-mark-all').addEventListener('click', async () => {
+    await fetch('/api/notifications/read', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true }),
+    });
+    pop.remove();
+    refreshNotifBadge();
+  });
+  pop.querySelectorAll('.notif-item').forEach((el) => el.addEventListener('click', async () => {
+    await fetch('/api/notifications/read', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [el.dataset.id] }),
+    });
+    const runId = el.dataset.run; const fileId = el.dataset.file;
+    location.hash = runId ? `workflows/${runId}${fileId ? `?file=${fileId}` : ''}` : 'dashboard';
+    pop.remove();
+    refreshNotifBadge();
+  }));
+}
+
+// Init: chequear sesión via cookie, montar bell, poll notif cada 60s.
+checkAuth().then(() => {
+  if (window.__me) {
+    mountNotifBell();
+    refreshNotifBadge();
+    setInterval(refreshNotifBadge, 60000);
+  }
+});
 </script>
 </body>
 </html>
