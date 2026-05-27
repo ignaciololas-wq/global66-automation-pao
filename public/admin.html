@@ -1751,31 +1751,43 @@ function wrapTextOccurrences(root, needle, comment) {
 async function saveDocxAsV2() {
   if (!window.__activeFile) return;
   const wrap = document.querySelector('#doc-preview-body .docx-render');
-  if (!wrap) return;
+  if (!wrap) { alert('No hay docx editable. Activá modo Editar primero.'); return; }
   const btn = document.querySelector('#doc-save-v2');
-  btn.disabled = true; btn.textContent = 'Guardando…';
+  btn.disabled = true; btn.textContent = 'Generando .docx…';
   try {
     if (!window.htmlDocx) {
       await new Promise((res, rej) => {
         const s = document.createElement('script');
         s.src = 'https://unpkg.com/html-docx-js/dist/html-docx.js';
-        s.onload = res; s.onerror = rej;
+        s.onload = res;
+        s.onerror = () => rej(new Error('No se pudo cargar html-docx-js (CDN bloqueado?)'));
         document.head.appendChild(s);
       });
     }
     const fullHtml = `<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:Arial,sans-serif;font-size:11pt}p{margin:6pt 0}h1,h2,h3{font-family:Arial,sans-serif}</style></head><body>${wrap.innerHTML}</body></html>`;
     const blob = window.htmlDocx.asBlob(fullHtml);
+    if (!blob || blob.size < 100) throw new Error('html-docx-js devolvió blob vacío');
+
+    btn.textContent = 'Subiendo…';
     const fd = new FormData();
     fd.append('workflow_run_id', window.__activeRunId);
     fd.append('kind', 'main');
     fd.append('previous_version_id', window.__activeFile.id);
-    const newName = (window.__activeFile.name ?? 'contrato.docx').replace(/(\.docx)$/i, '_edit$1').replace(/(\.docx)?$/, (m) => m || '.docx');
+    const baseName = (window.__activeFile.name ?? 'contrato.docx').replace(/\.docx$/i, '');
+    const ts = new Date().toISOString().slice(0, 10);
+    const newName = `${baseName}_editado_${ts}.docx`;
     fd.append('file', new File([blob], newName, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
     const r = await fetch('/api/files/upload', { method: 'POST', credentials: 'include', body: fd });
-    if (!r.ok) throw new Error(await r.text());
-    btn.textContent = '✓ v2 guardado';
-    setTimeout(() => mountDocViewer(window.__activeRunId), 800);
+    const responseText = await r.text();
+    if (!r.ok) throw new Error(`upload ${r.status}: ${responseText}`);
+    let saved;
+    try { saved = JSON.parse(responseText); } catch { throw new Error('Server devolvió JSON inválido: ' + responseText.slice(0, 200)); }
+    if (!saved.id) throw new Error('Server no devolvió file id. Response: ' + responseText.slice(0, 200));
+
+    btn.textContent = `✓ v${saved.version ?? '2'} guardado`;
+    setTimeout(() => mountDocViewer(window.__activeRunId), 1000);
   } catch (e) {
+    console.error('[saveDocxAsV2]', e);
     alert('Error guardar v2: ' + e.message);
     btn.disabled = false; btn.textContent = 'Guardar v2';
   }
@@ -1933,13 +1945,20 @@ function renderComposer(fileId, runId) {
   panel.querySelector('.comment-composer')?.remove();
   panel.insertAdjacentHTML('beforeend', `
     <div class="comment-composer">
-      <textarea id="composer-body" placeholder="Escribí tu comentario. Usá @ para mencionar."></textarea>
+      <textarea id="composer-body" placeholder="Escribí un comentario. Seleccioná texto del doc para anclarlo. Usá @ para mencionar."></textarea>
       <div class="composer-row">
-        <input type="number" id="composer-page" min="1" placeholder="p.">
-        <button class="primary" id="composer-send" type="button" style="margin-left:auto;padding:8px 14px;font-size:13px">Comentar</button>
+        <button type="button" id="composer-page-toggle" class="ghost" title="Agregar página" style="padding:6px 10px;font-size:12px">📄</button>
+        <input type="number" id="composer-page" min="1" placeholder="página" hidden style="width:90px;padding:6px 10px;font-size:12px">
+        <button class="primary" id="composer-send" type="button" style="margin-left:auto;padding:8px 18px;font-size:13px">Comentar</button>
       </div>
     </div>
   `);
+  const pageInput = document.querySelector('#composer-page');
+  document.querySelector('#composer-page-toggle').addEventListener('click', (e) => {
+    pageInput.hidden = !pageInput.hidden;
+    if (!pageInput.hidden) pageInput.focus();
+    e.currentTarget.style.background = pageInput.hidden ? '' : 'var(--blue-50)';
+  });
   wireMentionAutocomplete(document.querySelector('#composer-body'));
   document.querySelector('#composer-send').addEventListener('click', async () => {
     const ta = document.querySelector('#composer-body');

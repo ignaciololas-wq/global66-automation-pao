@@ -104,13 +104,13 @@ export async function uploadFile({
   return data;
 }
 
-export async function listFiles(workflowRunId) {
-  const { data, error } = await sb
+export async function listFiles(workflowRunId, { includeArchived = false } = {}) {
+  let q = sb
     .from('contract_files')
-    .select('id, kind, filename, mime_type, size_bytes, uploaded_by, ai_review_status, created_at, sha256')
-    .eq('workflow_run_id', workflowRunId)
-    .order('kind', { ascending: true })
-    .order('created_at', { ascending: true });
+    .select('id, kind, filename, mime_type, size_bytes, uploaded_by, ai_review_status, version, previous_version_id, draft_status, archived_at, created_at, sha256')
+    .eq('workflow_run_id', workflowRunId);
+  if (!includeArchived) q = q.is('archived_at', null);
+  const { data, error } = await q.order('kind', { ascending: true }).order('version', { ascending: false }).order('created_at', { ascending: true });
   if (error) throw new Error(error.message);
   return data ?? [];
 }

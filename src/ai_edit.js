@@ -117,25 +117,42 @@ export async function runAiEdit({ workflowRunId, sourceFileId, requestedBy, requ
       .map((c, i) => `### Comentario ${i + 1} (id=${c.id}, por ${c.author_email}${c.page_number ? `, p.${c.page_number}` : ''})\n${c.body}`)
       .join('\n\n');
 
+    if (!text || text.length < 50) {
+      throw new Error(`Texto extraído muy corto (${text?.length ?? 0} chars). PDF puede ser imagen (escaneado) sin OCR, o .docx sin texto. Subí versión .pdf con texto seleccionable.`);
+    }
+
     const userPrompt = `${extraPrompt ? `Instrucción extra del usuario: ${extraPrompt}\n\n---\n\n` : ''}TEXTO DEL CONTRATO ACTUAL:\n\n\`\`\`\n${text.slice(0, 80000)}\n\`\`\`\n\n---\n\nCOMENTARIOS DE LOS APROBADORES (aplicalos):\n\n${commentsBlock}\n\nDevolvé SOLO el JSON, sin texto extra antes ni después.`;
+
+    console.log(`[ai-edit] runId=${workflowRunId} sourceText=${text.length} chars · ${pending.length} comments · llamando Claude…`);
 
     const r = await ai.messages.create({
       model: MODEL,
-      max_tokens: 8192,
+      max_tokens: 16384,
       temperature: 0.2,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userPrompt }],
     });
 
     const raw = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('');
+    console.log(`[ai-edit] response_tokens=${r.usage?.output_tokens} input_tokens=${r.usage?.input_tokens} stop=${r.stop_reason}`);
+
     let parsed;
     try { parsed = JSON.parse(raw); } catch {
-      const m = raw.match(/\{[\s\S]*\}/);
-      if (m) parsed = JSON.parse(m[0]);
-      else throw new Error('IA no devolvió JSON parseable: ' + raw.slice(0, 200));
+      // Buscar el primer { y el último } balanceado.
+      const start = raw.indexOf('{');
+      const end = raw.lastIndexOf('}');
+      if (start >= 0 && end > start) {
+        try { parsed = JSON.parse(raw.slice(start, end + 1)); }
+        catch (e) {
+          throw new Error(`IA no devolvió JSON parseable. Respuesta inicia: "${raw.slice(0, 300)}..."`);
+        }
+      } else throw new Error(`IA no devolvió JSON parseable. Respuesta: "${raw.slice(0, 300)}..."`);
     }
 
-    // Costo aproximado (Sonnet 4.6: $3/$15 per MTok).
+    if (!parsed.updated_markdown) {
+      throw new Error('IA devolvió JSON sin campo updated_markdown. Keys: ' + Object.keys(parsed).join(', '));
+    }
+
     const inputTok = r.usage?.input_tokens ?? 0;
     const outputTok = r.usage?.output_tokens ?? 0;
     const costUsd = (inputTok * 0.000003) + (outputTok * 0.000015);
