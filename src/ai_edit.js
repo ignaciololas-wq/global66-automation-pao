@@ -8,10 +8,24 @@ import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import { sb, logAudit } from './supabase_audit.js';
 import { MOCK } from './mock_mode.js';
 
-const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+// Aceptar variantes (typo histórico ANHTROPIC y alias CLAUDE).
+const ANTHROPIC_KEY =
+  process.env.ANTHROPIC_API_KEY ??
+  process.env.ANHTROPIC_API_KEY ??
+  process.env.CLAUDE_API_KEY ??
+  null;
 const MODEL = process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-6';
 const BUCKET = 'contracts';
 const ai = MOCK || !ANTHROPIC_KEY ? null : new Anthropic({ apiKey: ANTHROPIC_KEY });
+
+if (!ai && !MOCK) {
+  const detected = [
+    process.env.ANTHROPIC_API_KEY && 'ANTHROPIC_API_KEY',
+    process.env.ANHTROPIC_API_KEY && 'ANHTROPIC_API_KEY',
+    process.env.CLAUDE_API_KEY && 'CLAUDE_API_KEY',
+  ].filter(Boolean);
+  console.warn(`[ai_edit] No Anthropic key encontrada. Variables vistas: ${detected.join(', ') || 'NINGUNA'}. Seteá ANTHROPIC_API_KEY en Vercel env vars.`);
+}
 
 const SYSTEM_PROMPT = `Sos un asistente experto en redacción contractual para Global66.
 Vas a recibir el texto de un contrato (borrador) y una lista de comentarios hechos por aprobadores internos (Legal, Compliance, Admin).
@@ -81,7 +95,10 @@ async function extractText(buffer, mimeType) {
 }
 
 export async function runAiEdit({ workflowRunId, sourceFileId, requestedBy, requestedById, extraPrompt }) {
-  if (!ai) throw new Error('ANTHROPIC_API_KEY no seteada (o MOCK_MODE=true)');
+  if (!ai) {
+    if (MOCK) throw new Error('MOCK_MODE=true. Setealo a false para usar IA real.');
+    throw new Error('ANTHROPIC_API_KEY no seteada en Vercel. Verificá Settings → Environment Variables: el nombre exacto debe ser "ANTHROPIC_API_KEY" (sin typos), aplicada a Production/Preview/Development, y redeploy después de agregarla.');
+  }
 
   const { data: source, error } = await sb
     .from('contract_files')

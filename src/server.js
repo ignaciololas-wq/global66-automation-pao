@@ -24,6 +24,8 @@ import {
 } from './supabase_audit.js';
 import { extractFromPdfBuffer } from './gemini_extract.js';
 import { checkSanctions } from './lista_negra.js';
+import { checkSupplier as checkRegcheq } from './regcheq.js';
+import { recordRegcheqCheck } from './supabase_audit.js';
 import { validateChecklist, listFolderFiles } from './drive_docs.js';
 import { runDailyAlerts } from './alertas.js';
 import { verifySlackSignature } from './slack_verify.js';
@@ -172,6 +174,15 @@ const routes = {
     json(res, 200, result);
   },
 
+  'POST /regcheq': async (req, res) => {
+    // body: { run_id?, supplier: { razon_social, tax_id, pais, email_contacto }, relations?: [{ dni, name, type }] }
+    const body = JSON.parse(await readBody(req));
+    if (!body.supplier) return json(res, 400, { error: 'supplier required' });
+    const result = await checkRegcheq(body.supplier, body.relations ?? []);
+    if (body.run_id) await recordRegcheqCheck(body.run_id, result);
+    json(res, 200, result);
+  },
+
   'POST /hito1-semaforo': async (req, res) => {
     const body = JSON.parse(await readBody(req));
     if (body.run_id && !body.approvals) body.approvals = await getApprovals(body.run_id);
@@ -239,6 +250,14 @@ const routes = {
     auth_enabled: AUTH_ENABLED,
     admin_emails_count: ADMIN_EMAILS.length,
     site_url: siteUrl(),
+    keys: {
+      anthropic: !!(process.env.ANTHROPIC_API_KEY ?? process.env.ANHTROPIC_API_KEY ?? process.env.CLAUDE_API_KEY),
+      anthropic_var_name: process.env.ANTHROPIC_API_KEY ? 'ANTHROPIC_API_KEY' : process.env.ANHTROPIC_API_KEY ? 'ANHTROPIC_API_KEY (typo!)' : process.env.CLAUDE_API_KEY ? 'CLAUDE_API_KEY' : 'NONE',
+      gemini: !!process.env.GEMINI_API_KEY,
+      resend: !!process.env.RESEND_API_KEY,
+      n8n_email: !!process.env.N8N_EMAIL_WEBHOOK_URL,
+      slack: !!process.env.SLACK_BOT_TOKEN,
+    },
   }),
 
   'GET /run': async (req, res, url) => {

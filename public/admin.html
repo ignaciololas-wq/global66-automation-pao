@@ -264,6 +264,38 @@
   .flow-edge { display: flex; align-items: center; padding: 0 4px; color: var(--blue-200) }
   .flow-node-done + .flow-edge, .flow-node-active + .flow-edge { color: var(--blue-500) }
 
+  /* Paralelo group para nodos 2+3 (Aprobación interna || Datos proveedor) */
+  .flow-parallel-col {
+    display: flex; flex-direction: column; gap: 6px; align-items: center;
+    padding: 8px 6px; position: relative;
+    border-left: 2px dashed var(--blue-200);
+    border-right: 2px dashed var(--blue-200);
+    border-radius: 12px;
+    background: rgba(31,73,182,0.03);
+  }
+  .flow-parallel-tag {
+    font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--blue-700); font-weight: 700;
+    background: white; padding: 2px 8px; border-radius: 99px;
+    border: 1px solid var(--blue-200);
+    margin-bottom: 2px;
+  }
+  .flow-parallel-stack { display: flex; flex-direction: column; gap: 8px }
+  .flow-split {
+    width: 18px; align-self: stretch; position: relative;
+    color: var(--blue-300);
+  }
+  .flow-split::before {
+    content: ''; position: absolute; top: 50%; left: 0; width: 100%;
+    height: 2px; background: currentColor;
+  }
+  .flow-split-split::after, .flow-split-merge::after {
+    content: ''; position: absolute; left: 50%; width: 2px;
+    background: currentColor;
+    top: 25%; bottom: 25%;
+  }
+  .flow-split-split { color: var(--blue-500) }
+
   @media (max-width: 1100px) {
     .flow-canvas { padding: 16px 8px }
     .flow-node { flex-basis: 150px; max-width: 150px }
@@ -1341,45 +1373,81 @@ function renderStepper(r) {
   const phase = r.current_phase;
   const intApproved = r.internal_approval_status === 'approved';
   const intRejected = r.internal_approval_status === 'rejected';
-  const stages = [
-    { num: 1, label: 'Solicitud',           who: 'Solicitante interno', icon: '📝', assignee: r.solicitante_email },
-    { num: 2, label: 'Aprobación interna',  who: 'Aprobador Global66',  icon: '✅', assignee: r.internal_approver_email ?? 'Pendiente asignar' },
-    { num: 3, label: 'Datos proveedor',     who: 'Proveedor',           icon: '🏢', assignee: r.email_contacto ?? '—' },
-    { num: 4, label: 'Validación docs',     who: 'IA + Compliance',     icon: '🔍', assignee: 'IA Claude + Compliance' },
-    { num: 5, label: 'Firma',               who: 'Apoderado + Proveedor', icon: '✍️', assignee: r.sociedad_apoderado_email ?? 'Pendiente apoderado' },
-    { num: 6, label: 'Cerrado',             who: 'Sistema',             icon: '🏁', assignee: '—' },
-  ];
+  // Nodos 2 (Aprobación interna) y 3 (Datos proveedor) corren EN PARALELO post-Solicitud.
+  // Nodo 4 espera ambos terminados.
+  const providerDone = r.profile_completed_at != null;
+  const providerInvited = r.profile_invited_at != null || phase === 'fase2' || phase === 'fase3' || phase === 'signed' || intApproved;
 
-  let cur = 0;
-  if (intRejected || phase === 'rejected') cur = 1;
-  else if (!intApproved && phase === 'fase1') cur = 1;
-  else if (intApproved && phase === 'fase1') cur = 2;
-  else if (phase === 'hito1') cur = 3;
-  else if (phase === 'fase2') cur = 3;
-  else if (phase === 'fase3') cur = 4;
-  else if (phase === 'signed') cur = 5;
+  function stateOf(num) {
+    if (intRejected || phase === 'rejected') return num === 2 ? 'rejected' : num <= 1 ? 'done' : 'pending';
+    if (num === 1) return phase === 'fase1' && !intApproved ? 'active' : 'done';
+    if (num === 2) {
+      if (intApproved) return 'done';
+      if (phase === 'fase1') return 'active';
+      return 'done';
+    }
+    if (num === 3) {
+      if (providerDone) return 'done';
+      if (providerInvited) return 'active';
+      return 'pending';
+    }
+    if (num === 4) {
+      if (phase === 'fase3') return 'active';
+      if (phase === 'signed') return 'done';
+      return 'pending';
+    }
+    if (num === 5) {
+      if (phase === 'signed') return 'done';
+      if (phase === 'fase3' && intApproved && providerDone) return 'active';
+      return 'pending';
+    }
+    if (num === 6) return phase === 'signed' ? 'active' : 'pending';
+    return 'pending';
+  }
 
-  const rejected = intRejected || phase === 'rejected';
+  const stages = {
+    1: { num: 1, label: 'Solicitud',           who: 'Solicitante interno', icon: '📝', assignee: r.solicitante_email },
+    2: { num: 2, label: 'Aprobación interna',  who: 'Aprobador Global66',  icon: '✅', assignee: r.internal_approver_email ?? 'Pendiente asignar' },
+    3: { num: 3, label: 'Datos proveedor',     who: 'Proveedor',           icon: '🏢', assignee: r.email_contacto ?? '—' },
+    4: { num: 4, label: 'Validación docs',     who: 'IA + Compliance',     icon: '🔍', assignee: 'IA Claude + Compliance' },
+    5: { num: 5, label: 'Firma',               who: 'Apoderado + Proveedor', icon: '✍️', assignee: r.sociedad_apoderado_email ?? 'Pendiente apoderado' },
+    6: { num: 6, label: 'Cerrado',             who: 'Sistema',             icon: '🏁', assignee: '—' },
+  };
+
+  function nodeHtml(s, state) {
+    const cls = state === 'rejected' ? 'flow-node-rejected' : state === 'done' ? 'flow-node-done' : state === 'active' ? 'flow-node-active' : 'flow-node-pending';
+    const num = state === 'done' ? '✓' : state === 'rejected' ? '✗' : s.num;
+    return `<div class="flow-node ${cls}">
+      <div class="flow-node-header">
+        <span class="flow-node-icon">${s.icon}</span>
+        <span class="flow-node-num">${num}</span>
+      </div>
+      <div class="flow-node-label">${s.label}</div>
+      <div class="flow-node-who">${s.who}</div>
+      <div class="flow-node-assignee" title="${s.assignee}">${(s.assignee ?? '—').slice(0, 28)}${(s.assignee ?? '').length > 28 ? '…' : ''}</div>
+      ${state === 'active' ? '<div class="flow-node-pulse"></div>' : ''}
+    </div>`;
+  }
+
+  const arrow = '<div class="flow-edge"><svg width="48" height="14" viewBox="0 0 48 14"><path d="M0 7 L40 7 M34 1 L40 7 L34 13" fill="none" stroke="currentColor" stroke-width="2"/></svg></div>';
+  const splitMerge = (dir) => `<div class="flow-split flow-split-${dir}"></div>`;
 
   return `<div class="flow-canvas">
-    ${stages.map((s, i) => {
-      const isDone = i < cur;
-      const isActive = i === cur && !rejected;
-      const isRejected = rejected && i === cur;
-      const cls = isRejected ? 'flow-node-rejected' : isDone ? 'flow-node-done' : isActive ? 'flow-node-active' : 'flow-node-pending';
-      return `<div class="flow-node ${cls}">
-        <div class="flow-node-header">
-          <span class="flow-node-icon">${s.icon}</span>
-          <span class="flow-node-num">${isDone ? '✓' : isRejected ? '✗' : s.num}</span>
-        </div>
-        <div class="flow-node-label">${s.label}</div>
-        <div class="flow-node-who">${s.who}</div>
-        <div class="flow-node-assignee" title="${s.assignee}">${(s.assignee ?? '—').slice(0, 28)}${(s.assignee ?? '').length > 28 ? '…' : ''}</div>
-        ${isActive ? '<div class="flow-node-pulse"></div>' : ''}
+    ${nodeHtml(stages[1], stateOf(1))}
+    ${splitMerge('split')}
+    <div class="flow-parallel-col">
+      <div class="flow-parallel-tag">paralelo</div>
+      <div class="flow-parallel-stack">
+        ${nodeHtml(stages[2], stateOf(2))}
+        ${nodeHtml(stages[3], stateOf(3))}
       </div>
-      ${i < stages.length - 1 ? '<div class="flow-edge"><svg width="48" height="14" viewBox="0 0 48 14"><path d="M0 7 L40 7 M34 1 L40 7 L34 13" fill="none" stroke="currentColor" stroke-width="2"/></svg></div>' : ''}
-      `;
-    }).join('')}
+    </div>
+    ${splitMerge('merge')}
+    ${nodeHtml(stages[4], stateOf(4))}
+    ${arrow}
+    ${nodeHtml(stages[5], stateOf(5))}
+    ${arrow}
+    ${nodeHtml(stages[6], stateOf(6))}
   </div>`;
 }
 
