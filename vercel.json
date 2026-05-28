@@ -3,6 +3,7 @@
   "framework": "nextjs",
   "buildCommand": "next build",
   "installCommand": "npm install",
+  "outputDirectory": ".next",
   "headers": [
     {
       "source": "/admin/:path*",
