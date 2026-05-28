@@ -317,98 +317,136 @@
   .signer-row .signer-remove:not(:disabled):hover { color: var(--red); background: rgba(230,74,74,0.08) }
   .signer-row .signer-remove:disabled { cursor: not-allowed; opacity: 0.4 }
 
-  /* Flow canvas — workflow stages tipo Finnecto/n8n */
+  /* Flow canvas Lever-style — cards compactas con avatares + fechas */
+  .flow-canvas-wrap { position: relative; margin-bottom: 24px }
   .flow-canvas {
-    display: flex; align-items: stretch; gap: 0; overflow-x: auto;
-    padding: 24px 12px;
+    overflow: auto;
+    padding: 32px 20px;
     background:
-      linear-gradient(white, white) padding-box,
-      radial-gradient(circle, rgba(31,73,182,0.08) 1px, transparent 1px) 0 0 / 18px 18px;
+      radial-gradient(circle, rgba(19,32,70,0.08) 1px, transparent 1px) 0 0 / 18px 18px;
     background-color: #fafbff;
     border: 1px solid var(--border); border-radius: 14px;
-    margin-bottom: 24px;
-    box-shadow: inset 0 0 60px rgba(31,73,182,0.04);
+    max-height: 380px;
   }
-  .flow-node {
+  .flow-canvas-inner {
+    display: flex; align-items: center; gap: 0;
+    transform-origin: 0 50%;
+    transition: transform .2s ease;
+    min-width: max-content;
+  }
+  .flow-zoom {
+    position: absolute; top: 16px; right: 16px; z-index: 5;
+    display: flex; flex-direction: column; gap: 4px;
+    background: white; border-radius: 10px; padding: 4px;
+    box-shadow: 0 2px 8px rgba(19,32,70,0.1); border: 1px solid var(--border);
+  }
+  .flow-zoom button {
+    width: 28px; height: 28px; border: none; background: transparent;
+    color: var(--muted); cursor: pointer; border-radius: 6px;
+    font-size: 16px; line-height: 1; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .flow-zoom button:hover { background: var(--blue-50); color: var(--blue-700) }
+
+  .lever-node, .flow-node {
     position: relative;
-    flex: 0 0 168px; max-width: 168px;
-    background: white; border: 1.5px solid var(--border); border-radius: 12px;
-    padding: 12px; text-align: left;
-    box-shadow: 0 2px 8px rgba(19,32,70,0.06);
+    flex: 0 0 240px; max-width: 240px;
+    background: white; border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px; text-align: left;
+    box-shadow: 0 1px 3px rgba(19,32,70,0.06), 0 4px 12px rgba(19,32,70,0.04);
     transition: all .2s ease;
   }
-  .flow-node:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(19,32,70,0.12) }
-  .flow-node-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px }
-  .flow-node-icon { font-size: 20px }
-  .flow-node-num { width: 24px; height: 24px; border-radius: 50%; background: var(--border); color: var(--muted); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; font-family: 'Montserrat', sans-serif }
-  .flow-node-label { font-weight: 700; font-size: 13px; color: var(--text); margin-bottom: 2px; letter-spacing: -0.01em }
-  .flow-node-who { font-size: 11px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600 }
-  .flow-node-assignee {
-    font-size: 11.5px; color: var(--blue-700); font-weight: 500;
-    background: var(--blue-50); padding: 4px 8px; border-radius: 6px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  .lever-node:hover, .flow-node:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(19,32,70,0.1) }
+  .lever-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 8px; gap: 8px;
   }
+  .lever-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10.5px; font-weight: 600;
+    padding: 2px 10px; border-radius: 99px;
+    background: rgba(0,0,0,0.06); color: var(--muted);
+    text-transform: none; letter-spacing: 0;
+  }
+  .lever-pill-done    { background: rgba(2,167,87,0.12);   color: var(--green) }
+  .lever-pill-active  { background: rgba(31,73,182,0.12);  color: var(--blue-500) }
+  .lever-pill-rejected{ background: rgba(230,74,74,0.12);  color: var(--red) }
+  .lever-pill-pending { background: rgba(0,0,0,0.06);      color: var(--muted) }
+  .lever-date { font-size: 11px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums }
+  .lever-title { font-weight: 700; font-size: 13.5px; color: var(--text); margin-bottom: 10px; letter-spacing: -0.01em; line-height: 1.2 }
+  .lever-person { display: flex; align-items: center; gap: 8px }
+  .lever-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--blue-400), var(--mint));
+    color: white; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-family: 'Montserrat'; font-size: 12px;
+    flex-shrink: 0; overflow: hidden;
+  }
+  .lever-avatar.lever-avatar-initials { font-size: 11.5px }
+  img.lever-avatar { object-fit: cover; display: block }
+  .lever-person-info { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 1px }
+  .lever-person-name { font-size: 12.5px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2 }
+  .lever-person-area { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: capitalize }
 
-  .flow-node-done { border-color: var(--green); background: linear-gradient(180deg, white, rgba(2,167,87,0.04)) }
-  .flow-node-done .flow-node-num { background: var(--green); color: white }
-  .flow-node-done .flow-node-assignee { background: rgba(2,167,87,0.1); color: var(--green) }
-
-  .flow-node-active { border-color: var(--blue-500); border-width: 2px; box-shadow: 0 6px 24px rgba(31,73,182,0.2) }
-  .flow-node-active .flow-node-num { background: var(--blue-500); color: white }
-  .flow-node-active .flow-node-label { color: var(--blue-700) }
+  .flow-node-done { border-color: rgba(2,167,87,0.4) }
+  .flow-node-active { border-color: var(--blue-500); border-width: 2px; padding: 11px 13px }
+  .flow-node-rejected { border-color: rgba(230,74,74,0.4) }
+  .flow-node-pending { opacity: 0.55 }
+  .flow-node-pending:hover { opacity: 1 }
 
   .flow-node-pulse {
-    position: absolute; inset: -6px; border-radius: 14px;
+    position: absolute; inset: -5px; border-radius: 14px;
     border: 2px solid var(--blue-500); opacity: 0;
     animation: flow-pulse 2s ease-in-out infinite;
     pointer-events: none;
   }
   @keyframes flow-pulse {
-    0%   { opacity: 0.7; transform: scale(0.98) }
-    100% { opacity: 0;   transform: scale(1.04) }
+    0%   { opacity: 0.6; transform: scale(0.99) }
+    100% { opacity: 0;   transform: scale(1.03) }
   }
 
-  .flow-node-rejected { border-color: var(--red); background: linear-gradient(180deg, white, rgba(230,74,74,0.04)) }
-  .flow-node-rejected .flow-node-num { background: var(--red); color: white }
-  .flow-node-rejected .flow-node-label { color: var(--red) }
+  /* Edges: línea + dot pequeño tipo Lever */
+  .flow-edge {
+    display: flex; align-items: center;
+    color: var(--blue-200); padding: 0; margin: 0 -1px;
+  }
+  .flow-edge svg { display: none }
+  .flow-edge::before {
+    content: ''; width: 24px; height: 1.5px;
+    background: currentColor;
+  }
+  .flow-edge::after {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor; margin-left: -2px;
+  }
+  .flow-node-done + .flow-edge { color: var(--green) }
+  .flow-node-active + .flow-edge { color: var(--blue-500) }
 
-  .flow-node-pending { opacity: 0.55 }
-  .flow-node-pending:hover { opacity: 1 }
-
-  .flow-edge { display: flex; align-items: center; padding: 0 4px; color: var(--blue-200) }
-  .flow-node-done + .flow-edge, .flow-node-active + .flow-edge { color: var(--blue-500) }
-
-  /* Paralelo group para nodos 2+3 (Aprobación interna || Datos proveedor) */
+  /* Paralelo group para nodos 2+3 (compacto, sin borde) */
   .flow-parallel-col {
-    display: flex; flex-direction: column; gap: 6px; align-items: center;
-    padding: 8px 6px; position: relative;
-    border-left: 2px dashed var(--blue-200);
-    border-right: 2px dashed var(--blue-200);
-    border-radius: 12px;
-    background: rgba(31,73,182,0.03);
+    display: flex; flex-direction: column; gap: 4px; align-items: stretch;
+    padding: 0; position: relative;
   }
   .flow-parallel-tag {
-    font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.08em;
-    color: var(--blue-700); font-weight: 700;
-    background: white; padding: 2px 8px; border-radius: 99px;
-    border: 1px solid var(--blue-200);
+    font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted); font-weight: 700; text-align: center;
     margin-bottom: 2px;
   }
   .flow-parallel-stack { display: flex; flex-direction: column; gap: 8px }
   .flow-split {
-    width: 18px; align-self: stretch; position: relative;
-    color: var(--blue-300);
+    width: 24px; align-self: stretch; position: relative;
+    color: var(--blue-200);
   }
   .flow-split::before {
-    content: ''; position: absolute; top: 50%; left: 0; width: 100%;
-    height: 2px; background: currentColor;
+    content: ''; position: absolute; top: 50%; left: 0; right: 0;
+    height: 1.5px; background: currentColor; transform: translateY(-50%);
   }
-  .flow-split-split::after, .flow-split-merge::after {
-    content: ''; position: absolute; left: 50%; width: 2px;
+  .flow-split::after {
+    content: ''; position: absolute; left: 50%; width: 1.5px;
     background: currentColor;
-    top: 25%; bottom: 25%;
+    top: 30%; bottom: 30%; transform: translateX(-50%);
   }
-  .flow-split-split { color: var(--blue-500) }
+  .flow-node-done + .flow-split, .flow-node-active + .flow-split { color: var(--green) }
 
   /* Lever-style cards (PR-A) */
   .lever-node {
