@@ -318,11 +318,14 @@ const routes = {
   },
 
   'POST /api/intake': async (req, res) => {
-    // Internal user submits intake. Provider NOT invited yet — espera aprobación interna.
+    // Internal user submits intake. INMEDIATAMENTE dispara branches paralelos:
+    //   - Mail al proveedor con magic-link para que complete su parte
+    //   - Slack a compliance/legal/admin para aprobaciones internas
     const body = JSON.parse(await readBody(req));
-    const { upsertProviderFromIntake } = await import('./provider_profile.js');
-    const { sendEmail, intakeConfirmation } = await import('./email.js');
-    const { suggestSociedad } = await import('./sociedad.js');
+    const { upsertProviderFromIntake, buildProfileUrl } = await import('./provider_profile.js');
+    const { sendEmail, intakeConfirmation, providerInvitation } = await import('./email.js');
+    const { suggestSociedad, getDocsForSociedad } = await import('./sociedad.js');
+    const { dispatchApprovalRequests } = await import('./approvals_dispatch.js');
 
     try {
       // Sugerir sociedad si no vino (auto por país)
@@ -333,10 +336,14 @@ const routes = {
       const run = await startRun(body, { allowDuplicate: body.allow_duplicate === true });
       const { provider, isNew } = await upsertProviderFromIntake(body, { runId: run.id });
 
-      // Marcar run en estado pendiente de aprobación interna
-      await sb.from('workflow_runs').update({ internal_approval_status: 'pending' }).eq('id', run.id);
+      // Arrancar branches paralelos: provider data || internal approvals
+      await sb.from('workflow_runs').update({
+        current_phase: 'parallel',
+        active_phases: ['fase2_provider_data', 'hito1_approvals'],
+        internal_approval_status: 'pending',
+      }).eq('id', run.id);
 
-      // Email confirmación al solicitante interno (avisa que está en revisión)
+      // Email confirmación al solicitante interno (avisa que está en marcha)
       const to = body.solicitante_email ?? body.owner_email;
       if (to) {
         const tpl = intakeConfirmation({
@@ -350,6 +357,25 @@ const routes = {
         });
         sendEmail({ to, ...tpl }).catch((e) => console.error('Confirmation email failed:', e.message));
       }
+
+      // Branch A: mail al proveedor con magic-link
+      if (provider.email_contacto) {
+        const sociedadDocs = getDocsForSociedad(body.sociedad_contratante);
+        const profileUrl = buildProfileUrl(provider.public_token);
+        const tpl = providerInvitation({
+          providerName: body.representante_legal ?? provider.razon_social,
+          profileUrl,
+          sociedadContratante: body.sociedad_contratante,
+          solicitanteNombre: body.solicitante_nombre,
+          sociedadDocs,
+        });
+        sendEmail({ to: provider.email_contacto, ...tpl })
+          .then(() => sb.from('providers').update({ profile_invited_at: new Date().toISOString() }).eq('id', provider.id))
+          .catch((e) => console.error('Provider invitation failed:', e.message));
+      }
+
+      // Branch B: Slack a compliance/legal/admin
+      dispatchApprovalRequests(run.id).catch((e) => console.error('dispatchApprovalRequests failed:', e.message));
 
       json(res, 200, {
         run_id: run.id,

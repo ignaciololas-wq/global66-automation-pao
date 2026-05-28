@@ -1208,7 +1208,7 @@ async function doLogin(ev) {
   if (!password) {
     const r = await sendMagicLinkViaServer(email);
     if (r.error) { $('#login-err').textContent = r.error; $('#login-err').hidden = false; }
-    else { $('#login-ok').textContent = 'Revisá tu email — te mandamos un link de acceso'; $('#login-ok').hidden = false; }
+    else { $('#login-ok').textContent = 'Revisa tu email — te mandamos un link de acceso'; $('#login-ok').hidden = false; }
     return;
   }
 
@@ -1235,10 +1235,10 @@ document.querySelector('#login-form button[type=submit]')?.addEventListener('cli
 
 $('#magic-link').addEventListener('click', async () => {
   const email = $('#login-email').value;
-  if (!email) { $('#login-err').textContent = 'Ingresá tu email primero'; $('#login-err').hidden = false; return; }
+  if (!email) { $('#login-err').textContent = 'Ingresa tu email primero'; $('#login-err').hidden = false; return; }
   const r = await sendMagicLinkViaServer(email);
   if (r.error) { $('#login-err').textContent = r.error; $('#login-err').hidden = false; }
-  else { $('#login-ok').textContent = 'Revisá tu email — te mandamos un link'; $('#login-ok').hidden = false; }
+  else { $('#login-ok').textContent = 'Revisa tu email — te mandamos un link'; $('#login-ok').hidden = false; }
 });
 
 // Logout movido a profile popup (PR14).
@@ -2026,43 +2026,49 @@ async function downloadFile(apiUrl) {
 
 function renderStepper(r) {
   const phase = r.current_phase;
-  const intApproved = r.internal_approval_status === 'approved';
   const intRejected = r.internal_approval_status === 'rejected';
-  // Nodos 2 (Aprobación interna) y 3 (Datos proveedor) corren EN PARALELO post-Solicitud.
-  // Nodo 4 espera ambos terminados.
-  const providerDone = r.profile_completed_at != null;
-  const providerInvited = r.profile_invited_at != null || phase === 'fase2' || phase === 'fase3' || phase === 'signed' || intApproved;
+  // PR-B realmente paralelo: nodo 2 = aprobaciones internas Slack, nodo 3 = datos proveedor.
+  // Ambos arrancan simultáneamente apenas se crea la solicitud (POST /api/intake).
+  const providerDone = r.provider_data_completed_at != null || r.profile_completed_at != null;
+  const approvalsDone = r.internal_approvals_completed_at != null;
+  const arrancoParalelo = phase === 'parallel' || phase === 'fase2' || phase === 'fase3' || phase === 'signed';
 
   function stateOf(num) {
-    if (intRejected || phase === 'rejected') return num === 2 ? 'rejected' : num <= 1 ? 'done' : 'pending';
-    if (num === 1) return phase === 'fase1' && !intApproved ? 'active' : 'done';
-    if (num === 2) {
-      if (intApproved) return 'done';
-      if (phase === 'fase1') return 'active';
+    if (intRejected || phase === 'rejected') return num === 1 ? 'done' : 'rejected';
+    if (num === 1) {
+      // Solicitud — done apenas creada (siempre)
       return 'done';
     }
+    if (num === 2) {
+      // Aprobaciones internas Slack (compliance + legal + admin)
+      if (approvalsDone) return 'done';
+      if (arrancoParalelo) return 'active';
+      return 'pending';
+    }
     if (num === 3) {
+      // Datos proveedor (mail magic-link → llena form + sube docs)
       if (providerDone) return 'done';
-      if (providerInvited) return 'active';
+      if (arrancoParalelo) return 'active';
       return 'pending';
     }
     if (num === 4) {
-      if (phase === 'fase3') return 'active';
+      // Validación docs + RegCheq AML/PEP — empieza cuando ambos branches paralelos terminaron
       if (phase === 'signed') return 'done';
+      if (phase === 'fase3') return 'active';
       return 'pending';
     }
     if (num === 5) {
       if (phase === 'signed') return 'done';
-      if (phase === 'fase3' && intApproved && providerDone) return 'active';
+      if (phase === 'fase3' && approvalsDone && providerDone) return 'active';
       return 'pending';
     }
-    if (num === 6) return phase === 'signed' ? 'active' : 'pending';
+    if (num === 6) return phase === 'signed' ? 'done' : 'pending';
     return 'pending';
   }
 
   const stages = {
     1: { num: 1, label: 'Se creó solicitud',  who: 'Solicitante',  icon: '📝', assignee: r.solicitante_email, date: r.created_at },
-    2: { num: 2, label: 'Aprobación interna', who: 'Aprobador',    icon: '✅', assignee: r.internal_approver_email ?? 'Pendiente asignar', date: r.internal_approved_at },
+    2: { num: 2, label: 'Aprobación interna', who: 'Compliance + Legal + Admin', icon: '✅', assignee: r.internal_approver_email ?? 'Slack: compliance + legal + admin', date: r.internal_approvals_completed_at },
     3: { num: 3, label: 'Datos proveedor',    who: 'Proveedor',    icon: '🏢', assignee: r.email_contacto ?? '—', date: r.provider_data_completed_at ?? r.profile_completed_at },
     4: { num: 4, label: 'Validación docs',    who: 'IA + Compliance', icon: '🔍', assignee: 'compliance@global66.com', date: r.current_phase === 'fase3' || r.current_phase === 'signed' ? r.updated_at : null },
     5: { num: 5, label: 'Firma',              who: 'Apoderado',    icon: '✍️', assignee: r.sociedad_apoderado_email ?? 'Pendiente apoderado', date: r.current_phase === 'signed' ? r.updated_at : null },
@@ -2204,12 +2210,12 @@ async function loadSignaturePanel(r) {
   }
 
   body.innerHTML = `
-    <p style="color:var(--muted);font-size:13px;margin-bottom:18px">Confirmá la sociedad + apoderados que firman. Los marcados como <b>"siempre"</b> son obligatorios según la matriz; el secundario se auto-seleccionó según el tipo de proveedor (${r.tipo_proveedor ?? '—'}). Podés cambiarlos.</p>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:18px">Confirma la sociedad + apoderados que firman. Los marcados como <b>"siempre"</b> son obligatorios según la matriz; el secundario se auto-seleccionó según el tipo de proveedor (${r.tipo_proveedor ?? '—'}). Puedes cambiarlos.</p>
 
     <div style="margin-bottom:16px">
       <label>Sociedad contratante</label>
       <select id="sign-sociedad-select">
-        <option value="">— Elegí —</option>
+        <option value="">— Elige —</option>
         ${sociedades.map((s) => `<option value="${s.id}" data-name="${s.name}" ${r.sociedad_contratante === s.name ? 'selected' : ''}>${s.name}</option>`).join('')}
       </select>
     </div>
@@ -2289,7 +2295,7 @@ function renderSignersList() {
   const list = document.querySelector('#sign-apoderados-list');
   if (!list) return;
   if (!window.__signSelected?.length) {
-    list.innerHTML = '<div class="muted" style="font-size:12.5px;padding:10px;background:var(--surface);border-radius:8px">Sin apoderados sugeridos. Agregá uno abajo.</div>';
+    list.innerHTML = '<div class="muted" style="font-size:12.5px;padding:10px;background:var(--surface);border-radius:8px">Sin apoderados sugeridos. Agrega uno abajo.</div>';
     return;
   }
   list.innerHTML = window.__signSelected.map((s, i) => `
@@ -2371,13 +2377,13 @@ window.saveSignatureConfig = async function (runId, sendToSignNow) {
 function renderApprovalPanel(r) {
   return `<div class="card" style="margin-bottom:16px;border-left:4px solid var(--blue-500)">
     <h3 style="margin-bottom:6px">🕒 Solicitud pendiente de aprobación interna</h3>
-    <p style="color:var(--muted);font-size:13px;margin-bottom:18px">Revisá los datos del solicitante y del proveedor. Si está OK, mandamos al proveedor para que complete su perfil. El apoderado firmante se define en el nodo 5 (Firma).</p>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:18px">Revisa los datos del solicitante y del proveedor. Si está OK, mandamos al proveedor para que complete su perfil. El apoderado firmante se define en el nodo 5 (Firma).</p>
 
     <div class="grid grid-2" style="margin-bottom:16px">
       <div>
-        <label>Sociedad contratante (confirmá / cambiá si hace falta)</label>
+        <label>Sociedad contratante (confirma / cambia si hace falta)</label>
         <select id="approve-sociedad">
-          <option value="">— Elegí —</option>
+          <option value="">— Elige —</option>
           <option ${r.sociedad_contratante === 'Global 81 SpA (Chile)' ? 'selected' : ''} value="Global 81 SpA (Chile)">Global 81 SpA (Chile)</option>
           <option ${r.sociedad_contratante === 'Global Card S.A. (Chile)' ? 'selected' : ''} value="Global Card S.A. (Chile)">Global Card S.A. (Chile)</option>
           <option ${r.sociedad_contratante === '100X (Panamá)' ? 'selected' : ''} value="100X (Panamá)">100X (Panamá)</option>
@@ -2968,7 +2974,7 @@ window.submitApproval = async function (runId, decision) {
   const sociedad = document.getElementById('approve-sociedad').value;
   const comment = document.getElementById('approve-comment').value;
   if (decision === 'approved' && !sociedad) {
-    document.getElementById('approve-err').textContent = 'Confirmá la sociedad contratante antes de aprobar';
+    document.getElementById('approve-err').textContent = 'Confirma la sociedad contratante antes de aprobar';
     document.getElementById('approve-err').hidden = false;
     return;
   }
@@ -3119,13 +3125,13 @@ async function intakeForm() {
 
       <div class="card tally-step" data-step="4" data-step-name="Adjuntos" hidden>
         <h3 style="margin-bottom:6px">4. Adjuntos</h3>
-        <p style="color:var(--muted);font-size:13px;margin-bottom:14px">Subí los archivos directo en la plataforma. PDF y Word soportados. Hasta 50 MB por archivo.</p>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:14px">Sube los archivos directo en la plataforma. PDF y Word soportados. Hasta 50 MB por archivo.</p>
 
         <div class="question">
           <label>Borrador del contrato (PDF o Word) *</label>
           <div id="drop-main" class="dropzone" data-kind="main" data-required="1">
             <input type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
-            <div class="drop-hint">📄 Arrastrá el archivo o <a href="#" class="drop-pick">elegí desde tu equipo</a></div>
+            <div class="drop-hint">📄 Arrastra el archivo o <a href="#" class="drop-pick">elige desde tu equipo</a></div>
             <div class="drop-list"></div>
           </div>
           <p style="font-size:12px;color:var(--muted);margin-top:6px">Requerido. Será el documento principal del flujo.</p>
@@ -3135,7 +3141,7 @@ async function intakeForm() {
           <label>Anexos opcionales (NDA, propuesta, cédulas, etc.)</label>
           <div id="drop-anexos" class="dropzone" data-kind="anexo">
             <input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/png,image/jpeg" hidden multiple>
-            <div class="drop-hint">📎 Arrastrá uno o más archivos o <a href="#" class="drop-pick">elegí desde tu equipo</a></div>
+            <div class="drop-hint">📎 Arrastra uno o más archivos o <a href="#" class="drop-pick">elige desde tu equipo</a></div>
             <div class="drop-list"></div>
           </div>
         </div>
@@ -3148,7 +3154,7 @@ async function intakeForm() {
 
       <div class="card tally-step" data-step="5" data-step-name="Revisar y enviar" hidden>
         <h3 style="margin-bottom:8px">5. Revisar y enviar</h3>
-        <p style="color:var(--muted);font-size:13px;margin-bottom:18px">Confirmá los datos antes de crear la solicitud.</p>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:18px">Confirma los datos antes de crear la solicitud.</p>
         <div id="tally-review" class="tally-review"></div>
       </div>
 
@@ -3257,7 +3263,7 @@ async function intakeForm() {
     setLookupBanner('Buscando…', 'info');
     try {
       const r = await fetch(`/api/providers/lookup?tax_id=${encodeURIComponent(v)}`, { credentials: 'include' });
-      if (r.status === 404) { setLookupBanner('🆕 Proveedor nuevo. Completá los datos abajo.', 'info'); return; }
+      if (r.status === 404) { setLookupBanner('🆕 Proveedor nuevo. Completa los datos abajo.', 'info'); return; }
       if (!r.ok) { setLookupBanner('Error consulta: ' + r.status, 'warn'); return; }
       const p = await r.json();
       const pd = p.profile_data ?? {};
@@ -3287,7 +3293,7 @@ async function intakeForm() {
       const runCount = p.run_count ?? 0;
       const profileDone = p.profile_completed_at ? 'perfil completo ✓' : 'perfil pendiente';
       setLookupBanner(
-        `✓ <b>${p.razon_social}</b> ya registrado · ${runCount > 0 ? `${runCount} solicitud${runCount > 1 ? 'es' : ''} previa${runCount > 1 ? 's' : ''}` : 'sin solicitudes previas'} · ${profileDone}.<br><span style="font-size:11.5px">Campos autocompletados. Podés editar lo que necesites — los cambios actualizan el registro del proveedor.</span>`,
+        `✓ <b>${p.razon_social}</b> ya registrado · ${runCount > 0 ? `${runCount} solicitud${runCount > 1 ? 'es' : ''} previa${runCount > 1 ? 's' : ''}` : 'sin solicitudes previas'} · ${profileDone}.<br><span style="font-size:11.5px">Campos autocompletados. Puedes editar lo que necesites — los cambios actualizan el registro del proveedor.</span>`,
         'ok'
       );
     } catch (e) {
@@ -3648,7 +3654,7 @@ async function mountDocViewer(runId) {
     <div class="doc-viewer-wrap">
       <div class="doc-preview">
         <div class="doc-preview-header">
-          <span id="doc-active-name" style="font-weight:600">Seleccioná un archivo</span>
+          <span id="doc-active-name" style="font-weight:600">Selecciona un archivo</span>
           <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
             <button type="button" id="doc-ai-edit" hidden style="padding:6px 14px;font-size:12.5px;background:linear-gradient(135deg,#1F49B6,#3F5EDF);color:white;border:none;border-radius:99px;cursor:pointer;font-weight:600">🪄 Aplicar IA</button>
             <button type="button" class="ghost" id="doc-edit-toggle" hidden>✏️ Editar</button>
@@ -3660,7 +3666,7 @@ async function mountDocViewer(runId) {
       </div>
       <div class="comments-panel" id="comments-panel">
         <div class="comments-header"><span>Comentarios</span><span class="muted" id="comments-count" style="font-size:12px"></span></div>
-        <div class="comments-list" id="comments-list"><div class="muted" style="padding:16px;font-size:12.5px">Seleccioná un archivo para ver el hilo.</div></div>
+        <div class="comments-list" id="comments-list"><div class="muted" style="padding:16px;font-size:12.5px">Selecciona un archivo para ver el hilo.</div></div>
       </div>
     </div>
     <button type="button" id="selection-fab" class="selection-fab" hidden>💬 Comentar</button>
@@ -3845,7 +3851,7 @@ function wrapTextOccurrences(root, needle, comment) {
 async function saveDocxAsV2() {
   if (!window.__activeFile) return;
   const wrap = document.querySelector('#doc-preview-body .docx-render');
-  if (!wrap) { alert('No hay docx editable. Activá modo Editar primero.'); return; }
+  if (!wrap) { alert('No hay docx editable. Activa modo Editar primero.'); return; }
   const btn = document.querySelector('#doc-save-v2');
   btn.disabled = true; btn.textContent = 'Generando .docx…';
   try {
@@ -3901,7 +3907,7 @@ async function loadComments(fileId, runId) {
   window.__currentComments = comments;
   renderAiButton(fileId, runId, pending.length);
   if (!comments.length) {
-    listEl.innerHTML = '<div class="muted" style="padding:16px;font-size:12.5px">Aún sin comentarios. Iniciá el hilo abajo.</div>';
+    listEl.innerHTML = '<div class="muted" style="padding:16px;font-size:12.5px">Aún sin comentarios. Inicia el hilo abajo.</div>';
   } else {
     const meEmail = window.__me?.email;
     listEl.innerHTML = comments.map((c) => {
@@ -3957,7 +3963,7 @@ async function runAiEditModal(fileId, runId, pendingCount) {
       <h3 style="margin-bottom:8px">🪄 Aplicar comentarios con IA</h3>
       <p style="color:var(--muted);font-size:13.5px;margin-bottom:14px">Claude va a leer el contrato y los ${pendingCount} comentarios pendientes, y generar una versión 2.0 con los cambios aplicados.</p>
       <label>Instrucción extra (opcional)</label>
-      <textarea id="ai-extra-prompt" rows="3" placeholder="Ej: 'Reformulá la cláusula 8 en términos más conservadores'"></textarea>
+      <textarea id="ai-extra-prompt" rows="3" placeholder="Ej: 'Reformula la cláusula 8 en términos más conservadores'"></textarea>
       <p style="color:var(--muted);font-size:11.5px;margin-top:6px">Vas a poder revisar los cambios antes de aplicar.</p>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
         <button type="button" class="secondary" id="ai-cancel">Cancelar</button>
@@ -4046,7 +4052,7 @@ function renderComposer(fileId, runId) {
   panel.querySelector('.comment-composer')?.remove();
   panel.insertAdjacentHTML('beforeend', `
     <div class="comment-composer">
-      <textarea id="composer-body" placeholder="Escribí un comentario. Seleccioná texto del doc para anclarlo. Usá @ para mencionar."></textarea>
+      <textarea id="composer-body" placeholder="Escribí un comentario. Selecciona texto del doc para anclarlo. Usa @ para mencionar."></textarea>
       <div class="composer-row">
         <button type="button" id="composer-page-toggle" class="ghost" title="Agregar página" style="padding:6px 10px;font-size:12px">📄</button>
         <input type="number" id="composer-page" min="1" placeholder="página" hidden style="width:90px;padding:6px 10px;font-size:12px">

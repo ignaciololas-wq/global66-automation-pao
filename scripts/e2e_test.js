@@ -67,21 +67,11 @@ async function main() {
   const runId = intakeResp.run_id;
   const providerId = intakeResp.provider_id;
 
-  log('STEP 2: POST /api/intake/approve (aprobar intake)');
-  const approveResp = await call('POST', '/api/intake/approve', {
-    run_id: runId,
-    decision: 'approved',
-    sociedad_contratante: intakeResp.sociedad_sugerida || 'Global 81 SpA (Chile)',
-    approver_email: 'julio.lolas@global66.com',
-    comment: 'Aprobado en E2E test',
-  });
-  log('   intake approved', approveResp);
-
-  log('STEP 3: verificar workflow_runs en DB');
+  log('STEP 2: verificar arranque AUTOMÁTICO del paralelo (sin gate manual)');
   await new Promise(r => setTimeout(r, 800));
   const runsRows = await db(`workflow_runs&id=eq.${runId}`);
   const run = runsRows[0];
-  log('   estado post-approve', {
+  log('   estado post-intake (auto)', {
     current_phase: run.current_phase,
     active_phases: run.active_phases,
     internal_approval_status: run.internal_approval_status,

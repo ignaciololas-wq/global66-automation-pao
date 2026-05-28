@@ -6,20 +6,30 @@ import { approvalBlocks, riskSummaryFromExtraction } from './slack_blocks.js';
 const SLACK_TOKEN = process.env.SLACK_BOT_TOKEN;
 const SITE_URL = (process.env.SITE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`).replace(/\/$/, '');
 
+const DEFAULT_CHANNEL = process.env.SLACK_DEFAULT_CHANNEL ?? process.env.SLACK_COMPLIANCE_CHANNEL;
 const CHANNELS = {
-  compliance: process.env.SLACK_COMPLIANCE_CHANNEL,
-  legal: process.env.SLACK_LEGAL_CHANNEL,
-  admin: process.env.SLACK_ADMIN_CHANNEL,
+  compliance: process.env.SLACK_COMPLIANCE_CHANNEL || DEFAULT_CHANNEL,
+  legal: process.env.SLACK_LEGAL_CHANNEL || DEFAULT_CHANNEL,
+  admin: process.env.SLACK_ADMIN_CHANNEL || DEFAULT_CHANNEL,
 };
 
-async function postBlocks(channel, blocks, text) {
-  if (!SLACK_TOKEN || !channel) return { ok: false, error: 'slack_not_configured' };
+async function postBlocks(channel, blocks, text, team) {
+  if (!SLACK_TOKEN) {
+    console.warn(`[slack] SLACK_BOT_TOKEN missing — skipping ${team} approval message`);
+    return { ok: false, error: 'slack_not_configured' };
+  }
+  if (!channel) {
+    console.warn(`[slack] SLACK_${team.toUpperCase()}_CHANNEL not set + no SLACK_DEFAULT_CHANNEL fallback — skipping ${team}`);
+    return { ok: false, error: 'channel_not_configured' };
+  }
   const r = await fetch('https://slack.com/api/chat.postMessage', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json; charset=utf-8', Authorization: `Bearer ${SLACK_TOKEN}` },
     body: JSON.stringify({ channel, text, blocks }),
   });
-  return r.json();
+  const result = await r.json();
+  if (!result.ok) console.warn(`[slack] ${team} → channel ${channel} failed:`, result.error);
+  return result;
 }
 
 // Dispara mensajes Slack a los 3 equipos en paralelo.
@@ -60,7 +70,7 @@ export async function dispatchApprovalRequests(runId) {
       try {
         const blocks = approvalBlocks({ team, runId, supplier, contract, riskSummary, draftUrl });
         const fallback = `Nuevo contrato para revisión ${team}: ${supplier.razon_social} (${supplier.tax_id})`;
-        const r = await postBlocks(CHANNELS[team], blocks, fallback);
+        const r = await postBlocks(CHANNELS[team], blocks, fallback, team);
         return [team, { ok: r.ok, ts: r.ts, error: r.error }];
       } catch (e) {
         return [team, { ok: false, error: e.message }];
