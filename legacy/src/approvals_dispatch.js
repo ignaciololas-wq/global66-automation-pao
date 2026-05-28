@@ -105,6 +105,23 @@ export async function maybeAdvanceToFase3(runId) {
   await logAudit(runId, 'system', 'phase.advanced_to_fase3', 'workflow_run', runId, {
     from_active: run.active_phases,
   });
+
+  // Notificar al proveedor que su parte + aprobaciones internas pasaron OK.
+  try {
+    const { data: provider } = await sb.from('providers').select('email_contacto, razon_social, representante_legal').eq('tax_id', run.tax_id).maybeSingle();
+    if (provider?.email_contacto) {
+      const { sendEmail, providerProgressNotification } = await import('./email.js');
+      const tpl = providerProgressNotification({
+        providerName: provider.representante_legal ?? provider.razon_social,
+        razonSocial: provider.razon_social,
+        event: 'advanced_to_validation',
+      });
+      sendEmail({ to: provider.email_contacto, ...tpl }).catch((e) => console.error('Provider fase3 notify failed:', e.message));
+    }
+  } catch (e) {
+    console.error('Provider notification on fase3 advance failed:', e.message);
+  }
+
   return { advanced: true };
 }
 

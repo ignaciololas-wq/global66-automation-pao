@@ -117,11 +117,32 @@ export async function setContractStatus(contractId, status, extra = {}, { runId 
 }
 
 export async function attachSignedPdf(contractId, signedPdfUrl, signnowDocumentId, { runId } = {}) {
-  return setContractStatus(contractId, 'signed', {
+  const result = await setContractStatus(contractId, 'signed', {
     signed_pdf_url: signedPdfUrl,
     signnow_document_id: signnowDocumentId,
     signed_at: new Date().toISOString(),
   }, { runId });
+
+  // Notificar al proveedor que el contrato quedó firmado
+  try {
+    const { data: contract } = await sb.from('contracts').select('provider_id').eq('id', contractId).maybeSingle();
+    if (contract?.provider_id) {
+      const { data: provider } = await sb.from('providers').select('email_contacto, razon_social, representante_legal').eq('id', contract.provider_id).maybeSingle();
+      if (provider?.email_contacto) {
+        const { sendEmail, providerProgressNotification } = await import('./email.js');
+        const tpl = providerProgressNotification({
+          providerName: provider.representante_legal ?? provider.razon_social,
+          razonSocial: provider.razon_social,
+          event: 'contract_signed',
+        });
+        sendEmail({ to: provider.email_contacto, ...tpl }).catch((e) => console.error('Provider signed notify failed:', e.message));
+      }
+    }
+  } catch (e) {
+    console.error('Provider signed notification failed:', e.message);
+  }
+
+  return result;
 }
 
 export async function listExpiringContracts(daysAhead) {

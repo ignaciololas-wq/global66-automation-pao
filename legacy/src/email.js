@@ -203,6 +203,62 @@ export function providerRevisionRequest({ providerName, profileUrl, comment, sol
   return { subject, html, text };
 }
 
+export function providerProgressNotification({ providerName, razonSocial, event }) {
+  const events = {
+    advanced_to_validation: {
+      subject: `✓ Tu solicitud avanzó — Global66`,
+      heading: 'Estamos por terminar',
+      message: 'Tus datos y documentos fueron recibidos. Las aprobaciones internas de Compliance, Legal y Administración están OK. Tu solicitud entró a la validación final.',
+      next: 'Si todo sale OK, en los próximos días vas a recibir el contrato para firmar por SignNow.',
+      color: '#02A757',
+    },
+    contract_ready_to_sign: {
+      subject: `✍️ Contrato listo para firmar — Global66`,
+      heading: 'Tu contrato te espera',
+      message: 'El contrato fue revisado y aprobado internamente. Lo enviamos a tu correo desde SignNow.',
+      next: 'Revisa tu inbox y busca el email de SignNow para firmar electrónicamente.',
+      color: '#1F49B6',
+    },
+    contract_signed: {
+      subject: `✓ Contrato firmado — Global66`,
+      heading: '¡Listo!',
+      message: 'El contrato está firmado por ambas partes y archivado.',
+      next: 'Vas a recibir una copia firmada por separado. Si necesitas algo más, responde este correo.',
+      color: '#02A757',
+    },
+  };
+  const ev = events[event] ?? events.advanced_to_validation;
+  const html = `<!doctype html>
+<html><body style="font-family:'Inter',system-ui,Arial;background:#f5f7fe;margin:0;padding:0">
+<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 8px 24px rgba(19,32,70,0.06)">
+  <div style="background:linear-gradient(135deg,${ev.color},#3F5EDF);padding:32px;color:white">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <div style="width:36px;height:36px;border-radius:8px;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;font-weight:800;font-family:'Montserrat',sans-serif;font-size:18px">G</div>
+      <div style="font-family:'Montserrat',sans-serif;font-weight:700;font-size:16px">global66 · contratos</div>
+    </div>
+    <h1 style="font-family:'Montserrat',sans-serif;font-size:22px;font-weight:700;margin:6px 0;letter-spacing:-0.02em">${ev.heading}</h1>
+    <p style="margin:6px 0 0;opacity:0.95;font-size:14px">Hola ${providerName}</p>
+  </div>
+  <div style="padding:32px">
+    <p style="margin:0 0 16px;color:#132046;font-size:15px;line-height:1.6">${ev.message}</p>
+    <div style="background:#f5f7fe;border-left:3px solid ${ev.color};padding:14px 18px;border-radius:8px;margin:18px 0;color:#132046;font-size:13.5px;line-height:1.5">
+      <b style="display:block;margin-bottom:4px">Próximo paso:</b>${ev.next}
+    </div>
+    <p style="margin:24px 0 0;color:#565656;font-size:12px;line-height:1.5">
+      Razón social: <b>${razonSocial}</b>
+    </p>
+    <hr style="border:none;border-top:1px solid #E9EDF8;margin:20px 0">
+    <p style="margin:0;color:#565656;font-size:11.5px;line-height:1.5">
+      ¿Dudas? Respondé este correo y un humano del equipo Global66 te responde.
+    </p>
+  </div>
+  <div style="background:#f5f7fe;padding:14px;text-align:center;color:#565656;font-size:11px">Global66 · Procedimiento G81-PRO-005</div>
+</div>
+</body></html>`;
+  const text = `Hola ${providerName},\n\n${ev.message}\n\nPróximo paso: ${ev.next}\n\nRazón social: ${razonSocial}\n\n— Global66`;
+  return { subject: ev.subject, html, text };
+}
+
 export function intakeConfirmation({ runId, solicitanteNombre, razonSocial, taxId, pais, monto, moneda }) {
   const subject = `✓ Solicitud recibida: ${razonSocial}`;
 
