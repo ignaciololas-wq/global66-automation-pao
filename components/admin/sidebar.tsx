@@ -66,6 +66,14 @@ export function Sidebar() {
             );
           })}
         </nav>
+        <div className="mt-auto pt-4 border-t border-white/10">
+          <a
+            href="/api/auth/logout?next=/login"
+            className="block px-3 py-2.5 rounded-lg text-[13.5px] font-medium text-white/70 hover:bg-white/10 hover:text-white transition"
+          >
+            ↩ Cerrar sesión
+          </a>
+        </div>
       </aside>
 
       <button

@@ -1,9 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  experimental: {
-    serverComponentsExternalPackages: ['pdf-parse', 'pdf-lib', 'mammoth'],
-  },
+  serverExternalPackages: ['pdf-parse', 'pdf-lib', 'mammoth'],
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '*.supabase.co' },
