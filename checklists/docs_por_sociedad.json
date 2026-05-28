@@ -10,9 +10,9 @@
       { "id": "id_personal_firmantes", "name": "Identificación personal de Representantes Legales y/o firmantes (cédula/pasaporte)", "required": true, "valid_months": 60 }
     ],
     "documents_to_sign": [
-      { "id": "ley_20393", "name": "Adhesión al Modelo de Prevención de Delitos Ley 20.393", "template": "ley_20393.pdf" },
-      { "id": "nda", "name": "NDA — Acuerdo de Confidencialidad y No Divulgación", "template": "nda.pdf" },
-      { "id": "declaracion_beneficiarios", "name": "Declaración jurada de Beneficiarios Finales", "template": "declaracion_beneficiarios.pdf" }
+      { "id": "ley_20393", "name": "Adhesión al Modelo de Prevención de Delitos Ley 20.393", "template": "ley_20393.docx" },
+      { "id": "nda", "name": "NDA — Acuerdo de Confidencialidad y No Divulgación", "template": "nda.docx" },
+      { "id": "declaracion_beneficiarios", "name": "Declaración jurada de Beneficiarios Finales", "template": "declaracion_beneficiarios.docx" }
     ]
   },
   "Global Card S.A. (Chile)": {
@@ -27,9 +27,9 @@
       { "id": "politica_seguridad_info", "name": "Política de Seguridad de la Información y Ciberseguridad del proveedor", "required": true }
     ],
     "documents_to_sign": [
-      { "id": "ley_20393", "name": "Adhesión al Modelo de Prevención de Delitos Ley 20.393", "template": "ley_20393.pdf" },
-      { "id": "nda", "name": "NDA — Acuerdo de Confidencialidad y No Divulgación", "template": "nda.pdf" },
-      { "id": "declaracion_beneficiarios", "name": "Declaración jurada de Beneficiarios Finales", "template": "declaracion_beneficiarios.pdf" }
+      { "id": "ley_20393", "name": "Adhesión al Modelo de Prevención de Delitos Ley 20.393", "template": "ley_20393.docx" },
+      { "id": "nda", "name": "NDA — Acuerdo de Confidencialidad y No Divulgación", "template": "nda.docx" },
+      { "id": "declaracion_beneficiarios", "name": "Declaración jurada de Beneficiarios Finales", "template": "declaracion_beneficiarios.docx" }
     ]
   },
   "100X (Panamá)": {
@@ -61,7 +61,7 @@
       { "id": "politica_seguridad_info", "name": "Política de Seguridad de la Información y Ciberseguridad del proveedor", "required": true }
     ],
     "documents_to_sign": [
-      { "id": "declaracion_beneficiarios", "name": "Declaración jurada de Beneficiarios Finales", "template": "declaracion_beneficiarios.pdf" }
+      { "id": "declaracion_beneficiarios", "name": "Declaración jurada de Beneficiarios Finales", "template": "declaracion_beneficiarios.docx" }
     ]
   }
 }
