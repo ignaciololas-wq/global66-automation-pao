@@ -2,7 +2,8 @@
 // (migración futura: `supabase gen types typescript` automático).
 
 export type Role = 'admin' | 'aprobador' | 'solicitante' | 'proveedor';
-export type Phase = 'fase1' | 'hito1' | 'fase2' | 'fase3' | 'signed' | 'rejected' | 'cancelled';
+export type Phase = 'fase1' | 'hito1' | 'fase2' | 'fase3' | 'signed' | 'rejected' | 'cancelled' | 'parallel';
+export type ActivePhase = 'fase2_provider_data' | 'hito1_approvals' | 'fase3_validation';
 export type Semaphore = 'green' | 'yellow' | 'red' | null;
 export type InternalApprovalStatus = 'pending' | 'approved' | 'rejected' | 'requested_changes' | null;
 
@@ -42,6 +43,9 @@ export interface WorkflowRun {
   servicio_descripcion?: string | null;
   profile_completed_at?: string | null;
   profile_invited_at?: string | null;
+  active_phases?: ActivePhase[] | null;
+  provider_data_completed_at?: string | null;
+  internal_approvals_completed_at?: string | null;
   apoderados_firmantes?: SignerEntry[] | null;
   draft_url?: string | null;
   metadata?: Record<string, unknown>;
