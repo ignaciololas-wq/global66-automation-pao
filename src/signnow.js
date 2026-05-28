@@ -78,7 +78,7 @@ export async function sendInvite(documentId, signers, redirectUrl) {
       role_id: s.role_id,
       order: i + 1,
       subject: `Firma — ${s.subject}`,
-      message: s.message ?? 'Por favor firmá el documento adjunto.',
+      message: s.message ?? 'Por favor firma el documento adjunto.',
     })),
     from: process.env.SIGNNOW_USERNAME,
     cc: [],

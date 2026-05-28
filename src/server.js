@@ -634,7 +634,7 @@ const routes = {
   },
 
   'GET /api/providers/lookup': async (req, res, url) => {
-    // Autocomplete intake: buscá por tax_id y devolvé todos los campos disponibles
+    // Autocomplete intake: busca por tax_id y devuelve todos los campos disponibles
     // + último profile_data (contacto comercial, datos bancarios, certificaciones).
     const auth = await getUserFromRequest(req);
     if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });

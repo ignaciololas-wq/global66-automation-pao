@@ -16,7 +16,7 @@ const SYSTEM = `Sos analista financiero. Recibís transacciones de tarjeta corpo
 
 Devolvés solo JSON.`;
 
-const USER_TEMPLATE = `Analizá estas transacciones (CSV-like):
+const USER_TEMPLATE = `Analiza estas transacciones (CSV-like):
 
 {{TRANSACTIONS}}
 

@@ -24,22 +24,22 @@ if (!ai && !MOCK) {
     process.env.ANHTROPIC_API_KEY && 'ANHTROPIC_API_KEY',
     process.env.CLAUDE_API_KEY && 'CLAUDE_API_KEY',
   ].filter(Boolean);
-  console.warn(`[ai_edit] No Anthropic key encontrada. Variables vistas: ${detected.join(', ') || 'NINGUNA'}. Seteá ANTHROPIC_API_KEY en Vercel env vars.`);
+  console.warn(`[ai_edit] No Anthropic key encontrada. Variables vistas: ${detected.join(', ') || 'NINGUNA'}. Setea ANTHROPIC_API_KEY en Vercel env vars.`);
 }
 
-const SYSTEM_PROMPT = `Sos un asistente experto en redacción contractual para Global66.
+const SYSTEM_PROMPT = `Eres un asistente experto en redacción contractual para Global66.
 Vas a recibir el texto de un contrato (borrador) y una lista de comentarios hechos por aprobadores internos (Legal, Compliance, Admin).
 
 Tu tarea: devolver el contrato ACTUALIZADO aplicando los cambios que piden los comentarios.
 
 REGLAS ESTRICTAS:
-1. Mantené el estilo, encabezados, numeración y estructura legal del contrato original.
-2. Solo modificá lo que los comentarios piden. NO inventes cambios.
-3. Si un comentario es ambiguo o requiere info que no tenés, dejalo como TODO entre [[ ]] en el texto y mencionalo en el diff_summary.
+1. Mantén el estilo, encabezados, numeración y estructura legal del contrato original.
+2. Solo modifica lo que los comentarios piden. NO inventes cambios.
+3. Si un comentario es ambiguo o requiere info que no tienes, dejalo como TODO entre [[ ]] en el texto y mencionalo en el diff_summary.
 4. NO incluyas explicaciones dentro del contrato, solo el texto del contrato modificado.
-5. Si dos comentarios se contradicen, elegí el más conservador (favor de Global66) y mencionalo en diff_summary.
+5. Si dos comentarios se contradicen, elige el más conservador (favor de Global66) y mencionalo en diff_summary.
 
-Devolvé JSON EXACTO con esta forma:
+Devuelve JSON EXACTO con esta forma:
 {
   "updated_markdown": "<contrato completo en markdown, con cambios aplicados>",
   "diff_summary": "<resumen 3-6 bullets de los cambios>",
@@ -97,7 +97,7 @@ async function extractText(buffer, mimeType) {
 export async function runAiEdit({ workflowRunId, sourceFileId, requestedBy, requestedById, extraPrompt }) {
   if (!ai) {
     if (MOCK) throw new Error('MOCK_MODE=true. Setealo a false para usar IA real.');
-    throw new Error('ANTHROPIC_API_KEY no seteada en Vercel. Verificá Settings → Environment Variables: el nombre exacto debe ser "ANTHROPIC_API_KEY" (sin typos), aplicada a Production/Preview/Development, y redeploy después de agregarla.');
+    throw new Error('ANTHROPIC_API_KEY no seteada en Vercel. Verifica Settings → Environment Variables: el nombre exacto debe ser "ANTHROPIC_API_KEY" (sin typos), aplicada a Production/Preview/Development, y redeploy después de agregarla.');
   }
 
   const { data: source, error } = await sb
@@ -137,7 +137,7 @@ export async function runAiEdit({ workflowRunId, sourceFileId, requestedBy, requ
       .join('\n\n');
 
     if (!text || text.length < 50) {
-      throw new Error(`Texto extraído muy corto (${text?.length ?? 0} chars). PDF puede ser imagen (escaneado) sin OCR, o .docx sin texto. Subí versión .pdf con texto seleccionable.`);
+      throw new Error(`Texto extraído muy corto (${text?.length ?? 0} chars). PDF puede ser imagen (escaneado) sin OCR, o .docx sin texto. Sube versión .pdf con texto seleccionable.`);
     }
 
     const userPrompt = `${extraPrompt ? `Instrucción extra del usuario: ${extraPrompt}\n\n---\n\n` : ''}TEXTO DEL CONTRATO ACTUAL:\n\n\`\`\`\n${text.slice(0, 80000)}\n\`\`\`\n\n---\n\nCOMENTARIOS DE LOS APROBADORES (aplicalos):\n\n${commentsBlock}\n\nDevolvé SOLO el JSON, sin texto extra antes ni después.`;

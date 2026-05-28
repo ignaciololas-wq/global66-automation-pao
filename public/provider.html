@@ -468,7 +468,7 @@ function renderUploads(p) {
       statusEl.innerHTML = `<span class="muted">⬆ Subiendo ${file.name}…</span>`;
       input.disabled = true;
       try {
-        if (!token) throw new Error('Falta token de sesión, recargá el link del email');
+        if (!token) throw new Error('Falta token de sesión, recarga el link del email');
         if (!docType) throw new Error('Tipo de documento no identificado');
         const fd = new FormData();
         fd.append('token', token);

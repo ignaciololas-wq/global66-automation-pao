@@ -83,11 +83,11 @@ export function magicLinkEmail({ email, magicLink, role }) {
     </p>
     <a href="${magicLink}" style="display:inline-block;background:#1F49B6;color:white;padding:14px 40px;border-radius:999px;text-decoration:none;font-weight:600;box-shadow:0 4px 14px rgba(31,73,182,0.3)">Entrar →</a>
     <p style="margin:28px 0 0;color:#565656;font-size:11px;word-break:break-all">
-      ¿No funciona? Copiá: <br><span style="color:#1F49B6">${magicLink}</span>
+      ¿No funciona? Copia: <br><span style="color:#1F49B6">${magicLink}</span>
     </p>
-    ${role === 'admin' ? '<div style="margin-top:24px;padding:12px;background:rgba(2,167,87,0.08);border-radius:8px;font-size:12px;color:#02A757"><b>Rol:</b> admin · podés gestionar usuarios</div>' : ''}
+    ${role === 'admin' ? '<div style="margin-top:24px;padding:12px;background:rgba(2,167,87,0.08);border-radius:8px;font-size:12px;color:#02A757"><b>Rol:</b> admin · puedes gestionar usuarios</div>' : ''}
   </div>
-  <div style="background:#f5f7fe;padding:14px;text-align:center;color:#565656;font-size:11px">Si no pediste este link, ignorá este mail. Global66</div>
+  <div style="background:#f5f7fe;padding:14px;text-align:center;color:#565656;font-size:11px">Si no pediste este link, ignora este mail. Global66</div>
 </div>
 </body></html>`;
   const text = `Link de acceso Global66 Contratos:\n${magicLink}\n\nVálido por 1 hora.`;
@@ -95,7 +95,7 @@ export function magicLinkEmail({ email, magicLink, role }) {
 }
 
 export function providerInvitation({ providerName, profileUrl, sociedadContratante, solicitanteNombre, sociedadDocs }) {
-  const subject = `Completá tu perfil de proveedor — Global66`;
+  const subject = `Completa tu perfil de proveedor — Global66`;
 
   const baseList = (sociedadDocs?.base_docs ?? [])
     .map((d) => `<li style="margin:4px 0">${d.name}${d.valid_months ? ` <span style="color:#999;font-size:11px">(vigencia ${d.valid_months}m)</span>` : ''}</li>`)
@@ -111,7 +111,7 @@ export function providerInvitation({ providerName, profileUrl, sociedadContratan
     <h3 style="font-family:'Montserrat',sans-serif;font-size:14px;text-transform:uppercase;letter-spacing:0.05em;color:#565656;margin:28px 0 8px">📁 Documentos que vas a necesitar</h3>
     <p style="color:#132046;font-size:13px;margin:0 0 12px">Según la sociedad contratante (<b>${sociedadDocs.name}</b>):</p>
     ${baseList ? `<ul style="padding-left:20px;margin:0;color:#132046;font-size:14px">${baseList}</ul>` : ''}
-    ${signList ? `<h4 style="font-size:13px;color:#132046;margin:18px 0 8px">Documentos para firmar — descargá, firmá y subí</h4><ul style="padding:0;margin:0;list-style:none;color:#132046;font-size:14px">${signList}</ul>` : ''}
+    ${signList ? `<h4 style="font-size:13px;color:#132046;margin:18px 0 8px">Documentos para firmar — descarga, firma y sube</h4><ul style="padding:0;margin:0;list-style:none;color:#132046;font-size:14px">${signList}</ul>` : ''}
   ` : '';
 
   const html = `<!doctype html>
@@ -131,7 +131,7 @@ export function providerInvitation({ providerName, profileUrl, sociedadContratan
       ${sociedadContratante ? 'La sociedad contratante será <b>' + sociedadContratante + '</b>.' : ''}
     </p>
     <p style="margin:0 0 24px;color:#132046;font-size:15px;line-height:1.6">
-      Para avanzar, completá tu perfil en este link (toma 5 minutos):
+      Para avanzar, completa tu perfil en este link (toma 5 minutos):
     </p>
     <div style="text-align:center;margin:28px 0">
       <a href="${profileUrl}" style="display:inline-block;background:#1F49B6;color:white;padding:14px 32px;border-radius:999px;text-decoration:none;font-weight:600;box-shadow:0 4px 14px rgba(31,73,182,0.3)">Completar perfil →</a>
@@ -140,7 +140,7 @@ export function providerInvitation({ providerName, profileUrl, sociedadContratan
     ${docsSection}
 
     <p style="margin:24px 0 0;color:#565656;font-size:12px;text-align:center;word-break:break-all">
-      ¿No funciona el botón? Copiá este link:<br>
+      ¿No funciona el botón? Copia este link:<br>
       <span style="color:#1F49B6">${profileUrl}</span>
     </p>
     <hr style="border:none;border-top:1px solid #E9EDF8;margin:24px 0">
@@ -156,7 +156,7 @@ export function providerInvitation({ providerName, profileUrl, sociedadContratan
       (sociedadDocs.base_docs ?? []).map((d) => `  - ${d.name}`).join('\n') +
       ((sociedadDocs.documents_to_sign ?? []).length ? '\n\nPara firmar:\n' + sociedadDocs.documents_to_sign.map((d) => `  - ${d.name}`).join('\n') : '')
     : '';
-  const text = `Hola ${providerName},\n\nGlobal66 inició el proceso para firmar un contrato contigo.\nPara avanzar, completá tu perfil en: ${profileUrl}${docsText}\n\n— Global66`;
+  const text = `Hola ${providerName},\n\nGlobal66 inició el proceso para firmar un contrato contigo.\nPara avanzar, completa tu perfil en: ${profileUrl}${docsText}\n\n— Global66`;
   return { subject, html, text };
 }
 
@@ -182,24 +182,24 @@ export function providerRevisionRequest({ providerName, profileUrl, comment, sol
     </p>
     ${commentBlock}
     <p style="margin:0 0 24px;color:#132046;font-size:15px;line-height:1.6">
-      Ingresá al link de tu perfil, corrige los datos indicados y volvé a guardar:
+      Ingresa al link de tu perfil, corrige los datos indicados y volvé a guardar:
     </p>
     <div style="text-align:center;margin:28px 0">
       <a href="${profileUrl}" style="display:inline-block;background:#1F49B6;color:white;padding:14px 32px;border-radius:999px;text-decoration:none;font-weight:600;box-shadow:0 4px 14px rgba(31,73,182,0.3)">Revisar mi perfil →</a>
     </div>
     <p style="margin:24px 0 0;color:#565656;font-size:12px;text-align:center;word-break:break-all">
-      ¿No funciona el botón? Copiá este link:<br>
+      ¿No funciona el botón? Copia este link:<br>
       <span style="color:#1F49B6">${profileUrl}</span>
     </p>
     <hr style="border:none;border-top:1px solid #E9EDF8;margin:24px 0">
     <p style="margin:0;color:#565656;font-size:12px;line-height:1.5">
-      Si tenés dudas sobre qué corregir, respondé este correo${approverEmail ? ` o escribí directo a <a href="mailto:${approverEmail}" style="color:#1F49B6">${approverEmail}</a>` : ''}.
+      Si tienes dudas sobre qué corregir, respondé este correo${approverEmail ? ` o escribí directo a <a href="mailto:${approverEmail}" style="color:#1F49B6">${approverEmail}</a>` : ''}.
     </p>
   </div>
   <div style="background:#f5f7fe;padding:16px 32px;text-align:center;color:#565656;font-size:12px">Global66 · Procedimiento G81-PRO-005</div>
 </div>
 </body></html>`;
-  const text = `Hola ${providerName},\n\nRevisamos la información de tu perfil y necesitamos algunos ajustes${comment ? `:\n\n${comment}\n` : '.\n'}\nIngresá a tu perfil para corregir: ${profileUrl}\n\n— Global66`;
+  const text = `Hola ${providerName},\n\nRevisamos la información de tu perfil y necesitamos algunos ajustes${comment ? `:\n\n${comment}\n` : '.\n'}\nIngresa a tu perfil para corregir: ${profileUrl}\n\n— Global66`;
   return { subject, html, text };
 }
 
