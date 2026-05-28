@@ -108,7 +108,8 @@
 
 <div class="banner">
   <div class="logo">
-    <div class="logo-mark">G</div>
+    <div class="logo-mark" id="brand-logo-mark">G</div>
+    <img id="brand-logo-img" hidden alt="" style="width:44px;height:44px;border-radius:10px;object-fit:cover">
     <div class="logo-text">global66<small>contratos</small></div>
   </div>
   <h1>Completá tu perfil</h1>
@@ -134,6 +135,22 @@
 
 <script>
 const token = location.pathname.split('/p/')[1];
+
+// Branding logo from app_settings (admin lo configura via /admin#matriz → Branding).
+fetch('/api/settings?t=' + Date.now())
+  .then(r => r.ok ? r.json() : {})
+  .then(s => {
+    const url = s.logo_url?.url;
+    if (!url) return;
+    const img = document.getElementById('brand-logo-img');
+    const mark = document.getElementById('brand-logo-mark');
+    if (img && mark) {
+      img.src = url;
+      img.hidden = false;
+      mark.style.display = 'none';
+    }
+  })
+  .catch(() => {});
 const $ = (s) => document.querySelector(s);
 
 async function load() {
