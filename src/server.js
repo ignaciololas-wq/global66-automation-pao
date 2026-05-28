@@ -190,6 +190,21 @@ const routes = {
     json(res, 200, result);
   },
 
+  'GET /api/provider-uploads/url': async (req, res, url) => {
+    // Devuelve signed URL para descargar un provider_upload (RUT cert, NDA firmado, etc.).
+    const id = url.searchParams.get('id');
+    if (!id) return json(res, 400, { error: 'id required' });
+    const { data: row, error } = await sb
+      .from('provider_uploads')
+      .select('file_url, doc_filename')
+      .eq('id', id)
+      .maybeSingle();
+    if (error || !row) return json(res, 404, { error: 'upload not found' });
+    const { data: signed, error: e2 } = await sb.storage.from('contracts').createSignedUrl(row.file_url, 3600, { download: row.doc_filename });
+    if (e2) return json(res, 500, { error: e2.message });
+    json(res, 200, { url: signed.signedUrl, filename: row.doc_filename });
+  },
+
   'GET /api/regcheq-history': async (req, res, url) => {
     const pid = url.searchParams.get('provider_id');
     if (!pid) return json(res, 400, { error: 'provider_id required' });

@@ -1822,7 +1822,8 @@ const pages = {
     `;
   },
 
-  async contracts() {
+  async contracts(params) {
+    if (params && params[0]) return pages.contractDetail(params[0]);
     const list = await q('contracts', 'order=created_at.desc&limit=200').catch(() => []);
     const providersMap = {};
     if (list.length) {
@@ -1842,7 +1843,7 @@ const pages = {
           <thead><tr><th>Proveedor</th><th>Tipo</th><th>Monto</th><th>Periodicidad</th><th>Vence</th><th>Status</th><th>Firmado</th></tr></thead>
           <tbody>${list.length ? list.map(c => {
             const p = providersMap[c.provider_id];
-            return `<tr>
+            return `<tr class="clickable" onclick="location.hash='#contracts/${c.id}'">
               <td><b>${p?.razon_social ?? c.provider_id.slice(0, 8)}</b></td>
               <td class="muted">${c.tipo_contrato ?? '—'}</td>
               <td class="right">${money(c.monto, c.moneda)}</td>
@@ -1856,7 +1857,151 @@ const pages = {
       </div>
     `;
   },
+
+  async contractDetail(contractId) {
+    const contractsRows = await q('contracts', `id=eq.${contractId}`);
+    const c = contractsRows[0];
+    if (!c) { view.innerHTML = '<div class="err">Contrato no encontrado</div>'; return; }
+
+    const runFilter = c.workflow_run_id ?? '00000000-0000-0000-0000-000000000000';
+    const [provs, runs, contractFiles, providerUploads, auditLog, approvals] = await Promise.all([
+      q('providers', `id=eq.${c.provider_id}`).catch(() => []),
+      c.workflow_run_id ? q('workflow_runs', `id=eq.${c.workflow_run_id}`).catch(() => []) : Promise.resolve([]),
+      q('contract_files', `workflow_run_id=eq.${runFilter}&order=created_at.desc&archived_at=is.null`).catch(() => []),
+      q('provider_uploads', `provider_id=eq.${c.provider_id}&order=created_at.desc`).catch(() => []),
+      c.workflow_run_id ? q('audit_log', `workflow_run_id=eq.${c.workflow_run_id}&order=created_at.asc`).catch(() => []) : Promise.resolve([]),
+      c.workflow_run_id ? q('approvals', `workflow_run_id=eq.${c.workflow_run_id}&order=decided_at.asc`).catch(() => []) : Promise.resolve([]),
+    ]);
+    const p = provs[0];
+    const run = runs[0];
+
+    const draftFiles = contractFiles.filter(f => f.kind === 'main' || f.draft_status);
+    const anexos = contractFiles.filter(f => f.kind === 'anexo');
+    const papelProv = contractFiles.filter(f => f.kind === 'papel_proveedor');
+
+    const fileRow = (f, mode) => {
+      const url = mode === 'contract' ? `/api/files/url?id=${f.id}&download=1` : `/api/provider-uploads/url?id=${f.id}`;
+      const tipo = mode === 'contract' ? (f.kind ?? '—') : (f.doc_type ?? '—');
+      const name = f.filename ?? f.doc_filename ?? '—';
+      return `<tr>
+        <td><b>${tipo}</b>${f.version ? ` <span class="muted">v${f.version}</span>` : ''}</td>
+        <td><span class="muted">${name}</span></td>
+        <td class="muted">${dt(f.created_at)}</td>
+        <td><button type="button" class="primary" style="padding:6px 14px;font-size:12px" onclick="downloadFile('${url}')">⬇ Descargar</button></td>
+      </tr>`;
+    };
+
+    view.innerHTML = `
+      <div class="breadcrumb"><a href="#contracts">← Contratos</a></div>
+      <div class="header-row">
+        <div>
+          <h2>${p?.razon_social ?? 'Contrato'}</h2>
+          <p style="color:var(--muted);margin-top:4px">${c.tipo_contrato ?? '—'} · ${p?.tax_id ?? ''} · ${c.sociedad_contratante ?? '—'}</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          ${dotPill(c.status, statusKind(c.status))}
+          ${c.signed_at ? `<span class="muted" style="font-size:12px">Firmado ${dt(c.signed_at)}</span>` : ''}
+        </div>
+      </div>
+
+      <div class="grid grid-4">
+        <div class="card"><div class="stat-label">Monto</div><div class="stat-num" style="font-size:22px">${money(c.monto, c.moneda)}</div></div>
+        <div class="card"><div class="stat-label">Vigencia</div><div class="stat-num" style="font-size:22px">${c.vigencia_meses ?? '—'}<small>meses</small></div></div>
+        <div class="card"><div class="stat-label">Inicio</div><div class="stat-num" style="font-size:14px;font-weight:600">${c.start_date ?? '—'}</div></div>
+        <div class="card"><div class="stat-label">Vence</div><div class="stat-num" style="font-size:14px;font-weight:600">${c.end_date ?? '—'}</div></div>
+      </div>
+
+      ${c.signed_pdf_url ? `<div class="card" style="margin-bottom:16px;border-left:4px solid var(--green)">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <h3 style="margin:0;color:var(--green)">✓ Contrato firmado</h3>
+            <p style="color:var(--muted);font-size:12.5px;margin-top:4px">Firmado el ${dt(c.signed_at)}${c.signnow_document_id ? ' · SignNow ' + c.signnow_document_id.slice(0, 12) : ''}</p>
+          </div>
+          <a href="${c.signed_pdf_url}" target="_blank" class="primary" style="padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px">⬇ Descargar PDF firmado</a>
+        </div>
+      </div>` : ''}
+
+      <div class="grid grid-2">
+        <div class="card">
+          <h3 style="margin-bottom:14px">Proveedor</h3>
+          <dl class="props">
+            <dt>Razón social</dt><dd><b>${p?.razon_social ?? '—'}</b></dd>
+            <dt>Tax ID</dt><dd>${p?.tax_id ?? '—'}</dd>
+            <dt>País</dt><dd>${p?.pais ?? '—'}</dd>
+            <dt>Email</dt><dd>${p?.email_contacto ?? '—'}</dd>
+            <dt>Representante</dt><dd>${p?.representante_legal ?? '—'}</dd>
+          </dl>
+          ${p ? `<a href="#providers/${p.id}" style="font-size:12.5px;color:var(--blue-500);font-weight:600">Ver perfil proveedor →</a>` : ''}
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom:14px">Solicitud original</h3>
+          ${run ? `<dl class="props">
+            <dt>Solicitante</dt><dd>${run.solicitante_nombre ?? '—'} <span class="muted">${run.solicitante_email ?? ''}</span></dd>
+            <dt>Owner</dt><dd>${run.owner_email ?? '—'}</dd>
+            <dt>Fase actual</dt><dd>${dotPill(run.current_phase, phaseKind(run.current_phase))}</dd>
+            <dt>Aprobador</dt><dd>${run.internal_approver_email ?? '—'}</dd>
+          </dl>
+          <a href="#workflows/${run.id}" style="font-size:12.5px;color:var(--blue-500);font-weight:600">Ver detalle solicitud →</a>` : '<div class="muted">Sin solicitud asociada</div>'}
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <h3 style="margin-bottom:14px">Aprobaciones</h3>
+        ${approvals.length ? ['compliance','legal','admin'].map(team => {
+          const a = approvals.find(x => x.team === team);
+          const st = a?.decision ?? 'pendiente';
+          const k = st === 'approved' ? 'green' : st === 'rejected' ? 'red' : st === 'requested_changes' ? 'yellow' : 'gray';
+          return `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+            <span><b style="text-transform:capitalize">${team}</b> ${a?.comment ? `<span class="muted"> — ${a.comment}</span>` : ''}</span>
+            <span>${dotPill(st, k)} ${a ? `<span class="muted" style="font-size:11px;margin-left:8px">${dt(a.decided_at)}</span>` : ''}</span>
+          </div>`;
+        }).join('') : '<div class="muted">Sin aprobaciones registradas</div>'}
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <h3 style="margin-bottom:14px">📄 Documentos del contrato</h3>
+        ${draftFiles.length || anexos.length || papelProv.length ? `<table>
+          <thead><tr><th>Tipo</th><th>Archivo</th><th>Subido</th><th></th></tr></thead>
+          <tbody>
+            ${draftFiles.map(f => fileRow(f, 'contract')).join('')}
+            ${anexos.map(f => fileRow(f, 'contract')).join('')}
+            ${papelProv.map(f => fileRow(f, 'contract')).join('')}
+          </tbody>
+        </table>` : '<div class="muted">Sin documentos del contrato cargados todavía</div>'}
+      </div>
+
+      <div class="card" style="margin-bottom:16px">
+        <h3 style="margin-bottom:14px">📁 Documentos del proveedor</h3>
+        <p style="color:var(--muted);font-size:12.5px;margin-bottom:14px">Archivos que el proveedor subió en su formulario (RUT cert, escritura, NDA firmado, etc.).</p>
+        ${providerUploads.length ? `<table>
+          <thead><tr><th>Tipo</th><th>Archivo</th><th>Subido</th><th></th></tr></thead>
+          <tbody>${providerUploads.map(f => fileRow(f, 'provider')).join('')}</tbody>
+        </table>` : '<div class="muted">El proveedor aún no subió documentos</div>'}
+      </div>
+
+      <div class="card">
+        <h3 style="margin-bottom:14px">Timeline</h3>
+        <ul class="timeline">${auditLog.length ? auditLog.map(a => `<li>
+          <b>${a.action}</b> <span class="muted">por ${a.actor}</span>
+          <span class="ts">${dt(a.created_at)}</span>
+        </li>`).join('') : '<li class="muted">Sin eventos</li>'}</ul>
+      </div>
+    `;
+  },
 };
+
+async function downloadFile(apiUrl) {
+  try {
+    const r = await fetch(apiUrl, { credentials: 'include' });
+    if (!r.ok) throw new Error(await r.text());
+    const j = await r.json();
+    if (j.url) window.open(j.url, '_blank');
+    else throw new Error('no signed url');
+  } catch (e) {
+    alert('Error descargando archivo: ' + e.message);
+  }
+}
 
 // ─── Stepper visual + Approval panel ────────────────────────────────────────
 
