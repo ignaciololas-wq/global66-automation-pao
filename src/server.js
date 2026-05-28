@@ -417,7 +417,8 @@ const routes = {
       patch.active_phases = ['fase2_provider_data', 'hito1_approvals'];
     }
 
-    await sb.from('workflow_runs').update(patch).eq('id', run_id);
+    const upd = await sb.from('workflow_runs').update(patch).eq('id', run_id);
+    if (upd.error) console.error('[intake/approve] update error:', upd.error.message);
     await logAudit(run_id, approver_email ?? 'admin', `intake.${decision}`, 'workflow_run', run_id, { sociedad_contratante, comment });
 
     if (decision === 'rejected') return json(res, 200, { ok: true, decision });
