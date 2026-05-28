@@ -112,7 +112,7 @@
     <img id="brand-logo-img" hidden alt="" style="width:44px;height:44px;border-radius:10px;object-fit:cover">
     <div class="logo-text">global66<small>contratos</small></div>
   </div>
-  <h1>Completá tu perfil</h1>
+  <h1>Completa tu perfil</h1>
   <p>Datos del proveedor para que podamos avanzar con el contrato.</p>
 </div>
 
@@ -192,7 +192,7 @@ function renderForm(p) {
     <form id="form">
       <div class="section tally-step" data-step="1" data-step-name="Datos registrados">
         <h2>Datos ya registrados</h2>
-        <p class="help">Revisá los datos. Si algo está mal, corregilo acá antes de continuar.</p>
+        <p class="help">Revisa los datos. Si algo está mal, corregilo aquí antes de continuar.</p>
         <div class="question">
           <label>Razón social <span class="req">*</span></label>
           <input type="text" name="razon_social" required value="${esc(p.razon_social)}" data-original="${esc(p.razon_social)}">
@@ -218,7 +218,7 @@ function renderForm(p) {
 
       <div class="section tally-step" data-step="2" data-step-name="Información de la empresa" hidden>
         <h2>1. Información de la empresa</h2>
-        <p class="help">Confirmá o completá los datos legales.</p>
+        <p class="help">Confirma o completa los datos legales.</p>
         <div class="question">
           <label>Domicilio fiscal completo <span class="req">*</span></label>
           <input type="text" name="domicilio" required placeholder="Calle, número, comuna, ciudad" value="${esc(p.profile_data?.domicilio)}">
@@ -288,7 +288,7 @@ function renderForm(p) {
         <div class="question">
           <label>¿Tiene programa anti-corrupción / anti-lavado de activos?</label>
           <select name="anticorrupcion">
-            <option value="">— Elegí —</option>
+            <option value="">— Elige —</option>
             <option ${p.profile_data?.anticorrupcion === 'si' ? 'selected' : ''} value="si">Sí</option>
             <option ${p.profile_data?.anticorrupcion === 'no' ? 'selected' : ''} value="no">No</option>
           </select>
@@ -297,14 +297,14 @@ function renderForm(p) {
 
       <div class="section tally-step" data-step="7" data-step-name="Documentos" hidden>
         <h2>6. Documentos requeridos</h2>
-        <p class="help">Subí los archivos solicitados según tu sociedad contratante. Aceptamos PDF, PNG, JPG y WEBP (máx 10MB cada uno).</p>
+        <p class="help">Sube los archivos solicitados según tu sociedad contratante. Aceptamos PDF, PNG, JPG y WEBP (máx 10MB cada uno).</p>
         <div id="uploads-list"></div>
-        <p class="muted" style="font-size:12px;margin-top:14px">Si no tenés algún documento ahora, podés enviar el perfil igual y subirlo después abriendo este mismo link.</p>
+        <p class="muted" style="font-size:12px;margin-top:14px">Si no tienes algún documento ahora, puedes enviar el perfil igual y subirlo después abriendo este mismo link.</p>
       </div>
 
       <div class="section tally-step" data-step="8" data-step-name="Confirmar y enviar" hidden>
-        <h2>7. Confirmá y envía</h2>
-        <p class="help">Revisá tus datos abajo antes de enviar.</p>
+        <h2>7. Confirma y envía</h2>
+        <p class="help">Revisa tus datos abajo antes de enviar.</p>
         <div class="question">
           <label>Tu email (quien completa el formulario) <span class="req">*</span></label>
           <input type="email" name="filled_by_email" required placeholder="tu.email@empresa.com" value="${esc(p.profile_data?.filled_by_email)}">
@@ -437,7 +437,7 @@ function renderUploads(p) {
         <input type="file" data-doctype="otros" accept="application/pdf,image/*">
         <div class="upload-status" data-doctype-status="otros"></div>
       </div>
-      <p class="muted" style="font-size:12px">No hay sociedad asignada todavía. Podés subir archivos genéricos.</p>
+      <p class="muted" style="font-size:12px">No hay sociedad asignada todavía. Puedes subir archivos genéricos.</p>
     `;
   } else {
     host.innerHTML = allDocs.map((d) => {
@@ -484,9 +484,9 @@ function renderUploads(p) {
 
         if (!r.ok) {
           const errMsg = payload?.error ?? rawText ?? `HTTP ${r.status}`;
-          if (errMsg.includes('mime not allowed')) throw new Error('Tipo no permitido. Usá PDF, PNG, JPG o WEBP.');
+          if (errMsg.includes('mime not allowed')) throw new Error('Tipo no permitido. Usa PDF, PNG, JPG o WEBP.');
           if (errMsg.includes('too large')) throw new Error('Archivo demasiado pesado (máx 10MB).');
-          if (errMsg.includes('token invalid')) throw new Error('Link expirado. Pedí uno nuevo a Global66.');
+          if (errMsg.includes('token invalid')) throw new Error('Link expirado. Pide uno nuevo a Global66.');
           throw new Error(errMsg);
         }
         statusEl.innerHTML = `<div style="color:#02A757">✓ <b>${payload.doc_filename}</b> subido (${fmtSize(payload.file_size)})</div>`;

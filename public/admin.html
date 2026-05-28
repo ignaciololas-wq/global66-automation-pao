@@ -55,7 +55,8 @@
   .shell.sidebar-collapsed aside { transform: translateX(-100%); pointer-events: none }
   aside { transition: transform .25s ease }
   /* Handle pegado al borde del sidebar (tab-style, no flotante). */
-  .sidebar-toggle {
+  .sidebar-toggle { display: none }
+  body.logged-in .sidebar-toggle {
     position: fixed; top: 50%; transform: translateY(-50%);
     z-index: 150;
     width: 22px; height: 64px;
@@ -910,6 +911,7 @@ async function checkAuth() {
   if (!me?.ok) {
     $('#login-screen').hidden = false; $('#login-screen').style.display = '';
     $('#app-shell').hidden = true;
+    document.body.classList.remove('logged-in');
     return;
   }
 
@@ -919,6 +921,7 @@ async function checkAuth() {
 
   $('#login-screen').hidden = true; $('#login-screen').style.display = 'none';
   $('#app-shell').hidden = false;
+  document.body.classList.add('logged-in');
 
   const email = me.email ?? '';
   const name = me.display_name ?? email.split('@')[0].replace(/\./g, ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -4241,5 +4244,32 @@ checkAuth().then(() => {
   }
 });
 </script>
+
+<!-- ═══ Agentation (prod + dev) ════════════════════════════════════════════
+     Carga React+Agentation desde esm.sh ESM CDN.
+     Disable: agregar ?agentation=0 a URL. -->
+<script type="module">
+(async () => {
+  if (location.search.includes('agentation=0')) return;
+  try {
+    const [{ default: React }, ReactDOM, mod] = await Promise.all([
+      import('https://esm.sh/react@18'),
+      import('https://esm.sh/react-dom@18/client'),
+      import('https://esm.sh/agentation'),
+    ]);
+    const Agentation = mod.Agentation ?? mod.default;
+    if (!Agentation) throw new Error('Agentation export not found');
+    const host = document.createElement('div');
+    host.id = 'agentation-root';
+    host.dataset.devOnly = '1';
+    document.body.appendChild(host);
+    ReactDOM.createRoot(host).render(React.createElement(Agentation));
+    console.info('[agentation] mounted (dev, hostname=%s)', location.hostname);
+  } catch (err) {
+    console.warn('[agentation] failed to load:', err);
+  }
+})();
+</script>
+
 </body>
 </html>
