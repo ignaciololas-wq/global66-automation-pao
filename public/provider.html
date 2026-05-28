@@ -192,10 +192,8 @@ function renderForm(p) {
           <label>Tipo de proveedor</label>
           <select name="tipo_proveedor" data-original="${esc(p.tipo_proveedor)}">
             <option value="">— Sin definir —</option>
-            <option value="bienes" ${p.tipo_proveedor === 'bienes' ? 'selected' : ''}>Bienes</option>
-            <option value="servicios" ${p.tipo_proveedor === 'servicios' ? 'selected' : ''}>Servicios</option>
-            <option value="profesional" ${p.tipo_proveedor === 'profesional' ? 'selected' : ''}>Profesional independiente</option>
-            <option value="otro" ${p.tipo_proveedor === 'otro' ? 'selected' : ''}>Otro</option>
+            ${['Servicios profesionales','Plataformas SaaS','Marketing y Publicidad','Consultoría/Asesoría','Otro']
+              .map(t => `<option value="${t}" ${p.tipo_proveedor === t ? 'selected' : ''}>${t}</option>`).join('')}
           </select>
         </div>
         <p class="help" id="step1-dirty-hint" style="margin-top:10px;color:var(--blue-500);font-weight:500;display:none">✏️ Cambios detectados — se guardarán al enviar.</p>
