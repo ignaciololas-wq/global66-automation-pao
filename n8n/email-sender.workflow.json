@@ -1,0 +1,122 @@
+{
+  "name": "Email Sender — Global66 Contratos",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "email-send",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f7b1a3c4-d5e6-4789-abcd-1234567890ab",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 320],
+      "webhookId": "email-send-g66",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR_DESPUES_DE_IMPORT",
+          "name": "Webhook X-Header-Secret"
+        }
+      },
+      "notes": "Espera POST con body { to[], from, subject, html, text, replyTo, tags[], sentAt }. Auth: header X-Webhook-Secret."
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ Array.isArray($json.body.to) ? $json.body.to.join(', ') : $json.body.to }}",
+        "subject": "={{ $json.body.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.body.html || $json.body.text }}",
+        "options": {
+          "appendAttribution": false,
+          "replyTo": "={{ $json.body.replyTo || '' }}",
+          "senderName": "={{ ($json.body.from || 'Global66 Contratos').split('<')[0].trim() }}"
+        }
+      },
+      "id": "a8c2b4d5-e6f7-489a-bcde-2345678901bc",
+      "name": "Gmail Send",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [560, 320],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REEMPLAZAR_DESPUES_DE_IMPORT",
+          "name": "Gmail julio.lolas@global66.com"
+        }
+      },
+      "notes": "Manda email vía Gmail OAuth. Workspace permite hasta 2000/día."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, id: $json.id, threadId: $json.threadId, sentAt: $now.toISO() } }}",
+        "options": {}
+      },
+      "id": "b9d3c5e6-f7a8-49ab-cdef-3456789012cd",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [840, 240]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 500,
+        "responseBody": "={{ { ok: false, error: $json.error?.message || 'Gmail send failed', detail: $json.error || $json } }}",
+        "options": {}
+      },
+      "id": "c0e4d6f7-a8b9-4abc-def0-456789012345",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [840, 420]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Gmail Send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Send": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true
+  },
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "pinData": {},
+  "versionId": "1.0.0",
+  "triggerCount": 1,
+  "tags": [
+    { "name": "email" },
+    { "name": "global66-contratos" }
+  ]
+}

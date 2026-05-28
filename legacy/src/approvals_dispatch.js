@@ -1,0 +1,139 @@
+// PR-B: dispatcher de aprobaciones internas (compliance/legal/admin) en paralelo a datos proveedor.
+
+import { sb, logAudit } from './supabase_audit.js';
+import { approvalBlocks, riskSummaryFromExtraction } from './slack_blocks.js';
+
+const SLACK_TOKEN = process.env.SLACK_BOT_TOKEN;
+const SITE_URL = (process.env.SITE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`).replace(/\/$/, '');
+
+const DEFAULT_CHANNEL = process.env.SLACK_DEFAULT_CHANNEL ?? process.env.SLACK_COMPLIANCE_CHANNEL;
+const CHANNELS = {
+  compliance: process.env.SLACK_COMPLIANCE_CHANNEL || DEFAULT_CHANNEL,
+  legal: process.env.SLACK_LEGAL_CHANNEL || DEFAULT_CHANNEL,
+  admin: process.env.SLACK_ADMIN_CHANNEL || DEFAULT_CHANNEL,
+};
+
+async function postBlocks(channel, blocks, text, team) {
+  if (!SLACK_TOKEN) {
+    console.warn(`[slack] SLACK_BOT_TOKEN missing — skipping ${team} approval message`);
+    return { ok: false, error: 'slack_not_configured' };
+  }
+  if (!channel) {
+    console.warn(`[slack] SLACK_${team.toUpperCase()}_CHANNEL not set + no SLACK_DEFAULT_CHANNEL fallback — skipping ${team}`);
+    return { ok: false, error: 'channel_not_configured' };
+  }
+  const r = await fetch('https://slack.com/api/chat.postMessage', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json; charset=utf-8', Authorization: `Bearer ${SLACK_TOKEN}` },
+    body: JSON.stringify({ channel, text, blocks }),
+  });
+  const result = await r.json();
+  if (!result.ok) console.warn(`[slack] ${team} → channel ${channel} failed:`, result.error);
+  return result;
+}
+
+// Dispara mensajes Slack a los 3 equipos en paralelo.
+// Devuelve resumen { team: {ok, error?} }.
+export async function dispatchApprovalRequests(runId) {
+  const { data: run, error: runErr } = await sb
+    .from('workflow_runs')
+    .select('*')
+    .eq('id', runId)
+    .single();
+  if (runErr || !run) throw new Error(`run not found: ${runId}`);
+
+  const { data: ext } = await sb
+    .from('extractions')
+    .select('extracted_json')
+    .eq('workflow_run_id', runId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const supplier = {
+    razon_social: run.razon_social,
+    tax_id: run.tax_id,
+    pais: run.pais,
+  };
+  const contract = {
+    tipo_contrato: run.tipo_contrato,
+    monto: run.monto,
+    moneda: run.moneda,
+    vigencia_meses: run.vigencia_meses,
+  };
+  const riskSummary = riskSummaryFromExtraction(ext?.extracted_json);
+  const draftUrl = `${SITE_URL}/admin#workflows/${runId}`;
+
+  const teams = ['compliance', 'legal', 'admin'];
+  const results = await Promise.all(
+    teams.map(async (team) => {
+      try {
+        const blocks = approvalBlocks({ team, runId, supplier, contract, riskSummary, draftUrl });
+        const fallback = `Nuevo contrato para revisión ${team}: ${supplier.razon_social} (${supplier.tax_id})`;
+        const r = await postBlocks(CHANNELS[team], blocks, fallback, team);
+        return [team, { ok: r.ok, ts: r.ts, error: r.error }];
+      } catch (e) {
+        return [team, { ok: false, error: e.message }];
+      }
+    }),
+  );
+  const summary = Object.fromEntries(results);
+  await logAudit(runId, 'system', 'approvals.dispatched', 'workflow_run', runId, summary);
+  return summary;
+}
+
+// Chequea si ambos branches (datos proveedor + aprobaciones internas) están completos.
+// Si sí, avanza a fase3 (validación docs). Idempotente.
+export async function maybeAdvanceToFase3(runId) {
+  const { data: run } = await sb.from('workflow_runs').select('*').eq('id', runId).single();
+  if (!run) return { advanced: false, reason: 'run_not_found' };
+  if (['rejected', 'cancelled', 'signed', 'fase3'].includes(run.current_phase)) {
+    return { advanced: false, reason: `already_${run.current_phase}` };
+  }
+
+  const providerDone = !!run.provider_data_completed_at;
+  const approvalsDone = !!run.internal_approvals_completed_at;
+
+  if (!providerDone || !approvalsDone) {
+    return { advanced: false, reason: 'pending', providerDone, approvalsDone };
+  }
+
+  await sb
+    .from('workflow_runs')
+    .update({ current_phase: 'fase3', active_phases: ['fase3_validation'] })
+    .eq('id', runId);
+  await logAudit(runId, 'system', 'phase.advanced_to_fase3', 'workflow_run', runId, {
+    from_active: run.active_phases,
+  });
+  return { advanced: true };
+}
+
+export async function markProviderDataDone(runId) {
+  const { data: run } = await sb.from('workflow_runs').select('provider_data_completed_at, active_phases').eq('id', runId).single();
+  if (!run || run.provider_data_completed_at) return;
+  const newActive = (run.active_phases ?? []).filter((p) => p !== 'fase2_provider_data');
+  await sb
+    .from('workflow_runs')
+    .update({
+      provider_data_completed_at: new Date().toISOString(),
+      active_phases: newActive,
+    })
+    .eq('id', runId);
+  await logAudit(runId, 'system', 'provider_data.completed', 'workflow_run', runId, {});
+  await maybeAdvanceToFase3(runId);
+}
+
+export async function markInternalApprovalsDone(runId, color, reason) {
+  const { data: run } = await sb.from('workflow_runs').select('internal_approvals_completed_at, active_phases').eq('id', runId).single();
+  if (!run || run.internal_approvals_completed_at) return;
+  const newActive = (run.active_phases ?? []).filter((p) => p !== 'hito1_approvals');
+  await sb
+    .from('workflow_runs')
+    .update({
+      internal_approvals_completed_at: new Date().toISOString(),
+      active_phases: newActive,
+    })
+    .eq('id', runId);
+  await logAudit(runId, 'system', 'internal_approvals.completed', 'workflow_run', runId, { color, reason });
+  if (color !== 'red') await maybeAdvanceToFase3(runId);
+}

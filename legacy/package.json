@@ -1,0 +1,47 @@
+{
+  "name": "global66-automation",
+  "version": "0.2.0",
+  "description": "Pao P2 — Automatización alta contratos proveedores (Stack A: n8n + Gemini + Finnecto + SignNow + Supabase)",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=.env src/server.js",
+    "dev": "node --env-file=.env --watch src/server.js",
+    "check-env": "node src/check_env.js",
+    "mock": "MOCK_MODE=true node --env-file=.env src/server.js",
+    "pilot": "node src/run_pilot.js",
+    "pilot:sancionado": "node src/run_pilot.js --sancionado",
+    "sim:slack": "node scripts/sim_slack_click.js",
+    "runs": "node scripts/show_runs.js",
+    "digest": "node --env-file=.env src/digest.js",
+    "notion:report": "node --env-file=.env src/notion_reporter.js",
+    "ofac:refresh": "node --env-file=.env -e \"import('./src/ofac_offline.js').then(m=>m.checkOfacOffline({razon_social:'test'}).then(()=>console.log('OFAC cache refreshed')))\"",
+    "import:n8n": "node --env-file=.env scripts/import_n8n.js",
+    "extract": "node src/gemini_extract.js",
+    "lista-negra": "node src/lista_negra.js",
+    "alertas": "node src/alertas.js",
+    "inventario": "node src/inventario_tc.js",
+    "test": "node --test --test-reporter=spec \"test/**/*.test.js\"",
+    "legacy:slack": "node src/slack.cjs",
+    "legacy:playwright-test": "node scripts/test.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.99.0",
+    "@google/genai": "^2.5.0",
+    "@slack/bolt": "^4.7.2",
+    "@supabase/supabase-js": "^2.105.4",
+    "axios": "^1.7.0",
+    "busboy": "^1.6.0",
+    "dotenv": "^17.4.2",
+    "googleapis": "^144.0.0",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^1.1.1",
+    "playwright": "^1.60.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

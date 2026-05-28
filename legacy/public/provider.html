@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tu perfil de proveedor — Global66</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --blue-50:#f5f7fe; --blue-100:#E9EDF8; --blue-500:#1F49B6; --blue-600:#003eea;
+    --blue-700:#102a97; --blue-800:#0b1f4b; --blue-900:#132046;
+    --green:#02A757; --mint:#33d9b2; --red:#e64a4a; --yellow:#f0b429;
+    --text:#132046; --muted:#565656; --border:#E9EDF8;
+    --shadow-lg:0 4px 12px rgba(19,32,70,0.08), 0 20px 60px rgba(19,32,70,0.10);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0 }
+  body { font: 15px/1.6 'Inter', -apple-system, system-ui, sans-serif; color: var(--text); background: var(--blue-50); -webkit-font-smoothing: antialiased }
+  h1, h2, h3 { font-family: 'Montserrat', sans-serif; font-weight: 700; letter-spacing: -0.02em }
+
+  .banner {
+    background: linear-gradient(135deg, var(--blue-500), #3F5EDF);
+    color: white;
+    padding: 48px 24px 80px;
+    text-align: center;
+  }
+  .banner .logo { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 16px }
+  .banner .logo-mark { width: 44px; height: 44px; border-radius: 10px; background: rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; font-weight: 800; font-family: 'Montserrat'; font-size: 22px }
+  .banner .logo-text { font-family: 'Montserrat'; font-weight: 800; font-size: 18px; text-align: left }
+  .banner .logo-text small { display: block; opacity: 0.8; font-weight: 500; font-size: 12px }
+  .banner h1 { font-size: 34px; margin-bottom: 8px }
+  .banner p { opacity: 0.92; font-size: 16px; max-width: 560px; margin: 0 auto }
+
+  .container { max-width: 680px; margin: -50px auto 60px; padding: 0 20px; position: relative; z-index: 1 }
+  .card {
+    background: white; border-radius: 20px; box-shadow: var(--shadow-lg);
+    padding: 32px 36px;
+  }
+
+  .section { padding: 18px 0; border-bottom: 1px solid var(--border) }
+  .section:last-child { border-bottom: none }
+  .section h2 { font-size: 18px; margin-bottom: 4px }
+  .section p.help { color: var(--muted); font-size: 13px; margin-bottom: 18px }
+
+  /* Tally-style (PR4) */
+  .tally-topbar { padding: 0 0 14px; display: flex; flex-direction: column; gap: 6px }
+  .tally-progress { height: 4px; background: var(--border); border-radius: 99px; overflow: hidden }
+  .tally-progress-fill { height: 100%; background: linear-gradient(90deg, var(--blue-500), var(--mint)); border-radius: 99px; transition: width .35s cubic-bezier(.22,.61,.36,1) }
+  .tally-step-meta { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--blue-700) }
+  .tally-step-meta .muted { font-weight: 500 }
+  .tally-step.tally-enter { animation: tally-slide 0.32s cubic-bezier(.22,.61,.36,1) both }
+  @keyframes tally-slide { 0% { opacity: 0; transform: translateY(14px) } 100% { opacity: 1; transform: translateY(0) } }
+  .tally-nav { display: flex; gap: 10px; align-items: center; padding-top: 14px; border-top: 1px solid var(--border); margin-top: 8px }
+  .tally-nav .ghost { background: transparent; border: none; color: var(--muted); cursor: pointer; padding: 10px 16px; border-radius: 99px; font-weight: 600; font-size: 14px }
+  .tally-nav .ghost:hover { color: var(--text); background: var(--blue-50) }
+  .tally-review { background: var(--blue-50); border-radius: 12px; border: 1px solid var(--blue-100); padding: 4px 0 }
+  .tally-review-row { display: grid; grid-template-columns: minmax(120px, 180px) 1fr; gap: 10px 16px; padding: 10px 16px; border-bottom: 1px solid var(--blue-100); font-size: 13.5px }
+  .tally-review-row:last-child { border-bottom: none }
+  .tally-review-key { color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px }
+  .tally-review-val { color: var(--text); font-weight: 500; word-break: break-word }
+
+  .question { margin: 18px 0 }
+  .question label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; color: var(--text) }
+  .question label .req { color: var(--red); margin-left: 4px }
+  .question .help { color: var(--muted); font-size: 12.5px; margin-bottom: 8px }
+
+  input[type=text], input[type=email], input[type=number], input[type=date], input[type=tel], textarea, select {
+    width: 100%; padding: 12px 14px;
+    border: 1.5px solid var(--border); border-radius: 10px;
+    font: inherit; color: var(--text); background: white;
+    transition: all .15s ease;
+  }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--blue-500); box-shadow: 0 0 0 4px rgba(31,73,182,0.08) }
+  input.dirty, select.dirty, textarea.dirty { border-color: var(--blue-500); background: #f5f9ff }
+  textarea { resize: vertical; min-height: 90px }
+
+  .preview {
+    background: var(--blue-50); border: 1px solid var(--blue-100); border-radius: 12px;
+    padding: 16px 18px; margin-bottom: 28px;
+  }
+  .preview h3 { font-family: 'Inter'; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; margin-bottom: 8px }
+  .preview-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px }
+  .preview-row span:first-child { color: var(--muted) }
+  .preview-row span:last-child { font-weight: 600 }
+
+  .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border) }
+  button.primary {
+    background: var(--blue-500); color: white; border: none;
+    padding: 14px 32px; border-radius: 999px; font: 600 15px 'Inter';
+    cursor: pointer; box-shadow: 0 4px 14px rgba(31,73,182,0.3);
+    transition: all .15s ease;
+  }
+  button.primary:hover { background: var(--blue-600); transform: translateY(-1px); box-shadow: 0 8px 22px rgba(31,73,182,0.4) }
+  button.primary:disabled { background: var(--blue-100); color: var(--muted); cursor: not-allowed; box-shadow: none; transform: none }
+
+  .err { background: rgba(230,74,74,0.08); border: 1px solid rgba(230,74,74,0.3); color: var(--red); padding: 12px 14px; border-radius: 10px; margin: 12px 0; font-size: 14px }
+  .ok  { background: rgba(2,167,87,0.08); border: 1px solid rgba(2,167,87,0.3); color: var(--green); padding: 18px 20px; border-radius: 12px; font-size: 15px; text-align: center }
+
+  .footer { text-align: center; color: var(--muted); font-size: 12px; padding: 24px }
+
+  @media (max-width: 600px) {
+    .banner { padding: 36px 20px 80px }
+    .banner h1 { font-size: 26px }
+    .card { padding: 24px 20px; border-radius: 16px }
+  }
+</style>
+</head>
+<body>
+
+<div class="banner">
+  <div class="logo">
+    <div class="logo-mark" id="brand-logo-mark">G</div>
+    <img id="brand-logo-img" hidden alt="" style="width:44px;height:44px;border-radius:10px;object-fit:cover">
+    <div class="logo-text">global66<small>contratos</small></div>
+  </div>
+  <h1>Completa tu perfil</h1>
+  <p>Datos del proveedor para que podamos avanzar con el contrato.</p>
+</div>
+
+<div class="container">
+  <div class="card" id="content">
+    <div id="loading" style="text-align:center;padding:40px;color:var(--muted)">Cargando…</div>
+    <div id="form-area" hidden></div>
+    <div id="done-area" hidden>
+      <div class="ok">
+        ✓ <b>Recibimos tus datos.</b><br>
+        El equipo de Global66 va a continuar el proceso de revisión. Te avisaremos cuando esté listo para firmar.
+      </div>
+    </div>
+    <div id="err-area" hidden>
+      <div class="err" id="err-msg">Error</div>
+    </div>
+  </div>
+  <div class="footer">Global66 · G81-PRO-005</div>
+</div>
+
+<script>
+const token = location.pathname.split('/p/')[1];
+
+// Branding logo from app_settings (admin lo configura via /admin#matriz → Branding).
+fetch('/api/settings?t=' + Date.now())
+  .then(r => r.ok ? r.json() : {})
+  .then(s => {
+    const url = s.logo_url?.url;
+    if (!url) return;
+    const img = document.getElementById('brand-logo-img');
+    const mark = document.getElementById('brand-logo-mark');
+    if (img && mark) {
+      img.src = url;
+      img.hidden = false;
+      mark.style.display = 'none';
+    }
+  })
+  .catch(() => {});
+const $ = (s) => document.querySelector(s);
+
+async function load() {
+  if (!token) return showErr('Link inválido');
+  try {
+    const r = await fetch('/api/provider?token=' + encodeURIComponent(token));
+    if (r.status === 404) return showErr('Este link no es válido o expiró. Pedile uno nuevo al equipo de Global66.');
+    if (!r.ok) return showErr('Error: ' + r.status);
+    const p = await r.json();
+    if (p.profile_completed_at) {
+      $('#loading').hidden = true;
+      $('#done-area').hidden = false;
+      return;
+    }
+    renderForm(p);
+  } catch (e) { showErr(e.message); }
+}
+
+function showErr(msg) {
+  $('#loading').hidden = true;
+  $('#err-msg').textContent = msg;
+  $('#err-area').hidden = false;
+}
+
+function renderForm(p) {
+  $('#loading').hidden = true;
+  const fa = $('#form-area');
+  fa.hidden = false;
+
+  fa.innerHTML = `
+    <div class="tally-topbar">
+      <div class="tally-progress"><div class="tally-progress-fill" id="tally-fill" style="width:14%"></div></div>
+      <div class="tally-step-meta">
+        <span id="tally-step-name">Paso 1 de 7</span>
+        <span class="muted" id="tally-step-hint">Datos registrados</span>
+      </div>
+    </div>
+
+    <form id="form">
+      <div class="section tally-step" data-step="1" data-step-name="Datos registrados">
+        <h2>Datos ya registrados</h2>
+        <p class="help">Revisa los datos. Si algo está mal, corregilo aquí antes de continuar.</p>
+        <div class="question">
+          <label>Razón social <span class="req">*</span></label>
+          <input type="text" name="razon_social" required value="${esc(p.razon_social)}" data-original="${esc(p.razon_social)}">
+        </div>
+        <div class="question">
+          <label>Tax ID / RUT <span class="req">*</span></label>
+          <input type="text" name="tax_id" required value="${esc(p.tax_id)}" data-original="${esc(p.tax_id)}">
+        </div>
+        <div class="question">
+          <label>País <span class="req">*</span></label>
+          <input type="text" name="pais" required value="${esc(p.pais)}" data-original="${esc(p.pais)}">
+        </div>
+        <div class="question">
+          <label>Tipo de proveedor</label>
+          <select name="tipo_proveedor" data-original="${esc(p.tipo_proveedor)}">
+            <option value="">— Sin definir —</option>
+            ${['Servicios profesionales','Plataformas SaaS','Marketing y Publicidad','Consultoría/Asesoría','Otro']
+              .map(t => `<option value="${t}" ${p.tipo_proveedor === t ? 'selected' : ''}>${t}</option>`).join('')}
+          </select>
+        </div>
+        <p class="help" id="step1-dirty-hint" style="margin-top:10px;color:var(--blue-500);font-weight:500;display:none">✏️ Cambios detectados — se guardarán al enviar.</p>
+      </div>
+
+      <div class="section tally-step" data-step="2" data-step-name="Información de la empresa" hidden>
+        <h2>1. Información de la empresa</h2>
+        <p class="help">Confirma o completa los datos legales.</p>
+        <div class="question">
+          <label>Domicilio fiscal completo <span class="req">*</span></label>
+          <input type="text" name="domicilio" required placeholder="Calle, número, comuna, ciudad" value="${esc(p.profile_data?.domicilio)}">
+        </div>
+        <div class="question">
+          <label>Sitio web</label>
+          <input type="text" name="website" placeholder="https://..." value="${esc(p.profile_data?.website)}">
+        </div>
+      </div>
+
+      <div class="section tally-step" data-step="3" data-step-name="Representante legal" hidden>
+        <h2>2. Representante legal</h2>
+        <div class="question">
+          <label>Nombre completo del representante legal <span class="req">*</span></label>
+          <input type="text" name="representante_legal" required value="${esc(p.representante_legal ?? p.profile_data?.representante_legal)}">
+        </div>
+        <div class="question">
+          <label>Documento de identidad (RUT/DNI/INE...) <span class="req">*</span></label>
+          <input type="text" name="representante_doc" required value="${esc(p.profile_data?.representante_doc)}">
+        </div>
+        <div class="question">
+          <label>Email del representante <span class="req">*</span></label>
+          <input type="email" name="representante_email" required value="${esc(p.profile_data?.representante_email)}">
+        </div>
+        <div class="question">
+          <label>Teléfono</label>
+          <input type="tel" name="representante_tel" value="${esc(p.profile_data?.representante_tel)}">
+        </div>
+      </div>
+
+      <div class="section tally-step" data-step="4" data-step-name="Contacto comercial" hidden>
+        <h2>3. Contacto comercial</h2>
+        <p class="help">Persona con quien coordinamos día a día (puede ser distinto al representante legal).</p>
+        <div class="question">
+          <label>Nombre <span class="req">*</span></label>
+          <input type="text" name="contacto_comercial_nombre" required value="${esc(p.profile_data?.contacto_comercial_nombre)}">
+        </div>
+        <div class="question">
+          <label>Email <span class="req">*</span></label>
+          <input type="email" name="contacto_comercial_email" required value="${esc(p.email_contacto ?? p.profile_data?.contacto_comercial_email)}">
+        </div>
+        <div class="question">
+          <label>Teléfono</label>
+          <input type="tel" name="contacto_comercial_tel" value="${esc(p.profile_data?.contacto_comercial_tel)}">
+        </div>
+      </div>
+
+      <div class="section tally-step" data-step="5" data-step-name="Facturación" hidden>
+        <h2>4. Facturación</h2>
+        <div class="question">
+          <label>Email de facturación <span class="req">*</span></label>
+          <input type="email" name="email_facturacion" required value="${esc(p.email_facturacion ?? p.profile_data?.email_facturacion)}">
+        </div>
+        <div class="question">
+          <label>Datos bancarios (banco, cuenta, titular)</label>
+          <textarea name="datos_bancarios" placeholder="Banco: ...&#10;Tipo cuenta: ...&#10;Número: ...&#10;Titular: ...">${esc(p.profile_data?.datos_bancarios)}</textarea>
+        </div>
+      </div>
+
+      <div class="section tally-step" data-step="6" data-step-name="Compliance" hidden>
+        <h2>5. Compliance</h2>
+        <p class="help">Esta info nos ayuda a procesar tu alta más rápido.</p>
+        <div class="question">
+          <label>¿Tiene certificación de seguridad? (ISO 27001, SOC2, etc.)</label>
+          <input type="text" name="certificaciones" placeholder="Ej: ISO 27001 vigente hasta 2027" value="${esc(p.profile_data?.certificaciones)}">
+        </div>
+        <div class="question">
+          <label>¿Tiene programa anti-corrupción / anti-lavado de activos?</label>
+          <select name="anticorrupcion">
+            <option value="">— Elige —</option>
+            <option ${p.profile_data?.anticorrupcion === 'si' ? 'selected' : ''} value="si">Sí</option>
+            <option ${p.profile_data?.anticorrupcion === 'no' ? 'selected' : ''} value="no">No</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="section tally-step" data-step="7" data-step-name="Documentos" hidden>
+        <h2>6. Documentos requeridos</h2>
+        <p class="help">Sube los archivos solicitados según tu sociedad contratante. Aceptamos PDF, PNG, JPG y WEBP (máx 10MB cada uno).</p>
+        <div id="uploads-list"></div>
+        <p class="muted" style="font-size:12px;margin-top:14px">Si no tienes algún documento ahora, puedes enviar el perfil igual y subirlo después abriendo este mismo link.</p>
+      </div>
+
+      <div class="section tally-step" data-step="8" data-step-name="Confirmar y enviar" hidden>
+        <h2>7. Confirma y envía</h2>
+        <p class="help">Revisa tus datos abajo antes de enviar.</p>
+        <div class="question">
+          <label>Tu email (quien completa el formulario) <span class="req">*</span></label>
+          <input type="email" name="filled_by_email" required placeholder="tu.email@empresa.com" value="${esc(p.profile_data?.filled_by_email)}">
+        </div>
+        <div id="tally-review" class="tally-review" style="margin-top:14px"></div>
+      </div>
+
+      <div id="form-err" class="err" hidden></div>
+      <div class="tally-nav">
+        <button type="button" class="ghost" id="tally-prev" hidden>← Atrás</button>
+        <button type="button" class="primary" id="tally-next" style="margin-left:auto">Continuar →</button>
+        <button type="submit" class="primary" id="submit-btn" hidden style="margin-left:auto">Enviar perfil completo →</button>
+      </div>
+    </form>
+  `;
+
+  // Tally controller
+  const steps = Array.from(document.querySelectorAll('.tally-step'));
+  const total = steps.length;
+  let idx = 0;
+  const fill = $('#tally-fill');
+  const nameEl = $('#tally-step-name');
+  const hintEl = $('#tally-step-hint');
+  const prevBtn = $('#tally-prev');
+  const nextBtn = $('#tally-next');
+  const submitBtn = $('#submit-btn');
+
+  function show(i) {
+    idx = Math.max(0, Math.min(total - 1, i));
+    steps.forEach((s, k) => {
+      s.hidden = k !== idx;
+      if (k === idx) s.classList.add('tally-enter'); else s.classList.remove('tally-enter');
+    });
+    fill.style.width = `${Math.round(((idx + 1) / total) * 100)}%`;
+    nameEl.textContent = `Paso ${idx + 1} de ${total}`;
+    hintEl.textContent = steps[idx].dataset.stepName ?? '';
+    prevBtn.hidden = idx === 0;
+    const isLast = idx === total - 1;
+    nextBtn.hidden = isLast;
+    submitBtn.hidden = !isLast;
+    if (isLast) renderReview();
+    setTimeout(() => steps[idx].querySelector('input:not([type=hidden]), select, textarea')?.focus({ preventScroll: true }), 80);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function validate() {
+    const step = steps[idx];
+    const fields = step.querySelectorAll('input, select, textarea');
+    for (const f of fields) {
+      if (!f.checkValidity()) { f.reportValidity(); f.focus(); return false; }
+    }
+    return true;
+  }
+
+  function renderReview() {
+    const fd = new FormData(document.querySelector('#form'));
+    const data = Object.fromEntries(fd);
+    const fmt = (v) => v == null || v === '' ? '<span style="color:#999">—</span>' : String(v).replace(/[<>&]/g, (c) => ({ '<':'&lt;', '>':'&gt;', '&':'&amp;' }[c]));
+    const rows = [
+      ['Razón social', fmt(data.razon_social)],
+      ['Tax ID', fmt(data.tax_id)],
+      ['País', fmt(data.pais)],
+      ['Tipo proveedor', fmt(data.tipo_proveedor)],
+      ['Domicilio', fmt(data.domicilio)],
+      ['Sitio web', fmt(data.website)],
+      ['Representante', `${fmt(data.representante_legal)} (${fmt(data.representante_doc)})`],
+      ['Email repr.', `${fmt(data.representante_email)}${data.representante_tel ? ' · tel ' + fmt(data.representante_tel) : ''}`],
+      ['Contacto comercial', `${fmt(data.contacto_comercial_nombre)} · ${fmt(data.contacto_comercial_email)}`],
+      ['Facturación', fmt(data.email_facturacion)],
+      ['Datos bancarios', fmt((data.datos_bancarios ?? '').slice(0, 100))],
+      ['Compliance', `Certif: ${fmt(data.certificaciones)} · Anti-corrupción: ${fmt(data.anticorrupcion)}`],
+    ];
+    $('#tally-review').innerHTML = rows.map(([k, v]) => `
+      <div class="tally-review-row"><div class="tally-review-key">${k}</div><div class="tally-review-val">${v}</div></div>
+    `).join('');
+  }
+
+  prevBtn.addEventListener('click', () => show(idx - 1));
+  nextBtn.addEventListener('click', () => { if (validate()) show(idx + 1); });
+
+  document.querySelector('#form').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.target.tagName === 'TEXTAREA') return;
+    if (idx < total - 1) { e.preventDefault(); if (validate()) show(idx + 1); }
+  });
+
+  show(0);
+  renderUploads(p);
+  setupStep1DirtyDetection();
+  $('#form').addEventListener('submit', submit);
+}
+
+function setupStep1DirtyDetection() {
+  const step1 = document.querySelector('.tally-step[data-step="1"]');
+  if (!step1) return;
+  const inputs = step1.querySelectorAll('input[data-original], select[data-original]');
+  const hint = step1.querySelector('#step1-dirty-hint');
+  const check = () => {
+    let dirty = false;
+    inputs.forEach((el) => {
+      const changed = (el.value ?? '') !== (el.dataset.original ?? '');
+      el.classList.toggle('dirty', changed);
+      if (changed) dirty = true;
+    });
+    if (hint) hint.style.display = dirty ? 'block' : 'none';
+  };
+  inputs.forEach((el) => {
+    el.addEventListener('input', check);
+    el.addEventListener('change', check);
+  });
+}
+
+function renderUploads(p) {
+  const host = document.querySelector('#uploads-list');
+  if (!host) return;
+  const sd = p.sociedad_docs ?? {};
+  const baseDocs = sd.base_docs ?? [];
+  const signDocs = (sd.documents_to_sign ?? []).map((d) => ({ ...d, _kind: 'sign' }));
+  const allDocs = [...baseDocs.map((d) => ({ ...d, _kind: 'base' })), ...signDocs];
+
+  const uploadsByType = {};
+  (p.uploads ?? []).forEach((u) => {
+    if (!uploadsByType[u.doc_type]) uploadsByType[u.doc_type] = [];
+    uploadsByType[u.doc_type].push(u);
+  });
+
+  if (!allDocs.length) {
+    host.innerHTML = `
+      <div class="question">
+        <label>Otros documentos</label>
+        <input type="file" data-doctype="otros" accept="application/pdf,image/*">
+        <div class="upload-status" data-doctype-status="otros"></div>
+      </div>
+      <p class="muted" style="font-size:12px">No hay sociedad asignada todavía. Puedes subir archivos genéricos.</p>
+    `;
+  } else {
+    host.innerHTML = allDocs.map((d) => {
+      const slug = (d.id ?? d.code ?? d.name).toString().toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 60);
+      const existing = uploadsByType[slug] ?? uploadsByType[d.name] ?? [];
+      const validMonths = d.valid_months ? ` <span class="muted" style="font-size:11px">(vigencia ${d.valid_months}m)</span>` : '';
+      const kindBadge = d._kind === 'sign' ? '<span class="pill yellow" style="font-size:10px;margin-left:6px">PARA FIRMAR</span>' : '';
+      const existingHtml = existing.length ? `<div class="upload-status">${existing.map(u => `<div>✓ <b>${u.doc_filename}</b> <span class="muted">· ${fmtSize(u.file_size)} · ${new Date(u.created_at).toLocaleDateString()}</span></div>`).join('')}</div>` : '';
+      const downloadBtn = d.template_url ? `<a href="${d.template_url}" target="_blank" download style="display:inline-block;margin-bottom:8px;padding:6px 12px;background:#1F49B6;color:white;text-decoration:none;border-radius:6px;font-size:12px;font-weight:600">⬇ Descargar plantilla</a>` : '';
+      return `
+        <div class="question">
+          <label>${d.name}${validMonths}${kindBadge}</label>
+          ${downloadBtn}
+          <input type="file" data-doctype="${slug}" accept="application/pdf,image/*">
+          ${existingHtml}
+          <div class="upload-status" data-doctype-status="${slug}"></div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  host.querySelectorAll('input[type=file]').forEach((input) => {
+    input.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const docType = input.dataset.doctype;
+      const statusEl = host.querySelector(`[data-doctype-status="${docType}"]`);
+      statusEl.innerHTML = `<span class="muted">⬆ Subiendo ${file.name}…</span>`;
+      input.disabled = true;
+      try {
+        if (!token) throw new Error('Falta token de sesión, recarga el link del email');
+        if (!docType) throw new Error('Tipo de documento no identificado');
+        const fd = new FormData();
+        fd.append('token', token);
+        fd.append('doc_type', docType);
+        const filledByInput = document.querySelector('input[name=filled_by_email]');
+        if (filledByInput?.value) fd.append('by_email', filledByInput.value);
+        fd.append('file', file, file.name);
+
+        const r = await fetch('/api/provider/upload', { method: 'POST', body: fd });
+        const rawText = await r.text();
+        let payload = null;
+        try { payload = JSON.parse(rawText); } catch {}
+
+        if (!r.ok) {
+          const errMsg = payload?.error ?? rawText ?? `HTTP ${r.status}`;
+          if (errMsg.includes('mime not allowed')) throw new Error('Tipo no permitido. Usa PDF, PNG, JPG o WEBP.');
+          if (errMsg.includes('too large')) throw new Error('Archivo demasiado pesado (máx 10MB).');
+          if (errMsg.includes('token invalid')) throw new Error('Link expirado. Pide uno nuevo a Global66.');
+          throw new Error(errMsg);
+        }
+        statusEl.innerHTML = `<div style="color:#02A757">✓ <b>${payload.doc_filename}</b> subido (${fmtSize(payload.file_size)})</div>`;
+        input.value = '';
+      } catch (err) {
+        statusEl.innerHTML = `<div class="err" style="margin-top:4px">Error: ${err.message}</div>`;
+      } finally {
+        input.disabled = false;
+      }
+    });
+  });
+}
+
+function fmtSize(b) {
+  if (!b) return '—';
+  if (b < 1024) return b + ' B';
+  if (b < 1024 * 1024) return Math.round(b / 1024) + ' KB';
+  return (b / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+async function submit(e) {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(e.target));
+  const filledBy = data.filled_by_email;
+  delete data.filled_by_email;
+  $('#submit-btn').disabled = true;
+  $('#submit-btn').textContent = 'Enviando…';
+  try {
+    const r = await fetch('/api/provider/fill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, profile_data: data, by_email: filledBy }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    $('#form-area').hidden = true;
+    $('#done-area').hidden = false;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch (err) {
+    $('#form-err').textContent = err.message;
+    $('#form-err').hidden = false;
+    $('#submit-btn').disabled = false;
+    $('#submit-btn').textContent = 'Enviar y continuar';
+  }
+}
+
+function esc(s) { return s == null ? '' : String(s).replace(/"/g, '&quot;') }
+
+load();
+</script>
+</body>
+</html>
