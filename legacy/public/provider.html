@@ -298,8 +298,17 @@ function renderForm(p) {
       <div class="section tally-step" data-step="7" data-step-name="Documentos" hidden>
         <h2>6. Documentos requeridos</h2>
         <p class="help">Sube los archivos solicitados según tu sociedad contratante. Aceptamos PDF, PNG, JPG y WEBP (máx 10MB cada uno).</p>
+        <div style="background:#f5f9ff;border:1px solid #c7d8f5;border-radius:10px;padding:14px 16px;margin:14px 0;display:flex;gap:12px;align-items:flex-start">
+          <div style="font-size:20px;line-height:1">💡</div>
+          <div style="flex:1">
+            <div style="font-weight:600;color:#102a97;font-size:13.5px;margin-bottom:4px">Puedes subir documentos después</div>
+            <div style="color:#475569;font-size:12.5px;line-height:1.5">No te bloquea enviar el formulario sin todos los archivos. Guarda este mismo link y vuelve cuando tengas los documentos listos. Recibirás un recordatorio si pasan días sin completar.</div>
+          </div>
+        </div>
         <div id="uploads-list"></div>
-        <p class="muted" style="font-size:12px;margin-top:14px">Si no tienes algún documento ahora, puedes enviar el perfil igual y subirlo después abriendo este mismo link.</p>
+        <div id="uploads-progress" style="margin-top:14px;padding:12px 14px;background:#f5f7fe;border-radius:10px;font-size:13px;color:#102a97;display:none">
+          <b id="uploads-progress-count">0 de 0</b> documentos subidos. <span id="uploads-progress-rest" class="muted"></span>
+        </div>
       </div>
 
       <div class="section tally-step" data-step="8" data-step-name="Confirmar y enviar" hidden>
@@ -491,6 +500,7 @@ function renderUploads(p) {
         }
         statusEl.innerHTML = `<div style="color:#02A757">✓ <b>${payload.doc_filename}</b> subido (${fmtSize(payload.file_size)})</div>`;
         input.value = '';
+        updateUploadsProgress(p, host);
       } catch (err) {
         statusEl.innerHTML = `<div class="err" style="margin-top:4px">Error: ${err.message}</div>`;
       } finally {
@@ -498,6 +508,30 @@ function renderUploads(p) {
       }
     });
   });
+
+  updateUploadsProgress(p, host);
+}
+
+function updateUploadsProgress(p, host) {
+  const progressEl = document.querySelector('#uploads-progress');
+  if (!progressEl) return;
+  const sd = p.sociedad_docs ?? {};
+  const baseDocs = sd.base_docs ?? [];
+  const signDocs = sd.documents_to_sign ?? [];
+  const total = baseDocs.length + signDocs.length;
+  if (!total) { progressEl.style.display = 'none'; return; }
+  const uploaded = host.querySelectorAll('[data-doctype-status]').length
+    ? Array.from(host.querySelectorAll('[data-doctype-status]')).filter((el) => el.querySelector('div[style*="02A757"]') || el.previousElementSibling?.classList?.contains('upload-status')).length
+    : 0;
+  // Más confiable: cuenta divs con check verde
+  const greenChecks = host.querySelectorAll('.upload-status').length;
+  const done = greenChecks;
+  progressEl.style.display = 'block';
+  document.querySelector('#uploads-progress-count').textContent = `${done} de ${total}`;
+  const rest = total - done;
+  document.querySelector('#uploads-progress-rest').textContent = rest > 0
+    ? `Faltan ${rest}. Puedes enviar ahora y subirlos después.`
+    : '¡Todos cargados! Puedes continuar al paso final.';
 }
 
 function fmtSize(b) {
