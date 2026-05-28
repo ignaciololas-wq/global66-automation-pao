@@ -1060,7 +1060,11 @@ function toggleProfilePopup() {
       <span style="flex:1">Notificaciones</span>
       <span id="pp-notif-count" style="background:var(--red);color:white;border-radius:999px;font-size:10px;font-weight:700;padding:1px 7px;min-width:18px;text-align:center">${window.__notifUnread > 0 ? window.__notifUnread : ''}</span>
     </button>
-    ${hasRole('admin') ? `<button type="button" class="item" id="pp-users">
+    ${hasRole('admin') ? `<button type="button" class="item" id="pp-settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      Configuración (logo + branding)
+    </button>
+    <button type="button" class="item" id="pp-users">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
       Gestión usuarios
     </button>
@@ -1081,6 +1085,7 @@ function toggleProfilePopup() {
   pop.querySelector('#pp-notif').addEventListener('click', () => { pop.remove(); document.querySelector('#profile-trigger')?.classList.remove('open'); toggleNotifPopup(); });
   pop.querySelector('#pp-users')?.addEventListener('click', () => { pop.remove(); location.hash = 'users'; });
   pop.querySelector('#pp-matriz')?.addEventListener('click', () => { pop.remove(); location.hash = 'matriz'; });
+  pop.querySelector('#pp-settings')?.addEventListener('click', () => { pop.remove(); location.hash = 'matriz'; setTimeout(() => document.querySelector('.matriz-tab[data-tab="branding"]')?.click(), 200); });
   pop.querySelector('#pp-logout').addEventListener('click', () => {
     // GET-redirect server-side: la MISMA request HTTP setea cookie cleared y
     // redirige. No hay window donde la cookie vieja sobreviva.
@@ -1181,22 +1186,31 @@ $('#magic-link').addEventListener('click', async () => {
 
 // Branding logo load
 async function loadBranding() {
+  const img = document.querySelector('#brand-logo-img');
+  const mark = document.querySelector('#brand-logo-mark');
   try {
     const r = await fetch('/api/settings?t=' + Date.now());
-    if (!r.ok) return;
-    const settings = await r.json();
+    const settings = r.ok ? await r.json() : {};
     const logoUrl = settings.logo_url?.url;
-    if (logoUrl) {
-      const img = document.querySelector('#brand-logo-img');
-      const mark = document.querySelector('#brand-logo-mark');
-      if (img && mark) {
+    if (img && mark) {
+      if (logoUrl) {
         img.src = logoUrl;
         img.hidden = false;
         mark.style.display = 'none';
+      } else {
+        img.hidden = true; img.removeAttribute('src');
+        mark.style.display = '';
+        mark.textContent = 'G';
       }
     }
     renderTopBanner(settings.banner);
-  } catch {}
+  } catch {
+    if (img && mark) {
+      img.hidden = true;
+      mark.style.display = '';
+      mark.textContent = 'G';
+    }
+  }
 }
 
 function renderTopBanner(banner) {
