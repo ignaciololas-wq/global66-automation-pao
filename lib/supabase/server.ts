@@ -3,7 +3,7 @@
 // - createAdminClient: service_role, bypassea RLS (uso server-only).
 
 import { createServerClient as createSSRClient, type CookieOptions } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import {
   SUPABASE_URL,
@@ -31,13 +31,13 @@ export async function createServerClient() {
   });
 }
 
-let _adminClient: ReturnType<typeof createClient> | null = null;
-export function createAdminClient() {
+let _adminClient: SupabaseClient<any, any, any> | null = null;
+export function createAdminClient(): SupabaseClient<any, any, any> {
   if (_adminClient) return _adminClient;
   if (!SUPABASE_SERVICE_ROLE_KEY) {
     throw new Error('SUPABASE_SERVICE_ROLE_KEY no configurada');
   }
-  _adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  _adminClient = createClient<any, any, any>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   return _adminClient;

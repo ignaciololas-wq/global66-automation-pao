@@ -1,15 +1,24 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getWorkflow } from '@/lib/data/workflows';
+import { listContractFiles, listComments } from '@/lib/data/contracts';
+import { getCurrentUser } from '@/lib/auth';
 import { FlowCanvas } from '@/components/workflow/flow-canvas';
+import { DocViewerPanel } from '@/components/workflow/doc-viewer-panel';
 import { phaseLabel, phaseKind, semKind, formatMoney } from '@/lib/format';
+import type { FileComment } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
 export default async function WorkflowDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const r = await getWorkflow(id);
+  const [r, files, auth] = await Promise.all([getWorkflow(id), listContractFiles(id), getCurrentUser()]);
   if (!r) notFound();
+
+  const commentsByFile: Record<string, FileComment[]> = {};
+  await Promise.all(files.map(async (f) => { commentsByFile[f.id] = await listComments(f.id); }));
+  const canRunAi = auth.ok && (auth.roles.includes('admin') || auth.roles.includes('aprobador'));
+
   return (
     <div className="space-y-5">
       <div className="text-sm">
@@ -70,9 +79,9 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
           </dl>
         </div>
       </div>
-      <div className="card">
-        <h3 className="font-display font-bold mb-3">Doc viewer + Comentarios + IA</h3>
-        <p className="text-muted text-sm">PR-NEXT8 (próximo).</p>
+      <div>
+        <h3 className="font-display font-bold text-lg mb-3">Documento del contrato</h3>
+        <DocViewerPanel workflowRunId={r.id} files={files} commentsByFile={commentsByFile} canRunAi={canRunAi} />
       </div>
     </div>
   );

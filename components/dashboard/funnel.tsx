@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { PhaseCount } from '@/lib/types';
 
 const FUNNEL_ORDER: { phase: string; label: string; icon: string; color: string }[] = [
@@ -19,9 +20,9 @@ export function PipelineFunnel({ phases }: { phases: PhaseCount[] }) {
     <div className="card">
       <div className="flex justify-between items-center mb-3.5">
         <h3 className="font-display font-bold text-base">Pipeline de solicitudes</h3>
-        <a href="/admin/workflows" className="text-xs font-semibold text-brand-500">
+        <Link href="/admin/workflows" className="text-xs font-semibold text-brand-500">
           Ver todas →
-        </a>
+        </Link>
       </div>
       <div className="flex items-stretch gap-1.5 overflow-x-auto pb-1">
         {FUNNEL_ORDER.map((stage, i) => {
