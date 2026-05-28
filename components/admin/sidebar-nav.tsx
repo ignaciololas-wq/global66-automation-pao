@@ -8,6 +8,7 @@ const navItems = [
   { href: '/admin/workflows', label: 'Solicitudes', icon: 'list' },
   { href: '/admin/providers', label: 'Proveedores', icon: 'users' },
   { href: '/admin/contracts', label: 'Contratos', icon: 'file' },
+  { href: '/admin/matriz', label: 'Matriz', icon: 'grid' },
 ];
 
 const Icons: Record<string, React.ReactNode> = {

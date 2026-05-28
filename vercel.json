@@ -1,82 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "functions": {
-    "api/index.js": {
-      "maxDuration": 60,
-      "includeFiles": "public/**"
-    }
-  },
-  "rewrites": [
-    { "source": "/", "destination": "/index.html" },
-    { "source": "/admin", "destination": "/admin.html" },
-    { "source": "/dashboard", "destination": "/dashboard.html" },
-    { "source": "/p/:token*", "destination": "/provider.html" },
-    { "source": "/health", "destination": "/api" },
-    { "source": "/api/health", "destination": "/api" },
-    { "source": "/digest", "destination": "/api" },
-    { "source": "/run", "destination": "/api" },
-    { "source": "/run-alertas", "destination": "/api" },
-    { "source": "/extract", "destination": "/api" },
-    { "source": "/sanctions", "destination": "/api" },
-    { "source": "/hito1-semaforo", "destination": "/api" },
-    { "source": "/slack-callback", "destination": "/api" },
-    { "source": "/validate-checklist", "destination": "/api" },
-    { "source": "/providers", "destination": "/api" },
-    { "source": "/providers/status", "destination": "/api" },
-    { "source": "/contracts", "destination": "/api" },
-    { "source": "/contracts/sign", "destination": "/api" },
-    { "source": "/api/intake", "destination": "/api" },
-    { "source": "/api/intake/approve", "destination": "/api" },
-    { "source": "/api/intake/signature-config", "destination": "/api" },
-    { "source": "/api/provider", "destination": "/api" },
-    { "source": "/api/provider/fill", "destination": "/api" },
-    { "source": "/api/provider/upload", "destination": "/api" },
-    { "source": "/api/sociedades", "destination": "/api" },
-    { "source": "/api/providers/lookup", "destination": "/api" },
-    { "source": "/api/admin/users", "destination": "/api" },
-    { "source": "/api/admin/users/role", "destination": "/api" },
-    { "source": "/api/auth/magic-link", "destination": "/api" },
-    { "source": "/api/auth/login", "destination": "/api" },
-    { "source": "/api/auth/callback", "destination": "/api" },
-    { "source": "/api/auth/me", "destination": "/api" },
-    { "source": "/api/auth/logout", "destination": "/api" },
-    { "source": "/api/data", "destination": "/api" },
-    { "source": "/api/files", "destination": "/api" },
-    { "source": "/api/files/upload", "destination": "/api" },
-    { "source": "/api/files/url", "destination": "/api" },
-    { "source": "/api/comments", "destination": "/api" },
-    { "source": "/api/notifications", "destination": "/api" },
-    { "source": "/api/notifications/read", "destination": "/api" },
-    { "source": "/api/users/mentions", "destination": "/api" },
-    { "source": "/api/files/ai-edit", "destination": "/api" },
-    { "source": "/api/files/apply-v2", "destination": "/api" },
-    { "source": "/api/files/discard-v2", "destination": "/api" },
-    { "source": "/api/files/ai-jobs", "destination": "/api" },
-    { "source": "/api/profile/avatar", "destination": "/api" },
-    { "source": "/api/profile/me", "destination": "/api" },
-    { "source": "/api/matriz/sociedades", "destination": "/api" },
-    { "source": "/api/matriz/apoderados", "destination": "/api" },
-    { "source": "/api/matriz/apoderados/suggest", "destination": "/api" },
-    { "source": "/api/matriz/documents", "destination": "/api" },
-    { "source": "/api/admin/matriz/sociedades", "destination": "/api" },
-    { "source": "/api/admin/matriz/apoderados", "destination": "/api" },
-    { "source": "/api/admin/matriz/documents", "destination": "/api" },
-    { "source": "/api/settings", "destination": "/api" },
-    { "source": "/api/admin/settings", "destination": "/api" },
-    { "source": "/api/admin/upload-logo", "destination": "/api" }
-  ],
+  "framework": "nextjs",
+  "buildCommand": "next build",
+  "installCommand": "npm install",
   "headers": [
     {
-      "source": "/admin",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, max-age=0" },
-        { "key": "CDN-Cache-Control", "value": "no-store" },
-        { "key": "Vercel-CDN-Cache-Control", "value": "no-store" },
-        { "key": "Pragma", "value": "no-cache" }
-      ]
-    },
-    {
-      "source": "/admin.html",
+      "source": "/admin/:path*",
       "headers": [
         { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, max-age=0" },
         { "key": "CDN-Cache-Control", "value": "no-store" },
@@ -84,7 +13,7 @@
       ]
     },
     {
-      "source": "/p/(.*)",
+      "source": "/p/:path*",
       "headers": [
         { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, max-age=0" },
         { "key": "CDN-Cache-Control", "value": "no-store" },

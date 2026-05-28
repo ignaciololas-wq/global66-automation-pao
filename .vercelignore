@@ -1,5 +1,6 @@
 /index.js
 /src/slack.cjs
+legacy/
 scripts/
 test/
 n8n/
