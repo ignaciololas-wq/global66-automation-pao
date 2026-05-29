@@ -32,7 +32,7 @@ export default async function ProviderDetailPage({ params }: { params: Promise<{
   const [regcheqHistory, uploads, runs] = await Promise.all([
     getRegcheqHistory(provider.id).catch(() => []),
     listProviderUploads(provider.id).catch(() => []),
-    findRunsForProvider(provider.id).catch(() => []),
+    findRunsForProvider(provider.tax_id).catch(() => []),
   ]);
 
   return (

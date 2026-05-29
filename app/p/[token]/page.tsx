@@ -9,7 +9,7 @@ export default async function ProviderPublicPage({ params }: { params: Promise<{
   const provider = await findProviderByToken(token);
   if (!provider) notFound();
 
-  const runs = await findRunsForProvider(provider.id);
+  const runs = await findRunsForProvider(provider.tax_id).catch(() => []);
   const sociedad = runs[0]?.sociedad_contratante ?? provider.sociedad_contratante ?? null;
   const [requiredDocs, uploads] = await Promise.all([
     listSociedadDocumentsForProvider(sociedad),

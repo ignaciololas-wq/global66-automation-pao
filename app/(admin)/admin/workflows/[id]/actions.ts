@@ -25,6 +25,9 @@ export async function addComment(input: {
 }) {
   const auth = await getCurrentUser();
   if (!auth.ok) throw new Error('No autorizado');
+  if (!auth.roles.includes('admin') && !auth.roles.includes('aprobador')) {
+    throw new Error('Solo admin/aprobador puede comentar');
+  }
   const sb = createAdminClient();
   const authorEmail = auth.email;
   if (!input.body?.trim()) throw new Error('Comentario vacío');
@@ -59,8 +62,11 @@ export async function addComment(input: {
 export async function resolveComment(commentId: string, runId: string) {
   const auth = await getCurrentUser();
   if (!auth.ok) throw new Error('No autorizado');
+  if (!auth.roles.includes('admin') && !auth.roles.includes('aprobador')) {
+    throw new Error('Solo admin/aprobador puede resolver comentarios');
+  }
   const sb = createAdminClient();
-  const { error } = await sb.from('file_comments').update({ resolved: true }).eq('id', commentId);
+  const { error } = await sb.from('file_comments').update({ resolved: true }).eq('id', commentId).eq('workflow_run_id', runId);
   if (error) throw new Error(error.message);
   revalidatePath(`/admin/workflows/${runId}`);
   return { ok: true };
@@ -69,8 +75,11 @@ export async function resolveComment(commentId: string, runId: string) {
 export async function unresolveComment(commentId: string, runId: string) {
   const auth = await getCurrentUser();
   if (!auth.ok) throw new Error('No autorizado');
+  if (!auth.roles.includes('admin') && !auth.roles.includes('aprobador')) {
+    throw new Error('Solo admin/aprobador puede modificar comentarios');
+  }
   const sb = createAdminClient();
-  const { error } = await sb.from('file_comments').update({ resolved: false }).eq('id', commentId);
+  const { error } = await sb.from('file_comments').update({ resolved: false }).eq('id', commentId).eq('workflow_run_id', runId);
   if (error) throw new Error(error.message);
   revalidatePath(`/admin/workflows/${runId}`);
   return { ok: true };

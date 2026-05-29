@@ -8,6 +8,11 @@ import { getCurrentUser } from '@/lib/auth';
 export async function GET(request: Request) {
   const auth = await getCurrentUser();
   if (!auth.ok) return NextResponse.json({ error: 'no autorizado' }, { status: 401 });
+  // IDOR guard: service_role bypassa RLS, así que el rol es la única barrera.
+  // Solo staff interno descarga docs de proveedores (RUT, escrituras, bancarios).
+  if (!auth.roles.includes('admin') && !auth.roles.includes('aprobador')) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
 
   const url = new URL(request.url);
   const id = url.searchParams.get('id');

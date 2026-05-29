@@ -34,8 +34,8 @@ export interface RegcheqCheck {
   provider_id: string | null;
   decision: string;
   reason: string | null;
-  company: any;
-  relations: any[];
+  company: any | null;
+  relations: any[] | null;
   created_at: string;
 }
 
@@ -46,7 +46,7 @@ export async function getRegcheqHistory(providerId: string): Promise<RegcheqChec
     .select('*')
     .eq('provider_id', providerId)
     .order('created_at', { ascending: false });
-  if (error) return [];
+  if (error) { console.error('getRegcheqHistory:', error.message); return []; }
   return (data ?? []) as RegcheqCheck[];
 }
 
@@ -89,12 +89,16 @@ export async function listProviderUploads(providerId: string) {
   return data ?? [];
 }
 
-export async function findRunsForProvider(providerId: string) {
+// workflow_runs NO tiene columna provider_id — la relación con providers es por
+// tax_id (igual que el detalle de solicitud y saveProviderProfile). Filtrar por
+// provider_id tiraba 'column does not exist' y crasheaba el portal /p/[token].
+export async function findRunsForProvider(taxId: string) {
+  if (!taxId) return [];
   const sb = createAdminClient();
   const { data, error } = await sb
     .from('workflow_runs')
-    .select('id, current_phase, razon_social, sociedad_contratante, profile_invited_at, profile_completed_at, created_at')
-    .eq('provider_id', providerId)
+    .select('id, current_phase, razon_social, sociedad_contratante, created_at')
+    .eq('tax_id', taxId)
     .order('created_at', { ascending: false });
   if (error) throw new Error(error.message);
   return data ?? [];

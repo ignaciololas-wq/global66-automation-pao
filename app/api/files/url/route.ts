@@ -7,6 +7,11 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
   const auth = await getCurrentUser();
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  // IDOR guard: service_role bypassa RLS — el rol es la única barrera para
+  // descargar PDFs/borradores de contrato de cualquier solicitud.
+  if (!auth.roles.includes('admin') && !auth.roles.includes('aprobador')) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
