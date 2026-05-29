@@ -3,6 +3,13 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { getCurrentUser } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
+import {
+  assert,
+  requireField,
+  optionalString,
+  optionalEmail,
+  requirePositiveNumber,
+} from '@/lib/validation';
 
 async function requireAdmin() {
   const auth = await getCurrentUser();
@@ -15,6 +22,9 @@ function revalidate() { revalidatePath('/admin/matriz'); }
 
 export async function createSociedad(input: { slug: string; name: string; country: string; active: boolean }) {
   await requireAdmin();
+  requireField(input.slug, 'slug', 120);
+  requireField(input.name, 'nombre', 120);
+  requireField(input.country, 'país', 120);
   const sb = createAdminClient();
   const { data, error } = await sb.from('sociedades').insert(input).select().single();
   if (error) throw new Error(error.message);
@@ -24,6 +34,10 @@ export async function createSociedad(input: { slug: string; name: string; countr
 
 export async function updateSociedad(id: string, patch: Partial<{ slug: string; name: string; country: string; active: boolean }>) {
   await requireAdmin();
+  requireField(id, 'id', 120);
+  if ('slug' in patch) patch.slug = optionalString(patch.slug, 120);
+  if ('name' in patch) patch.name = optionalString(patch.name, 120);
+  if ('country' in patch) patch.country = optionalString(patch.country, 120);
   const sb = createAdminClient();
   const { error } = await sb.from('sociedades').update(patch).eq('id', id);
   if (error) throw new Error(error.message);
@@ -32,6 +46,7 @@ export async function updateSociedad(id: string, patch: Partial<{ slug: string; 
 
 export async function deleteSociedad(id: string) {
   await requireAdmin();
+  requireField(id, 'id', 120);
   const sb = createAdminClient();
   const { error } = await sb.from('sociedades').delete().eq('id', id);
   if (error) throw new Error(error.message);
@@ -49,6 +64,14 @@ export async function createApoderado(input: {
   active: boolean;
 }) {
   await requireAdmin();
+  requireField(input.sociedad_id, 'sociedad_id', 120);
+  requireField(input.name, 'nombre', 120);
+  assert(input.priority === 1 || input.priority === 2, 'La prioridad debe ser 1 o 2');
+  assert(
+    ['siempre', 'saas', 'comercial', 'general'].includes(input.scope),
+    'El alcance debe ser uno de: siempre, saas, comercial, general',
+  );
+  optionalEmail(input.email, 'email');
   const sb = createAdminClient();
   const { data, error } = await sb.from('apoderados').insert(input).select().single();
   if (error) throw new Error(error.message);
@@ -58,6 +81,7 @@ export async function createApoderado(input: {
 
 export async function updateApoderado(id: string, patch: Record<string, unknown>) {
   await requireAdmin();
+  requireField(id, 'id', 120);
   const sb = createAdminClient();
   const { error } = await sb.from('apoderados').update(patch).eq('id', id);
   if (error) throw new Error(error.message);
@@ -66,6 +90,7 @@ export async function updateApoderado(id: string, patch: Record<string, unknown>
 
 export async function deleteApoderado(id: string) {
   await requireAdmin();
+  requireField(id, 'id', 120);
   const sb = createAdminClient();
   const { error } = await sb.from('apoderados').delete().eq('id', id);
   if (error) throw new Error(error.message);
@@ -82,6 +107,11 @@ export async function createSociedadDoc(input: {
   active: boolean;
 }) {
   await requireAdmin();
+  requireField(input.sociedad_id, 'sociedad_id', 120);
+  requireField(input.name, 'nombre', 120);
+  assert(input.kind === 'base' || input.kind === 'sign', 'El tipo debe ser base o sign');
+  requirePositiveNumber(input.sort_order, 'orden');
+  if (input.valid_months != null) requirePositiveNumber(input.valid_months, 'meses de vigencia');
   const sb = createAdminClient();
   const { data, error } = await sb.from('sociedad_documents').insert(input).select().single();
   if (error) throw new Error(error.message);
@@ -91,6 +121,7 @@ export async function createSociedadDoc(input: {
 
 export async function updateSociedadDoc(id: string, patch: Record<string, unknown>) {
   await requireAdmin();
+  requireField(id, 'id', 120);
   const sb = createAdminClient();
   const { error } = await sb.from('sociedad_documents').update(patch).eq('id', id);
   if (error) throw new Error(error.message);
@@ -99,6 +130,7 @@ export async function updateSociedadDoc(id: string, patch: Record<string, unknow
 
 export async function deleteSociedadDoc(id: string) {
   await requireAdmin();
+  requireField(id, 'id', 120);
   const sb = createAdminClient();
   const { error } = await sb.from('sociedad_documents').delete().eq('id', id);
   if (error) throw new Error(error.message);

@@ -3,6 +3,7 @@
 import { createAdminClient } from '@/lib/supabase/server';
 import { getCurrentUser } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
+import { requireField, requireEmail, requirePositiveNumber, clampLen } from '@/lib/validation';
 
 export interface IntakeInput {
   solicitante_nombre: string;
@@ -34,6 +35,42 @@ export interface IntakeInput {
 export async function createIntake(input: IntakeInput) {
   const auth = await getCurrentUser();
   if (!auth.ok) throw new Error('No autorizado');
+
+  // --- Validación de entrada (antes de tocar la DB) ---
+  // Las server actions LANZAN errores; el formulario cliente los captura y muestra e.message.
+  requireField(input.solicitante_nombre, 'Nombre del solicitante', 200);
+  requireEmail(input.solicitante_email, 'Email del solicitante');
+  requireField(input.solicitante_area, 'Área del solicitante', 200);
+  requireEmail(input.owner_email, 'Email del owner');
+  requireEmail(input.responsable_backup_email, 'Email del responsable backup');
+  requireField(input.razon_social, 'Razón social', 200);
+  requireField(input.rut, 'RUT', 200);
+  requireField(input.pais, 'País', 200);
+  requireField(input.representante_legal, 'Representante legal', 200);
+  requireEmail(input.email_contacto, 'Email de contacto');
+  requireEmail(input.email_facturacion, 'Email de facturación');
+  requireField(input.tipo_proveedor, 'Tipo de proveedor', 200);
+  requireField(input.sociedad_contratante, 'Sociedad contratante', 200);
+  requireField(input.servicio_descripcion, 'Descripción del servicio', 2000);
+  requireField(input.periodicidad, 'Periodicidad', 200);
+  requireField(input.moneda, 'Moneda', 200);
+  requireField(input.tipo_duracion, 'Tipo de duración', 200);
+  requirePositiveNumber(input.monto, 'Monto');
+
+  // Reglas de negocio: fechas según tipo de duración.
+  if (input.tipo_duracion) {
+    requireField(input.fecha_inicio, 'Fecha de inicio', 200);
+    if (input.tipo_duracion === 'plazo_fijo') {
+      requireField(input.fecha_fin, 'Fecha de fin', 200);
+    }
+  }
+
+  // Clamp de longitud en campos de texto que se persisten (defensa adicional).
+  input.servicio_descripcion = clampLen(input.servicio_descripcion, 2000);
+  if (input.owner_nombre) input.owner_nombre = clampLen(input.owner_nombre, 200);
+  if (input.notas) input.notas = clampLen(input.notas, 2000);
+  // --- Fin validación ---
+
   const sb = createAdminClient();
 
   const { data: existing } = await sb

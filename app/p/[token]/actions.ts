@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { createAdminClient } from '@/lib/supabase/server';
 import { findProviderByToken } from '@/lib/data/providers';
 import { revalidatePath } from 'next/cache';
+import { requireField, optionalEmail, optionalString } from '@/lib/validation';
 
 const BUCKET = 'contracts';
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -37,15 +38,34 @@ export interface ProviderProfileInput {
   [k: string]: unknown;
 }
 
+const PROFILE_MAX_LEN = 200;
+const EMAIL_PROFILE_FIELDS = new Set(['email_contacto', 'email_facturacion', 'contacto_admin_email']);
+
 export async function saveProviderProfile(token: string, profile: ProviderProfileInput) {
+  requireField(token, 'token');
   const provider = await findProviderByToken(token);
   if (!provider) throw new Error('Token inválido o expirado');
   const sb = createAdminClient();
 
-  const merged = { ...((provider as any).profile_data ?? {}), ...profile };
+  // Sanitiza el payload entrante: valida emails y limita el largo de los strings
+  // para evitar payloads gigantes. Conserva valores no-string tal cual.
+  const sanitized: ProviderProfileInput = {};
+  for (const [k, v] of Object.entries(profile)) {
+    if (EMAIL_PROFILE_FIELDS.has(k)) {
+      const email = optionalEmail(v, k);
+      if (email !== undefined) sanitized[k] = email;
+    } else if (typeof v === 'string') {
+      const s = optionalString(v, PROFILE_MAX_LEN);
+      if (s !== undefined) sanitized[k] = s;
+    } else if (v != null) {
+      sanitized[k] = v;
+    }
+  }
+
+  const merged = { ...((provider as any).profile_data ?? {}), ...sanitized };
   const topLevelKeys = ['representante_legal', 'email_contacto', 'email_facturacion', 'tipo_proveedor', 'razon_social', 'tax_id', 'pais', 'domicilio'];
   const topPatch: Record<string, unknown> = {};
-  for (const k of topLevelKeys) if (profile[k] != null && String(profile[k]).trim() !== '') topPatch[k] = profile[k];
+  for (const k of topLevelKeys) if (sanitized[k] != null && String(sanitized[k]).trim() !== '') topPatch[k] = sanitized[k];
 
   const { error } = await sb
     .from('providers')
@@ -68,12 +88,13 @@ export async function saveProviderProfile(token: string, profile: ProviderProfil
 }
 
 export async function uploadProviderDoc(token: string, formData: FormData) {
+  requireField(token, 'token');
   const provider = await findProviderByToken(token);
   if (!provider) throw new Error('Token inválido o expirado');
 
-  const docKind = String(formData.get('docKind') ?? '');
+  // docKind no vacío y acotado (evita nombres de carpeta de storage gigantes)
+  const docKind = requireField(formData.get('docKind'), 'docKind', 80);
   const file = formData.get('file');
-  if (!docKind) throw new Error('docKind requerido');
   if (!file || typeof file === 'string') throw new Error('Archivo requerido');
 
   const blob = file as File;
@@ -107,6 +128,8 @@ export async function uploadProviderDoc(token: string, formData: FormData) {
 }
 
 export async function deleteProviderUpload(token: string, uploadId: string) {
+  requireField(token, 'token');
+  requireField(uploadId, 'uploadId');
   const provider = await findProviderByToken(token);
   if (!provider) throw new Error('Token inválido');
   const sb = createAdminClient();
