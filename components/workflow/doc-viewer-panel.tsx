@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useTransition, useMemo } from 'react';
 import type { ContractFile, FileComment } from '@/lib/types';
-import { addComment, resolveComment, applyAiEditAction } from '@/app/(admin)/admin/workflows/[id]/actions';
+import { addComment, resolveComment, unresolveComment, applyAiEditAction } from '@/app/(admin)/admin/workflows/[id]/actions';
 
 interface Props {
   workflowRunId: string;
@@ -52,6 +52,12 @@ export function DocViewerPanel({ workflowRunId, files, commentsByFile, canRunAi 
   function onResolve(id: string) {
     startTransition(async () => {
       try { await resolveComment(id, workflowRunId); } catch (e: any) { setError(e.message); }
+    });
+  }
+
+  function onUnresolve(id: string) {
+    startTransition(async () => {
+      try { await unresolveComment(id, workflowRunId); } catch (e: any) { setError(e.message); }
     });
   }
 
@@ -127,7 +133,11 @@ export function DocViewerPanel({ workflowRunId, files, commentsByFile, canRunAi 
                       ✓ resolver
                     </button>
                   )}
-                  {c.resolved && <span className="text-[10px] text-emerald-700">✓ resuelto</span>}
+                  {c.resolved && (
+                    <button className="text-[10px] text-emerald-700 hover:underline" onClick={() => onUnresolve(c.id)} disabled={pending} title="Reabrir comentario">
+                      ✓ resuelto · reabrir
+                    </button>
+                  )}
                 </div>
                 <p className="whitespace-pre-wrap break-words text-[13px] leading-snug">{c.body}</p>
                 <div className="text-[10px] text-muted mt-1.5">{new Date(c.created_at).toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' })}</div>
