@@ -1,7 +1,6 @@
 import { listUsers } from '@/lib/data/users';
 import { requireAdmin } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import { formatDateTime } from '@/lib/format';
 import { UsersTable } from './users-ui';
 
 export const dynamic = 'force-dynamic';
