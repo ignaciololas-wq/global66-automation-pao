@@ -111,10 +111,23 @@ function ProfilePopup({ me, onClose }: { me: Me; onClose: () => void }) {
             onClick={onClose}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 opacity-70">
+              <rect x="3" y="3" width="7" height="7" />
+              <rect x="14" y="3" width="7" height="7" />
+              <rect x="14" y="14" width="7" height="7" />
+              <rect x="3" y="14" width="7" height="7" />
+            </svg>
+            Matriz (sociedades + apoderados)
+          </a>
+          <a
+            href="/admin/settings"
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] text-white hover:bg-white/10 transition"
+            onClick={onClose}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 opacity-70">
               <circle cx="12" cy="12" r="3" />
               <path d="M12 1v6m0 10v6M4.22 4.22l4.24 4.24m7.08 7.08l4.24 4.24M1 12h6m10 0h6M4.22 19.78l4.24-4.24m7.08-7.08l4.24-4.24" />
             </svg>
-            Configuración (matriz + branding)
+            Configuración + Branding
           </a>
           <a
             href="/admin/users"

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { listWorkflows } from '@/lib/data/workflows';
 import { phaseLabel, phaseKind, semKind, formatMoney, formatDateTime } from '@/lib/format';
+import { ClickableRow } from '@/components/admin/clickable-row';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 30;
@@ -35,8 +36,8 @@ export default async function WorkflowsPage() {
               <tr><td colSpan={8} className="text-center text-muted p-8">Sin solicitudes todavía. <Link href="/admin/intake/new" className="text-brand-500 font-semibold">Crear la primera →</Link></td></tr>
             ) : (
               runs.map((r) => (
-                <tr key={r.id} className="border-t border-border hover:bg-brand-50/50 transition">
-                  <td className="p-3.5"><Link href={`/admin/workflows/${r.id}`} className="font-semibold text-ink">{r.razon_social}</Link></td>
+                <ClickableRow key={r.id} href={`/admin/workflows/${r.id}`}>
+                  <td className="p-3.5"><span className="font-semibold text-ink">{r.razon_social}</span></td>
                   <td className="p-3.5 text-muted">{r.tax_id}</td>
                   <td className="p-3.5">{r.pais}</td>
                   <td className="p-3.5 text-muted">{r.sociedad_contratante ?? '—'}</td>
@@ -44,7 +45,7 @@ export default async function WorkflowsPage() {
                   <td className="p-3.5"><span className={`pill pill-${phaseKind(r.current_phase)}`}>{phaseLabel(r.current_phase)}</span></td>
                   <td className="p-3.5">{r.semaforo ? <span className={`pill pill-${semKind(r.semaforo)}`}>{r.semaforo}</span> : '—'}</td>
                   <td className="p-3.5 text-muted text-xs">{formatDateTime(r.created_at)}</td>
-                </tr>
+                </ClickableRow>
               ))
             )}
           </tbody>

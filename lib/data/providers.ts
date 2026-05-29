@@ -2,6 +2,50 @@ import 'server-only';
 import { createAdminClient } from '@/lib/supabase/server';
 import type { Provider, SociedadDocument } from '@/lib/types';
 
+export async function listProviders({
+  limit = 200,
+  status,
+  pais,
+}: { limit?: number; status?: string; pais?: string } = {}): Promise<Provider[]> {
+  const sb = createAdminClient();
+  let q = sb.from('providers').select('*').order('created_at', { ascending: false }).limit(limit);
+  if (status) q = q.eq('status', status);
+  if (pais) q = q.eq('pais', pais);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Provider[];
+}
+
+export async function getProvider(id: string): Promise<Provider | null> {
+  const sb = createAdminClient();
+  const { data, error } = await sb.from('providers').select('*').eq('id', id).maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data ?? null) as Provider | null;
+}
+
+export interface RegcheqCheck {
+  id: string;
+  workflow_run_id: string | null;
+  provider_id: string | null;
+  decision: string;
+  reason: string | null;
+  company: any;
+  relations: any[];
+  created_at: string;
+}
+
+export async function getRegcheqHistory(providerId: string): Promise<RegcheqCheck[]> {
+  const sb = createAdminClient();
+  const { data, error } = await sb
+    .from('regcheq_checks')
+    .select('*')
+    .eq('provider_id', providerId)
+    .order('created_at', { ascending: false });
+  if (error) return [];
+  return (data ?? []) as RegcheqCheck[];
+}
+
+
 export async function findProviderByToken(token: string): Promise<Provider | null> {
   if (!token) return null;
   const sb = createAdminClient();

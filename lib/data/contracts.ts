@@ -4,6 +4,55 @@ import type { ContractFile, FileComment } from '@/lib/types';
 
 const BUCKET = 'contracts';
 
+export interface Contract {
+  id: string;
+  provider_id: string;
+  workflow_run_id?: string | null;
+  tipo_contrato?: string | null;
+  monto?: number | null;
+  moneda?: string | null;
+  vigencia_meses?: number | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  status?: string | null;
+  draft_pdf_url?: string | null;
+  signed_pdf_url?: string | null;
+  signnow_document_id?: string | null;
+  signed_at?: string | null;
+  owner_email?: string | null;
+  sociedad_contratante?: string | null;
+  periodicidad?: string | null;
+  created_at: string;
+}
+
+export async function listContracts({ limit = 200 }: { limit?: number } = {}): Promise<Contract[]> {
+  const sb = createAdminClient();
+  const { data, error } = await sb
+    .from('contracts')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Contract[];
+}
+
+export async function getContract(id: string): Promise<Contract | null> {
+  const sb = createAdminClient();
+  const { data, error } = await sb.from('contracts').select('*').eq('id', id).maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data ?? null) as Contract | null;
+}
+
+export async function listProviderUploadsByProvider(providerId: string) {
+  const sb = createAdminClient();
+  const { data } = await sb
+    .from('provider_uploads')
+    .select('id, doc_type, doc_filename, file_url, file_size, created_at')
+    .eq('provider_id', providerId)
+    .order('created_at', { ascending: false });
+  return data ?? [];
+}
+
 export async function listContractFiles(workflowRunId: string): Promise<ContractFile[]> {
   const sb = createAdminClient();
   const { data, error } = await sb
