@@ -5,6 +5,10 @@
 import { createServerClient as createSSRClient, type CookieOptions } from '@supabase/ssr';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+// NOTA: lib/database.types.ts (Database) tiene los tipos generados del schema.
+// Tiparlo en createAdminClient<Database> dispara cascada de errores en los
+// inserts/updates dinámicos (Record<string,any>) del data layer. Migración a
+// cliente tipado = tarea aparte (castear cada insert). Por ahora reference.
 import {
   SUPABASE_URL,
   SUPABASE_ANON_KEY,
