@@ -93,8 +93,7 @@ export async function createIntake(input: IntakeInput) {
     responsable_backup_email: input.responsable_backup_email,
     sociedad_contratante: input.sociedad_contratante,
     representante_legal: input.representante_legal,
-    email_contacto: input.email_contacto,
-    email_facturacion: input.email_facturacion,
+    // email_contacto y email_facturacion solo viven en tabla providers (no workflow_runs)
     servicio_descripcion: input.servicio_descripcion,
     proveedor_existente: input.proveedor_existente,
     periodicidad: input.periodicidad,
