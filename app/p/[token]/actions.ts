@@ -92,11 +92,10 @@ export async function uploadProviderDoc(token: string, formData: FormData) {
 
   const { error } = await sb.from('provider_uploads').insert({
     provider_id: provider.id,
-    doc_kind: docKind,
+    doc_type: docKind,
     doc_filename: blob.name || cleanName,
     file_url: storagePath,
-    mime_type: blob.type,
-    size_bytes: blob.size,
+    file_size: blob.size,
   });
   if (error) {
     await sb.storage.from(BUCKET).remove([storagePath]).catch(() => {});

@@ -6,9 +6,9 @@ import type { Provider, SociedadDocument } from '@/lib/types';
 
 interface Upload {
   id: string;
-  doc_kind: string;
+  doc_type: string;
   doc_filename: string;
-  size_bytes: number;
+  file_size: number;
   created_at: string;
 }
 
@@ -43,7 +43,7 @@ export function ProviderForm({ token, provider, requiredDocs, uploads }: Props) 
   }
 
   const uploadsByKind = uploads.reduce<Record<string, Upload[]>>((acc, u) => {
-    (acc[u.doc_kind] ??= []).push(u);
+    (acc[u.doc_type] ??= []).push(u);
     return acc;
   }, {});
 
@@ -179,7 +179,7 @@ export function ProviderForm({ token, provider, requiredDocs, uploads }: Props) 
                     <ul className="space-y-1.5 mt-2">
                       {list.map((u) => (
                         <li key={u.id} className="flex items-center justify-between bg-white rounded-lg px-2.5 py-1.5 text-xs border border-border">
-                          <span className="truncate flex-1">📎 {u.doc_filename} <span className="text-muted">({(u.size_bytes / 1024).toFixed(0)} KB)</span></span>
+                          <span className="truncate flex-1">📎 {u.doc_filename} <span className="text-muted">({(u.file_size / 1024).toFixed(0)} KB)</span></span>
                           <button type="button" className="text-danger hover:underline" onClick={() => onDelete(u.id)} disabled={pending}>borrar</button>
                         </li>
                       ))}

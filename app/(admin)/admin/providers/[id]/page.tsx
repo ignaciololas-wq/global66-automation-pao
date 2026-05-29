@@ -107,20 +107,31 @@ export default async function ProviderDetailPage({ params }: { params: Promise<{
       </div>
 
       <div className="card">
-        <h3 className="font-display font-bold mb-3">Documentos subidos</h3>
+        <h3 className="font-display font-bold mb-3">📁 Documentos subidos por el proveedor</h3>
+        <p className="text-muted text-xs mb-3">Archivos que el proveedor subió desde su formulario (RUT cert, escritura, NDA firmado, etc.)</p>
         {uploads.length === 0 ? (
           <div className="text-muted text-sm">El proveedor aún no subió documentos.</div>
         ) : (
           <table className="w-full text-sm">
             <thead className="text-muted text-[11px] uppercase tracking-wider">
-              <tr><th className="text-left p-2">Tipo</th><th className="text-left p-2">Archivo</th><th className="text-left p-2">Fecha</th></tr>
+              <tr>
+                <th className="text-left p-2">Tipo</th>
+                <th className="text-left p-2">Archivo</th>
+                <th className="text-left p-2">Tamaño</th>
+                <th className="text-left p-2">Subido</th>
+                <th className="text-right p-2"></th>
+              </tr>
             </thead>
             <tbody>
               {uploads.map((u: any) => (
                 <tr key={u.id} className="border-t border-border">
-                  <td className="p-2"><b>{u.doc_kind}</b></td>
+                  <td className="p-2"><b>{u.doc_type}</b></td>
                   <td className="p-2 text-muted">{u.doc_filename ?? '—'}</td>
+                  <td className="p-2 text-muted text-xs">{u.file_size ? `${Math.round(u.file_size / 1024)} KB` : '—'}</td>
                   <td className="p-2 text-muted text-xs">{formatDateTime(u.created_at)}</td>
+                  <td className="p-2 text-right">
+                    <a href={`/api/provider-uploads/url?id=${u.id}`} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline text-xs font-semibold">⬇ Descargar</a>
+                  </td>
                 </tr>
               ))}
             </tbody>

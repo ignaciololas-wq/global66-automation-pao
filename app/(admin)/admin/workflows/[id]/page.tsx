@@ -1,11 +1,12 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getWorkflow } from '@/lib/data/workflows';
-import { listContractFiles, listComments } from '@/lib/data/contracts';
+import { listContractFiles, listComments, listProviderUploadsByProvider } from '@/lib/data/contracts';
+import { createAdminClient } from '@/lib/supabase/server';
 import { getCurrentUser } from '@/lib/auth';
 import { FlowCanvas } from '@/components/workflow/flow-canvas';
 import { DocViewerPanel } from '@/components/workflow/doc-viewer-panel';
-import { phaseLabel, phaseKind, semKind, formatMoney } from '@/lib/format';
+import { phaseLabel, phaseKind, semKind, formatMoney, formatDateTime } from '@/lib/format';
 import type { FileComment } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +19,11 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
   const commentsByFile: Record<string, FileComment[]> = {};
   await Promise.all(files.map(async (f) => { commentsByFile[f.id] = await listComments(f.id); }));
   const canRunAi = auth.ok && (auth.roles.includes('admin') || auth.roles.includes('aprobador'));
+
+  // Provider uploads via tax_id → provider lookup
+  const sb = createAdminClient();
+  const { data: providerRow } = await sb.from('providers').select('id').eq('tax_id', r.tax_id).maybeSingle();
+  const providerUploads = providerRow ? await listProviderUploadsByProvider((providerRow as any).id).catch(() => []) : [];
 
   return (
     <div className="space-y-5">
@@ -82,6 +88,33 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
       <div>
         <h3 className="font-display font-bold text-lg mb-3">Documento del contrato</h3>
         <DocViewerPanel workflowRunId={r.id} files={files} commentsByFile={commentsByFile} canRunAi={canRunAi} />
+      </div>
+
+      <div className="card">
+        <h3 className="font-display font-bold mb-1">📁 Documentos subidos por el proveedor</h3>
+        <p className="text-muted text-xs mb-3">Archivos que el proveedor cargó desde su formulario (RUT cert, escritura, NDA firmado, etc.). Descargables desde acá o desde el perfil del proveedor.</p>
+        {providerUploads.length === 0 ? (
+          <div className="text-muted text-sm">El proveedor aún no subió documentos.</div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="text-muted text-[11px] uppercase tracking-wider">
+              <tr><th className="text-left p-2">Tipo</th><th className="text-left p-2">Archivo</th><th className="text-left p-2">Tamaño</th><th className="text-left p-2">Subido</th><th className="text-right p-2"></th></tr>
+            </thead>
+            <tbody>
+              {providerUploads.map((u: any) => (
+                <tr key={u.id} className="border-t border-border">
+                  <td className="p-2"><b>{u.doc_type}</b></td>
+                  <td className="p-2 text-muted">{u.doc_filename ?? '—'}</td>
+                  <td className="p-2 text-muted text-xs">{u.file_size ? `${Math.round(u.file_size / 1024)} KB` : '—'}</td>
+                  <td className="p-2 text-muted text-xs">{formatDateTime(u.created_at)}</td>
+                  <td className="p-2 text-right">
+                    <a href={`/api/provider-uploads/url?id=${u.id}`} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline text-xs font-semibold">⬇ Descargar</a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

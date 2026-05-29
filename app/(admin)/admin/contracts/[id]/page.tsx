@@ -114,13 +114,14 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
       </div>
 
       <div className="card">
-        <h3 className="font-display font-bold mb-3">📄 Documentos del contrato</h3>
+        <h3 className="font-display font-bold mb-1">📄 Documentos del contrato</h3>
+        <p className="text-muted text-xs mb-3">Borrador, anexos y papel del proveedor cargados por el equipo interno.</p>
         {main.length + anexos.length + papel.length === 0 ? (
           <div className="text-muted text-sm">Sin documentos del contrato cargados todavía</div>
         ) : (
           <table className="w-full text-sm">
             <thead className="text-muted text-[11px] uppercase tracking-wider">
-              <tr><th className="text-left p-2">Tipo</th><th className="text-left p-2">Archivo</th><th className="text-left p-2">Versión</th><th className="text-left p-2">Subido</th></tr>
+              <tr><th className="text-left p-2">Tipo</th><th className="text-left p-2">Archivo</th><th className="text-left p-2">Versión</th><th className="text-left p-2">Subido</th><th className="text-right p-2"></th></tr>
             </thead>
             <tbody>
               {[...main, ...anexos, ...papel].map((f) => (
@@ -129,6 +130,9 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
                   <td className="p-2 text-muted">{f.filename}</td>
                   <td className="p-2 text-muted">v{f.version}</td>
                   <td className="p-2 text-muted text-xs">{formatDateTime(f.created_at)}</td>
+                  <td className="p-2 text-right">
+                    <a href={`/api/files/url?id=${f.id}&download=1`} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline text-xs font-semibold">⬇ Descargar</a>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -144,14 +148,18 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
         ) : (
           <table className="w-full text-sm">
             <thead className="text-muted text-[11px] uppercase tracking-wider">
-              <tr><th className="text-left p-2">Tipo</th><th className="text-left p-2">Archivo</th><th className="text-left p-2">Subido</th></tr>
+              <tr><th className="text-left p-2">Tipo</th><th className="text-left p-2">Archivo</th><th className="text-left p-2">Tamaño</th><th className="text-left p-2">Subido</th><th className="text-right p-2"></th></tr>
             </thead>
             <tbody>
               {providerUploads.map((u: any) => (
                 <tr key={u.id} className="border-t border-border">
                   <td className="p-2"><b>{u.doc_type}</b></td>
                   <td className="p-2 text-muted">{u.doc_filename ?? '—'}</td>
+                  <td className="p-2 text-muted text-xs">{u.file_size ? `${Math.round(u.file_size / 1024)} KB` : '—'}</td>
                   <td className="p-2 text-muted text-xs">{formatDateTime(u.created_at)}</td>
+                  <td className="p-2 text-right">
+                    <a href={`/api/provider-uploads/url?id=${u.id}`} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline text-xs font-semibold">⬇ Descargar</a>
+                  </td>
                 </tr>
               ))}
             </tbody>

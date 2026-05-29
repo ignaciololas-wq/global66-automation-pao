@@ -77,7 +77,7 @@ export async function listProviderUploads(providerId: string) {
   const sb = createAdminClient();
   const { data, error } = await sb
     .from('provider_uploads')
-    .select('id, doc_kind, doc_filename, file_url, mime_type, size_bytes, created_at')
+    .select('id, doc_type, doc_filename, file_url, file_size, rag_status, validation_status, created_at')
     .eq('provider_id', providerId)
     .order('created_at', { ascending: false });
   if (error) throw new Error(error.message);
