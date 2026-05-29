@@ -15,11 +15,12 @@ const STATUS_PILL: Record<string, string> = {
 };
 
 export default async function ContractsPage() {
-  const contracts = await listContracts({ limit: 300 }).catch(() => []);
-  const providerIds = Array.from(new Set(contracts.map((c) => c.provider_id).filter(Boolean)));
-  const providers = providerIds.length
-    ? await listProviders({ limit: 300 }).catch(() => [])
-    : [];
+  // Paralelo: antes era serial (contracts → luego providers). Ahorra un
+  // round-trip a Supabase en el path caliente de navegación.
+  const [contracts, providers] = await Promise.all([
+    listContracts({ limit: 300 }).catch(() => []),
+    listProviders({ limit: 300 }).catch(() => []),
+  ]);
   const providersMap = Object.fromEntries(providers.map((p) => [p.id, p]));
 
   return (

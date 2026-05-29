@@ -6,6 +6,11 @@ import type { WorkflowRun, PhaseCount } from '@/lib/types';
 // Bypass RLS con service_role; filtros aplicados en código (visibility ya
 // chequeada por middleware/auth en page handlers).
 
+// Columnas de la tabla de listado — excluye jsonb (metadata, active_phases,
+// apoderados_firmantes) y campos largos. getWorkflow (detalle) usa select *.
+const WORKFLOW_LIST_COLS =
+  'id, created_at, current_phase, semaforo, razon_social, tax_id, pais, sociedad_contratante, monto, moneda, solicitante_email, owner_email';
+
 export async function listWorkflows({
   limit = 50,
   email,
@@ -16,12 +21,12 @@ export async function listWorkflows({
   phase?: string;
 } = {}): Promise<WorkflowRun[]> {
   const sb = createAdminClient();
-  let q = sb.from('workflow_runs').select('*').order('created_at', { ascending: false }).limit(limit);
+  let q = sb.from('workflow_runs').select(WORKFLOW_LIST_COLS).order('created_at', { ascending: false }).limit(limit);
   if (phase) q = q.eq('current_phase', phase);
   if (email) q = q.or(`solicitante_email.eq.${email},owner_email.eq.${email}`);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  return (data ?? []) as WorkflowRun[];
+  return (data ?? []) as unknown as WorkflowRun[];
 }
 
 export async function getWorkflow(id: string): Promise<WorkflowRun | null> {

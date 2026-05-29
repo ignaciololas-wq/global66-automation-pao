@@ -25,15 +25,20 @@ export interface Contract {
   created_at: string;
 }
 
+// Columnas que la tabla de lista necesita. Evita traer payload pesado (jsonb,
+// urls largas) en la vista de listado — la vista detalle usa getContract (select *).
+const CONTRACT_LIST_COLS =
+  'id, provider_id, tipo_contrato, monto, moneda, periodicidad, end_date, status, signed_at, created_at';
+
 export async function listContracts({ limit = 200 }: { limit?: number } = {}): Promise<Contract[]> {
   const sb = createAdminClient();
   const { data, error } = await sb
     .from('contracts')
-    .select('*')
+    .select(CONTRACT_LIST_COLS)
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) throw new Error(error.message);
-  return (data ?? []) as Contract[];
+  return (data ?? []) as unknown as Contract[];
 }
 
 export async function getContract(id: string): Promise<Contract | null> {

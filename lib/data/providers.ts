@@ -2,18 +2,23 @@ import 'server-only';
 import { createAdminClient } from '@/lib/supabase/server';
 import type { Provider, SociedadDocument } from '@/lib/types';
 
+// Lista NO trae profile_data (jsonb potencialmente grande) ni tokens — solo lo
+// que renderiza la tabla. getProvider (detalle) sigue con select * completo.
+const PROVIDER_LIST_COLS =
+  'id, razon_social, tax_id, pais, tipo_proveedor, status, criticidad, sociedad_contratante, email_contacto, profile_completed_at, created_at';
+
 export async function listProviders({
   limit = 200,
   status,
   pais,
 }: { limit?: number; status?: string; pais?: string } = {}): Promise<Provider[]> {
   const sb = createAdminClient();
-  let q = sb.from('providers').select('*').order('created_at', { ascending: false }).limit(limit);
+  let q = sb.from('providers').select(PROVIDER_LIST_COLS).order('created_at', { ascending: false }).limit(limit);
   if (status) q = q.eq('status', status);
   if (pais) q = q.eq('pais', pais);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  return (data ?? []) as Provider[];
+  return (data ?? []) as unknown as Provider[];
 }
 
 export async function getProvider(id: string): Promise<Provider | null> {
