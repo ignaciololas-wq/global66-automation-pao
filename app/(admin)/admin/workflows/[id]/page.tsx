@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { getCurrentUser } from '@/lib/auth';
 import { FlowCanvas } from '@/components/workflow/flow-canvas';
 import { DocViewerPanel } from '@/components/workflow/doc-viewer-panel';
+import { RegcheqManualCard, type RegcheqLatest } from '@/components/workflow/regcheq-manual-card';
 import { phaseLabel, phaseKind, semKind, formatMoney, formatDateTime } from '@/lib/format';
 import type { FileComment } from '@/lib/types';
 
@@ -23,7 +24,30 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
   // Provider uploads via tax_id → provider lookup
   const sb = createAdminClient();
   const { data: providerRow } = await sb.from('providers').select('id').eq('tax_id', r.tax_id).maybeSingle();
-  const providerUploads = providerRow ? await listProviderUploadsByProvider((providerRow as any).id).catch(() => []) : [];
+  const providerId = (providerRow as any)?.id ?? null;
+  const providerUploads = providerId ? await listProviderUploadsByProvider(providerId).catch(() => []) : [];
+
+  // Último chequeo RegCheq de esta solicitud (incluye decisiones manuales)
+  let latestRegcheq: RegcheqLatest | null = null;
+  {
+    const { data: rc } = await sb
+      .from('regcheq_checks')
+      .select('decision, reason, company, created_at')
+      .eq('workflow_run_id', id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (rc) {
+      const c = rc as any;
+      latestRegcheq = {
+        decision: c.decision,
+        reason: c.reason ?? null,
+        manual: !!c.company?.manual,
+        reportUploadId: c.company?.report_upload_id ?? null,
+        createdAt: c.created_at ?? null,
+      };
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -89,6 +113,8 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
         <h3 className="font-display font-bold text-lg mb-3">Documento del contrato</h3>
         <DocViewerPanel workflowRunId={r.id} files={files} commentsByFile={commentsByFile} canRunAi={canRunAi} />
       </div>
+
+      <RegcheqManualCard runId={r.id} providerId={providerId} latest={latestRegcheq} />
 
       <div className="card">
         <h3 className="font-display font-bold mb-1">📁 Documentos subidos por el proveedor</h3>
