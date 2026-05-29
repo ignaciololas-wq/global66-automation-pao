@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 import { AUTH_ENABLED, ADMIN_EMAILS, SITE_URL } from '@/lib/config';
+import { createAdminClient } from '@/lib/supabase/server';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  return NextResponse.json({
-    ok: true,
+  // Flags estaticos (config + presencia de keys).
+  const base = {
     ts: new Date().toISOString(),
     runtime: 'next-app-router',
     auth_enabled: AUTH_ENABLED,
@@ -16,5 +19,36 @@ export async function GET() {
       slack: !!process.env.SLACK_BOT_TOKEN,
       resend: !!process.env.RESEND_API_KEY,
     },
-  });
+  };
+
+  // Ping real a la base de datos: query liviano (head + count) contra sociedades.
+  const startedAt = performance.now();
+  try {
+    const sb = createAdminClient();
+    const { error } = await sb
+      .from('sociedades')
+      .select('id', { count: 'exact', head: true });
+
+    const latency_ms = Math.round(performance.now() - startedAt);
+
+    if (error) {
+      return NextResponse.json(
+        { ok: false, ...base, db: { ok: false, latency_ms }, error: error.message },
+        { status: 503 },
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      ...base,
+      db: { ok: true, latency_ms },
+    });
+  } catch (err) {
+    const latency_ms = Math.round(performance.now() - startedAt);
+    const message = err instanceof Error ? err.message : 'unknown error';
+    return NextResponse.json(
+      { ok: false, ...base, db: { ok: false, latency_ms }, error: message },
+      { status: 503 },
+    );
+  }
 }
