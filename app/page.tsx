@@ -1,21 +1,27 @@
-import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { getCurrentUser } from '@/lib/auth';
+import { AUTH_ENABLED } from '@/lib/config';
 
-export default function Home() {
+export const dynamic = 'force-dynamic';
+
+export default async function Home() {
+  // Si auth está activa → manda directo al login (o /admin si ya logueado)
+  if (AUTH_ENABLED) {
+    const auth = await getCurrentUser();
+    if (auth.ok) redirect('/admin');
+    redirect('/login');
+  }
+  // Modo dev sin auth: botón directo
   return (
     <main className="min-h-screen grid place-items-center bg-gradient-to-br from-brand-50 to-white px-5 py-10">
       <div className="text-center max-w-md">
         <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-400 to-mint text-white font-extrabold text-3xl shadow-lift mb-6">
           G
         </div>
-        <h1 className="font-display text-3xl font-bold text-ink mb-2">
-          Plataforma Contratos
-        </h1>
-        <p className="text-muted mb-8">
-          Sistema interno de gestión de contratos con proveedores de Global66
-        </p>
-        <Link href="/admin" className="btn-primary">
-          Entrar a la plataforma →
-        </Link>
+        <h1 className="font-display text-3xl font-bold text-ink mb-2">Plataforma Contratos</h1>
+        <p className="text-muted mb-8">Sistema interno de gestión de contratos con proveedores de Global66</p>
+        <a href="/admin" className="btn-primary">Entrar a la plataforma →</a>
+        <p className="text-xs text-muted mt-3">Modo desarrollo · auth deshabilitada</p>
       </div>
     </main>
   );
