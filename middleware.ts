@@ -12,7 +12,7 @@ const SUPABASE_ANON_KEY =
   process.env.SUPABASE_PUBLISHABLE_KEY ??
   '';
 
-const PUBLIC_PATHS = ['/', '/login', '/p', '/api/auth', '/api/settings'];
+const PUBLIC_PATHS = ['/', '/login', '/auth', '/p', '/api/auth', '/api/settings'];
 
 function isPublic(pathname: string) {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'));

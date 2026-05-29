@@ -14,7 +14,10 @@ export async function POST(request: Request) {
     }
 
     const admin = createAdminClient();
-    const redirectTo = `${SITE_URL}/api/auth/callback`;
+    // Client-side handler: lee fragment (#access_token) o query (token_hash/code).
+    // El server route /api/auth/callback no puede ver el fragment que manda
+    // Supabase por default → "missing code or token_hash". /auth/confirm sí.
+    const redirectTo = `${SITE_URL}/auth/confirm`;
 
     // Buscar usuario; auto-crear si no existe.
     let user;
@@ -67,7 +70,7 @@ export async function POST(request: Request) {
         if (hashedToken) {
           const params = new URLSearchParams({
             token_hash: hashedToken,
-            type: 'magiclink',
+            type: 'email',
             next: '/admin',
           });
           magicLink = `${redirectTo}?${params.toString()}`;
