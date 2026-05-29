@@ -45,57 +45,76 @@ export async function POST(request: Request) {
       user = data.user;
     }
 
-    let magicLink;
-    try {
-      const { data, error } = await (admin.auth as any).admin.generateLink({
-        type: 'magiclink',
-        email,
-        options: { redirectTo },
-      });
-      if (error) throw error;
-      const hashedToken = data?.properties?.hashed_token;
-      if (hashedToken) {
-        const params = new URLSearchParams({
-          token_hash: hashedToken,
-          type: 'magiclink',
-          next: '/admin',
-        });
-        magicLink = `${redirectTo}?${params.toString()}`;
-      } else {
-        magicLink = data?.properties?.action_link;
-      }
-      if (!magicLink) throw new Error('no link returned');
-    } catch (e: any) {
-      return NextResponse.json(
-        { error: 'generateLink failed: ' + e.message },
-        { status: 500 },
-      );
-    }
+    // Email delivery — orden de preferencia:
+    //  1. n8n webhook custom (si N8N_EMAIL_WEBHOOK_URL existe y no está vacío)
+    //  2. Resend API (si RESEND_API_KEY existe)
+    //  3. Supabase Auth built-in (default — Supabase manda el mail con su SMTP)
+    const webhookUrl = (process.env.N8N_EMAIL_WEBHOOK_URL ?? '').trim();
+    const webhookSecret = (process.env.N8N_EMAIL_WEBHOOK_SECRET ?? '').trim();
+    const resendKey = (process.env.RESEND_API_KEY ?? '').trim();
 
-    // Enviar email vía n8n webhook si está configurado, sino skip (devolver magic_link para testing).
-    const webhookUrl = process.env.N8N_EMAIL_WEBHOOK_URL;
-    const webhookSecret = process.env.N8N_EMAIL_WEBHOOK_SECRET;
-    if (webhookUrl) {
+    // Si tenemos custom webhook O Resend → generamos link y mandamos nosotros.
+    if (webhookUrl || resendKey) {
+      let magicLink;
       try {
-        const r = await fetch(webhookUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(webhookSecret ? { 'X-Webhook-Secret': webhookSecret } : {}),
-          },
-          body: JSON.stringify({
-            to: [email],
-            from: process.env.EMAIL_FROM ?? 'Global66 Contratos <onboarding@resend.dev>',
-            subject: 'Tu acceso a Global66 Contratos',
-            html: `<p>Click el siguiente link para entrar. Válido por 1 hora.</p>
-                   <p><a href="${magicLink}" style="background:#1F49B6;color:white;padding:14px 32px;border-radius:99px;text-decoration:none;font-weight:600">Entrar →</a></p>
-                   <p style="color:#999;font-size:12px;word-break:break-all">Si el botón no funciona, copia: ${magicLink}</p>`,
-            text: `Tu link de acceso: ${magicLink}`,
-            replyTo: process.env.EMAIL_REPLY_TO,
-            tags: ['magic-link', 'auth'],
-          }),
+        const { data, error } = await (admin.auth as any).admin.generateLink({
+          type: 'magiclink',
+          email,
+          options: { redirectTo },
         });
-        if (!r.ok) throw new Error(`webhook ${r.status}: ${(await r.text()).slice(0, 200)}`);
+        if (error) throw error;
+        const hashedToken = data?.properties?.hashed_token;
+        if (hashedToken) {
+          const params = new URLSearchParams({
+            token_hash: hashedToken,
+            type: 'magiclink',
+            next: '/admin',
+          });
+          magicLink = `${redirectTo}?${params.toString()}`;
+        } else {
+          magicLink = data?.properties?.action_link;
+        }
+        if (!magicLink) throw new Error('no link returned');
+      } catch (e: any) {
+        return NextResponse.json(
+          { error: 'generateLink failed: ' + e.message },
+          { status: 500 },
+        );
+      }
+
+      const from = process.env.EMAIL_FROM ?? 'Global66 Contratos <onboarding@resend.dev>';
+      const subject = 'Tu acceso a Global66 Contratos';
+      const html = `<p>Click el siguiente link para entrar. Válido por 1 hora.</p>
+        <p><a href="${magicLink}" style="background:#1F49B6;color:white;padding:14px 32px;border-radius:99px;text-decoration:none;font-weight:600">Entrar →</a></p>
+        <p style="color:#999;font-size:12px;word-break:break-all">Si el botón no funciona, copia: ${magicLink}</p>`;
+      const text = `Tu link de acceso: ${magicLink}`;
+
+      try {
+        if (webhookUrl) {
+          const r = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(webhookSecret ? { 'X-Webhook-Secret': webhookSecret } : {}),
+            },
+            body: JSON.stringify({
+              to: [email], from, subject, html, text,
+              replyTo: process.env.EMAIL_REPLY_TO,
+              tags: ['magic-link', 'auth'],
+            }),
+          });
+          if (!r.ok) throw new Error(`webhook ${r.status}: ${(await r.text()).slice(0, 200)}`);
+        } else {
+          const r = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              from, to: [email], subject, html, text,
+              reply_to: process.env.EMAIL_REPLY_TO,
+            }),
+          });
+          if (!r.ok) throw new Error(`resend ${r.status}: ${(await r.text()).slice(0, 200)}`);
+        }
       } catch (e: any) {
         return NextResponse.json(
           {
@@ -105,9 +124,27 @@ export async function POST(request: Request) {
           { status: 500 },
         );
       }
+      return NextResponse.json({ ok: true, sent: true, via: webhookUrl ? 'n8n' : 'resend' });
     }
 
-    return NextResponse.json({ ok: true, sent: !!webhookUrl });
+    // Default: Supabase Auth manda el mail por su cuenta (SMTP built-in o configurado en dashboard).
+    // Usa signInWithOtp via cliente con anon key — esto encola el mail desde Supabase Auth.
+    try {
+      const { createClient } = await import('@supabase/supabase-js');
+      const { SUPABASE_URL, SUPABASE_ANON_KEY } = await import('@/lib/config');
+      const anon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const { error } = await anon.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: redirectTo, shouldCreateUser: true },
+      });
+      if (error) throw error;
+    } catch (e: any) {
+      return NextResponse.json(
+        { error: 'Supabase signInWithOtp failed: ' + e.message },
+        { status: 500 },
+      );
+    }
+    return NextResponse.json({ ok: true, sent: true, via: 'supabase' });
   } catch (e: any) {
     return NextResponse.json(
       { error: 'magic-link handler crash: ' + e.message },
