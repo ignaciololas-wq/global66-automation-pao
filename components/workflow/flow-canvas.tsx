@@ -31,7 +31,7 @@ async function loadAvatars(emails: string[]): Promise<Record<string, { display_n
 export async function FlowCanvas({ run }: { run: WorkflowRun }) {
   const phase = run.current_phase;
   const intRejected = run.internal_approval_status === 'rejected';
-  const providerDone = run.provider_data_completed_at != null || run.profile_completed_at != null;
+  const providerDone = run.provider_data_completed_at != null;
   const approvalsDone = run.internal_approvals_completed_at != null;
   const parallelStarted =
     phase === 'parallel' || phase === 'fase2' || phase === 'fase3' || phase === 'signed';
@@ -66,7 +66,7 @@ export async function FlowCanvas({ run }: { run: WorkflowRun }) {
   const stages: Record<number, Stage> = {
     1: { num: 1, label: 'Solicitud',          who: 'Solicitante',                assignee: run.solicitante_email,                                      date: run.created_at },
     2: { num: 2, label: 'Aprobación interna', who: 'Compliance + Legal + Admin', assignee: run.internal_approver_email ?? 'Slack 3 equipos',           date: run.internal_approvals_completed_at },
-    3: { num: 3, label: 'Datos proveedor',    who: 'Proveedor',                  assignee: run.email_contacto,                                         date: run.provider_data_completed_at ?? run.profile_completed_at },
+    3: { num: 3, label: 'Datos proveedor',    who: 'Proveedor',                  assignee: null,                                                       date: run.provider_data_completed_at },
     4: { num: 4, label: 'Validación docs',    who: 'IA + Compliance',            assignee: 'compliance@global66.com',                                  date: phase === 'fase3' || phase === 'signed' ? run.updated_at : null },
     5: { num: 5, label: 'Firma',              who: 'Apoderado',                  assignee: run.sociedad_apoderado_email ?? 'Pendiente',                date: phase === 'signed' ? run.updated_at : null },
     6: { num: 6, label: 'Cerrado',            who: 'Sistema',                    assignee: null,                                                       date: phase === 'signed' ? run.updated_at : null },

@@ -119,11 +119,11 @@ export async function POST(request: Request) {
           if (!r.ok) throw new Error(`resend ${r.status}: ${(await r.text()).slice(0, 200)}`);
         }
       } catch (e: any) {
+        // No devolver el magic_link en la respuesta — es una credencial de
+        // login y puede quedar en logs. Detalle al server, mensaje genérico al cliente.
+        console.error('[magic-link] email delivery failed:', e.message);
         return NextResponse.json(
-          {
-            error: 'email delivery failed: ' + e.message,
-            magic_link: process.env.NODE_ENV !== 'production' ? magicLink : undefined,
-          },
+          { error: 'No se pudo enviar el enlace. Intentá de nuevo en unos minutos.' },
           { status: 500 },
         );
       }

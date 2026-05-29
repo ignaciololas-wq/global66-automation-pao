@@ -38,11 +38,10 @@ export interface WorkflowRun {
   sociedad_contratante?: string | null;
   sociedad_apoderado_email?: string | null;
   representante_legal?: string | null;
-  email_contacto?: string | null;
-  email_facturacion?: string | null;
+  // NOTA: email_contacto/email_facturacion/profile_* viven en la tabla
+  // providers, NO en workflow_runs. No declararlos acá (eran phantom: siempre
+  // undefined en runtime y producían UI silenciosamente vacía en flow-canvas).
   servicio_descripcion?: string | null;
-  profile_completed_at?: string | null;
-  profile_invited_at?: string | null;
   active_phases?: ActivePhase[] | null;
   provider_data_completed_at?: string | null;
   internal_approvals_completed_at?: string | null;
