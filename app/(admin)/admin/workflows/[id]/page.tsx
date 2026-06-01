@@ -19,8 +19,10 @@ export const dynamic = 'force-dynamic';
 
 export default async function WorkflowDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  let [r, files, auth] = await Promise.all([getWorkflow(id), listContractFiles(id), getCurrentUser()]);
-  if (!r) notFound();
+  const [r0, files0, auth] = await Promise.all([getWorkflow(id), listContractFiles(id), getCurrentUser()]);
+  if (!r0) notFound();
+  let r = r0;
+  let files = files0;
 
   // Red de seguridad: si está en firma, sincroniza con SignNow al abrir el detalle
   // (cierra solo si ya firmaron, por si el webhook no disparó).
