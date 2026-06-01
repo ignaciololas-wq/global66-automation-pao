@@ -154,3 +154,33 @@ export async function deleteSociedadDoc(id: string) {
   if (error) throw new Error(error.message);
   revalidate();
 }
+
+// Reemplaza el set de aprobadores de un (country, team). Las aprobaciones Slack
+// (legacy dispatch) van por DM a estos según el país del run.
+export async function setTeamApprovers(input: {
+  country: string;
+  team: 'compliance' | 'legal' | 'admin';
+  members: { user_id?: string | null; email: string; display_name?: string | null }[];
+}) {
+  await requireAdmin();
+  requireField(input.country, 'país', 120);
+  assert(['compliance', 'legal', 'admin'].includes(input.team), 'Equipo inválido');
+  const sb = createAdminClient();
+  const del = await sb.from('approval_assignments').delete().eq('country', input.country).eq('team', input.team);
+  if (del.error) throw new Error(del.error.message);
+  const rows = (input.members ?? [])
+    .filter((m) => m && m.email)
+    .map((m) => ({
+      country: input.country,
+      team: input.team,
+      user_id: m.user_id ?? null,
+      email: String(m.email).trim(),
+      display_name: m.display_name ?? null,
+    }));
+  if (rows.length) {
+    const { error } = await sb.from('approval_assignments').insert(rows);
+    if (error) throw new Error(error.message);
+  }
+  revalidate();
+  return rows;
+}

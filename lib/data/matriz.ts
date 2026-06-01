@@ -31,6 +31,41 @@ export async function listSociedadDocs(sociedadId?: string, activeOnly = false):
   return (data ?? []) as SociedadDocument[];
 }
 
+export interface ApprovalAssignment {
+  id: string;
+  country: string;
+  team: 'compliance' | 'legal' | 'admin';
+  user_id: string | null;
+  email: string;
+  display_name: string | null;
+  active: boolean;
+}
+
+export async function listApprovers(country?: string): Promise<ApprovalAssignment[]> {
+  const sb = createAdminClient();
+  let q = sb
+    .from('approval_assignments')
+    .select('id, country, team, user_id, email, display_name, active')
+    .eq('active', true);
+  if (country) q = q.eq('country', country);
+  const { data, error } = await q.order('country').order('team');
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ApprovalAssignment[];
+}
+
+// Países para el selector: unión de sociedades.country + países con asignaciones.
+export async function listApproverCountries(): Promise<string[]> {
+  const sb = createAdminClient();
+  const [soc, asg] = await Promise.all([
+    sb.from('sociedades').select('country').eq('active', true),
+    sb.from('approval_assignments').select('country').eq('active', true),
+  ]);
+  const set = new Set<string>();
+  for (const r of (soc.data ?? []) as { country: string }[]) if (r.country) set.add(r.country);
+  for (const r of (asg.data ?? []) as { country: string }[]) if (r.country) set.add(r.country);
+  return [...set].sort();
+}
+
 export interface MatrizSnapshot {
   sociedades: Sociedad[];
   apoderadosBySociedad: Record<string, Apoderado[]>;

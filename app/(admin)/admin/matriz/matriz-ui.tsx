@@ -2,21 +2,29 @@
 
 import { useState, useTransition } from 'react';
 import type { Sociedad, Apoderado, SociedadDocument } from '@/lib/types';
+import type { ApprovalAssignment } from '@/lib/data/matriz';
 import {
   createSociedad, updateSociedad, deleteSociedad,
   createApoderado, updateApoderado, deleteApoderado,
   createSociedadDoc, updateSociedadDoc, deleteSociedadDoc,
+  setTeamApprovers,
 } from './actions';
 
-type Tab = 'sociedades' | 'apoderados' | 'docs';
+type Tab = 'sociedades' | 'apoderados' | 'docs' | 'approvers';
+type ApproverUser = { id: string; email: string; display_name: string | null };
+type Team = 'compliance' | 'legal' | 'admin';
+const TEAM_LABEL: Record<Team, string> = { compliance: 'Compliance', legal: 'Legal', admin: 'Administración' };
 
 interface Props {
   sociedades: Sociedad[];
   apoderadosBySociedad: Record<string, Apoderado[]>;
   docsBySociedad: Record<string, SociedadDocument[]>;
+  approvers: ApprovalAssignment[];
+  approverCountries: string[];
+  aprobadores: ApproverUser[];
 }
 
-export function MatrizUI({ sociedades, apoderadosBySociedad, docsBySociedad }: Props) {
+export function MatrizUI({ sociedades, apoderadosBySociedad, docsBySociedad, approvers, approverCountries, aprobadores }: Props) {
   const [tab, setTab] = useState<Tab>('sociedades');
   const [pending, startTransition] = useTransition();
   const [err, setErr] = useState<string | null>(null);
@@ -28,16 +36,18 @@ export function MatrizUI({ sociedades, apoderadosBySociedad, docsBySociedad }: P
     });
   }
 
+  const tabLabel: Record<Tab, string> = { sociedades: 'Sociedades', apoderados: 'Apoderados', docs: 'Documentos', approvers: 'Aprobadores' };
+
   return (
     <div className="space-y-4">
       <div className="flex gap-1 border-b border-border">
-        {(['sociedades', 'apoderados', 'docs'] as Tab[]).map((t) => (
+        {(['sociedades', 'apoderados', 'docs', 'approvers'] as Tab[]).map((t) => (
           <button
             key={t}
             className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition ${tab === t ? 'border-brand-500 text-brand-700' : 'border-transparent text-muted hover:text-ink'}`}
             onClick={() => setTab(t)}
           >
-            {t === 'sociedades' ? 'Sociedades' : t === 'apoderados' ? 'Apoderados' : 'Documentos'}
+            {tabLabel[t]}
           </button>
         ))}
       </div>
@@ -47,6 +57,66 @@ export function MatrizUI({ sociedades, apoderadosBySociedad, docsBySociedad }: P
       {tab === 'sociedades' && <SociedadesTab sociedades={sociedades} pending={pending} run={run} />}
       {tab === 'apoderados' && <ApoderadosTab sociedades={sociedades} apoderadosBySociedad={apoderadosBySociedad} pending={pending} run={run} />}
       {tab === 'docs' && <DocsTab sociedades={sociedades} docsBySociedad={docsBySociedad} pending={pending} run={run} />}
+      {tab === 'approvers' && <ApproversTab approvers={approvers} approverCountries={approverCountries} aprobadores={aprobadores} pending={pending} run={run} />}
+    </div>
+  );
+}
+
+function ApproversTab({ approvers, approverCountries, aprobadores, pending, run }: { approvers: ApprovalAssignment[]; approverCountries: string[]; aprobadores: ApproverUser[]; pending: boolean; run: (fn: () => Promise<unknown>) => void }) {
+  const [country, setCountry] = useState<string>(approverCountries[0] ?? '');
+  if (!approverCountries.length) return <div className="text-muted text-sm p-4">No hay países (cargá sociedades primero).</div>;
+  if (!aprobadores.length) return <div className="text-muted text-sm p-4">No hay usuarios con rol <b>aprobador</b>. Creálos en Usuarios y volvé acá.</div>;
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <label className="text-sm font-semibold">País</label>
+        <select className="input max-w-xs" value={country} onChange={(e) => setCountry(e.target.value)}>
+          {approverCountries.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+      <p className="text-muted text-xs">Cada equipo recibe la solicitud de aprobación por <b>DM de Slack</b> (por email). Un equipo vacío no se exige (no bloquea el semáforo).</p>
+      <div className="grid md:grid-cols-3 gap-3">
+        {(['compliance', 'legal', 'admin'] as Team[]).map((team) => (
+          <TeamApprovers
+            key={country + team}
+            country={country}
+            team={team}
+            assigned={approvers.filter((a) => a.country === country && a.team === team)}
+            aprobadores={aprobadores}
+            pending={pending}
+            run={run}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TeamApprovers({ country, team, assigned, aprobadores, pending, run }: { country: string; team: Team; assigned: ApprovalAssignment[]; aprobadores: ApproverUser[]; pending: boolean; run: (fn: () => Promise<unknown>) => void }) {
+  const [sel, setSel] = useState<Set<string>>(() => new Set(assigned.map((a) => a.email.toLowerCase())));
+  const [ok, setOk] = useState(false);
+  function toggle(email: string) {
+    const n = new Set(sel); const k = email.toLowerCase();
+    if (n.has(k)) n.delete(k); else n.add(k);
+    setSel(n); setOk(false);
+  }
+  function save() {
+    const members = aprobadores.filter((u) => sel.has(u.email.toLowerCase())).map((u) => ({ user_id: u.id, email: u.email, display_name: u.display_name }));
+    run(async () => { await setTeamApprovers({ country, team, members }); setOk(true); });
+  }
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-2"><b className="text-sm">{TEAM_LABEL[team]}</b><span className="text-[11px] text-muted">{sel.size} asignado(s)</span></div>
+      <div className="flex flex-col gap-1.5 max-h-72 overflow-auto">
+        {aprobadores.map((u) => (
+          <label key={u.id} className="flex items-center gap-2 text-[13px] cursor-pointer">
+            <input type="checkbox" checked={sel.has(u.email.toLowerCase())} onChange={() => toggle(u.email)} />
+            <span>{u.display_name ?? u.email}<br /><span className="text-muted text-[11px]">{u.email}</span></span>
+          </label>
+        ))}
+      </div>
+      <button className="btn-primary text-xs w-full mt-3" disabled={pending} onClick={save}>Guardar {TEAM_LABEL[team]}</button>
+      {ok && <div className="text-green-600 text-[11px] mt-1.5">✓ Guardado</div>}
     </div>
   );
 }
