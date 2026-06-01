@@ -1,6 +1,6 @@
 import 'server-only';
 import { createAdminClient } from '@/lib/supabase/server';
-import { uploadDocument, freeFormInvite, getDocumentStatus, downloadSigned } from '@/lib/signnow';
+import { uploadDocument, freeFormInvite, getDocumentStatus, downloadSigned, subscribeDocumentComplete } from '@/lib/signnow';
 import { logAudit } from '@/lib/data/approvals';
 import { sendEmail } from '@/lib/email';
 
@@ -73,6 +73,11 @@ export async function sendToSignNow(runId: string): Promise<{ document_id: strin
   const buf = Buffer.from(await dl.data.arrayBuffer());
 
   const docId = await uploadDocument(buf, main.filename ?? 'contrato.pdf');
+
+  // Webhook automático: cuando se complete la firma, SignNow pega a nuestro callback.
+  const secret = process.env.SIGNNOW_WEBHOOK_SECRET;
+  const callback = `${SITE_URL}/api/signnow/callback${secret ? `?secret=${encodeURIComponent(secret)}` : ''}`;
+  await subscribeDocumentComplete(docId, callback).catch(() => {});
 
   const signers = await resolveSigners(run);
   if (!signers.length) throw new Error('No hay apoderados firmantes con email para esta sociedad');

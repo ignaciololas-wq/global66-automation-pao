@@ -86,6 +86,21 @@ export async function downloadSigned(documentId: string): Promise<Buffer> {
   return Buffer.from(await r.arrayBuffer());
 }
 
+// Registra un webhook document.complete para ESTE documento (per-document event
+// subscription; SignNow no soporta account-wide con este token). callbackUrl
+// debe incluir el secret en query. Best-effort: si falla, queda el polling.
+export async function subscribeDocumentComplete(documentId: string, callbackUrl: string): Promise<boolean> {
+  ensureToken();
+  const r = await fetch(`${BASE}/api/v2/events`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ event: 'document.complete', entity_id: documentId, action: 'callback', attributes: { callback: callbackUrl, use_tls_12: true } }),
+  });
+  if (r.ok || r.status === 201) return true;
+  console.warn('[signnow] subscribe document.complete falló', r.status, (await r.text()).slice(0, 150));
+  return false;
+}
+
 export async function deleteDocument(documentId: string): Promise<void> {
   ensureToken();
   await fetch(`${BASE}/document/${documentId}`, { method: 'DELETE', headers: authHeaders() });
