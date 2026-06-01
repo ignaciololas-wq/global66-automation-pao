@@ -1346,6 +1346,40 @@ async function q(table, qs = '') {
 }
 
 const dotPill = (txt, kind) => txt ? `<span class="pill ${kind ?? 'gray'}"><span class="dot"></span>${txt}</span>` : `<span class="pill gray">—</span>`;
+const REGCHEQ_LIST_LABELS = {
+  internationalOrganizations: 'Sanciones internacionales (OFAC/ONU/UE)',
+  ofacAddressResult: 'OFAC (dirección)',
+  bicResult: 'Sanciones bancarias (BIC)',
+  pepChile: 'PEP Chile',
+  funcPublicChile: 'Funcionario público (Chile)',
+  pdiResult: 'PDI',
+  rtpResult: 'RTP',
+  gafiResult: 'GAFI',
+  internList: 'Lista interna',
+  regcheqList: 'Lista RegCheq',
+  keywordsResult: 'Keywords de riesgo',
+  screeningGlobal: 'Screening global / adverse media',
+  associatedRisk: 'Socios/beneficiarios con riesgo',
+  secondCriminalCasesChile: 'Causas penales (Chile)',
+};
+const regcheqListLabel = (k) => REGCHEQ_LIST_LABELS[k] ?? k;
+// Detalle extra por tipo de match (causas penales, socios riesgosos).
+function regcheqMatchDetail(m) {
+  if (m?.list === 'secondCriminalCasesChile') {
+    const cases = m.data?.additionalData;
+    if (Array.isArray(cases) && cases.length) {
+      return `<ul style="margin:4px 0 4px 14px;font-size:12px">${cases.map(c =>
+        `<li>${[c.crimen, c.tribunal, c.fecha, c.estado].filter(Boolean).join(' · ')}</li>`).join('')}</ul>`;
+    }
+  }
+  if (m?.list === 'associatedRisk') {
+    const i = m.info ?? {};
+    if (i.totalAssociatedPeople != null) {
+      return ` <span class="muted" style="font-size:12px">— ${i.associatedPeopleWithRisk ?? 0}/${i.totalAssociatedPeople} socios con riesgo</span>`;
+    }
+  }
+  return '';
+}
 const pill = (txt, kind) => txt ? `<span class="pill ${kind ?? 'gray'}">${txt}</span>` : `<span class="pill gray">—</span>`;
 const semKind = (s) => s === 'green' ? 'green' : s === 'yellow' ? 'yellow' : s === 'red' ? 'red' : 'gray';
 const phaseKind = (p) => p === 'signed' ? 'green' : p === 'rejected' ? 'red' : p === 'cancelled' ? 'gray' : 'blue';
@@ -1589,6 +1623,8 @@ const pages = {
     const risks = ext?.riesgos_detectados ?? [];
     const sanct = sanctions[0];
     const rcq = regcheq[0];
+    const providerId = rcq?.provider_id ?? uploads[0]?.provider_id
+      ?? (await q('providers', `tax_id=eq.${encodeURIComponent(r.tax_id)}&limit=1`).catch(() => []))[0]?.id ?? null;
 
     view.innerHTML = `
       <div class="breadcrumb"><a href="#workflows">← Volver a solicitudes</a></div>
@@ -1670,32 +1706,66 @@ const pages = {
         ${sanct.hit ? `<div class="err">⚠️ Match en lista de sanciones</div><pre>${JSON.stringify(sanct.matches, null, 2)}</pre>` : `<div class="ok">✓ Sin matches</div>`}
       </div>` : ''}
 
-      ${rcq ? (() => {
-        const decisionKind = { block: 'red', review: 'yellow', approve_flag: 'yellow', approve: 'green', unknown: 'gray', skip: 'gray' }[rcq.decision] ?? 'gray';
-        const decisionLabel = { block: '⛔ Bloquear', review: '⚠️ Revisión manual', approve_flag: '⚑ Aprobar con flag', approve: '✓ Aprobar', unknown: 'Sin datos', skip: 'Omitido' }[rcq.decision] ?? rcq.decision;
-        const companyMatches = rcq.company?.matches ?? [];
-        const relations = rcq.relations ?? [];
+      ${(() => {
+        const dec = rcq?.decision;
+        const decisionKind = { block: 'red', review: 'yellow', approve_flag: 'yellow', approve: 'green', unknown: 'gray', skip: 'gray' }[dec] ?? 'gray';
+        const decisionLabel = { block: '⛔ Bloquear', review: '⚠️ Revisión manual', approve_flag: '⚑ Aprobar con flag', approve: '✓ Aprobar', unknown: 'Sin datos', skip: 'Omitido' }[dec] ?? (dec ?? '—');
+        const isManual = !!rcq?.company?.manual;
+        const reportId = rcq?.company?.report_upload_id ?? null;
+        const companyMatches = rcq?.company?.matches ?? [];
+        const relations = rcq?.relations ?? [];
         return `<div class="card" style="margin-bottom:16px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-            <h3>Validación PEP/AML (Regcheq)</h3>
-            ${dotPill(decisionLabel, decisionKind)}
+            <h3>Validación PEP/AML (Regcheq)${isManual ? ' <span class="muted" style="font-size:12px;font-weight:400">· manual</span>' : ''}</h3>
+            ${rcq ? dotPill(decisionLabel, decisionKind) : ''}
           </div>
-          <dl class="props">
+          ${rcq ? `<dl class="props">
             <dt>Decisión</dt><dd><b>${decisionLabel}</b> <span class="muted">(${rcq.reason ?? '—'})</span></dd>
             <dt>Riesgo empresa</dt><dd>${rcq.company?.effectiveRisk ?? '—'}</dd>
-          </dl>
+            ${reportId ? `<dt>Informe</dt><dd><a href="javascript:void(0)" onclick="downloadFile('/api/provider-uploads/url?id=${reportId}')">⬇ Descargar informe RegCheq</a></dd>` : ''}
+          </dl>` : `<p class="muted" style="font-size:13px">Sin chequeo RegCheq registrado. La API automática no está disponible — cargá el informe manual abajo.</p>`}
           ${companyMatches.length ? `<h4 style="margin:16px 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-family:'Inter';font-weight:600">Listas con match (empresa)</h4>
-            <ul style="margin:0 0 12px 18px">${companyMatches.map(m => `<li><b>${m.list}</b> ${m.risk ? `<span class="muted">— riesgo ${m.risk}</span>` : ''}</li>`).join('')}</ul>` : ''}
+            <ul style="margin:0 0 12px 18px">${companyMatches.map(m => `<li><b>${regcheqListLabel(m.list)}</b> ${m.risk ? `<span class="muted">— riesgo ${m.risk}</span>` : ''}${regcheqMatchDetail(m)}</li>`).join('')}</ul>` : ''}
           ${relations.length ? `<h4 style="margin:16px 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-family:'Inter';font-weight:600">Personas relacionadas</h4>
             <table><thead><tr><th>DNI</th><th>Tipo</th><th>Decisión</th><th>Matches</th></tr></thead>
-            <tbody>${relations.map(r => `<tr>
-              <td>${r.dni}</td>
-              <td class="muted">${r.type ?? '—'}</td>
-              <td>${dotPill(r.decision, { block:'red', review:'yellow', approve_flag:'yellow', approve:'green' }[r.decision] ?? 'gray')}</td>
-              <td class="muted" style="font-size:12px">${(r.matches ?? []).map(m => m.list).join(', ') || '—'}</td>
+            <tbody>${relations.map(rel => `<tr>
+              <td>${rel.dni}</td>
+              <td class="muted">${rel.type ?? '—'}</td>
+              <td>${dotPill(rel.decision, { block:'red', review:'yellow', approve_flag:'yellow', approve:'green' }[rel.decision] ?? 'gray')}</td>
+              <td class="muted" style="font-size:12px">${(rel.matches ?? []).map(m => regcheqListLabel(m.list)).join(', ') || '—'}</td>
             </tr>`).join('')}</tbody></table>` : ''}
+
+          <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
+            <h4 style="margin:0 0 4px;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-family:'Inter';font-weight:600">Informe RegCheq manual</h4>
+            <p class="muted" style="font-size:12px;margin-bottom:12px">Corré el chequeo en la web de RegCheq, descargá el informe y subilo acá con la decisión. Queda descargable en el histórico del proveedor y la solicitud.</p>
+            <div class="grid grid-2" style="gap:12px">
+              <div>
+                <label>Decisión</label>
+                <select id="rcq-decision">
+                  <option value="">— Elegí —</option>
+                  <option value="block">⛔ Bloquear</option>
+                  <option value="review">⚠️ Revisión manual</option>
+                  <option value="approve_flag">⚑ Aprobar con flag</option>
+                  <option value="approve">✓ Aprobar</option>
+                </select>
+              </div>
+              <div>
+                <label>Informe (PDF/imagen, opcional)</label>
+                <input type="file" id="rcq-file" accept="application/pdf,image/png,image/jpeg,image/webp">
+              </div>
+              <div style="grid-column:1/-1">
+                <label>Motivo / notas</label>
+                <textarea id="rcq-reason" rows="2" placeholder="Ej: coincidencia en lista de interés / PEP / sin observaciones"></textarea>
+              </div>
+            </div>
+            <div id="rcq-manual-err" class="err" hidden style="margin-top:8px"></div>
+            <div id="rcq-manual-ok" class="ok" hidden style="margin-top:8px"></div>
+            <div style="display:flex;justify-content:flex-end;margin-top:10px">
+              <button class="primary" type="button" onclick="submitRegcheqManual('${r.id}', ${providerId ? `'${providerId}'` : 'null'})">Guardar decisión + informe</button>
+            </div>
+          </div>
         </div>`;
-      })() : ''}
+      })()}
 
       ${uploads.length ? `<div class="card" style="margin-bottom:16px">
         <h3 style="margin-bottom:16px">Documentos subidos por el proveedor</h3>
@@ -1703,7 +1773,7 @@ const pages = {
           <thead><tr><th>Tipo</th><th>Archivo</th><th>RAG</th><th>Validación</th><th>Notas</th></tr></thead>
           <tbody>${uploads.map(u => `<tr>
             <td><b>${u.doc_type}</b></td>
-            <td><a href="${u.file_url}" target="_blank" class="muted">${u.doc_filename}</a></td>
+            <td><a href="javascript:void(0)" onclick="downloadFile('/api/provider-uploads/url?id=${u.id}')" class="muted">${u.doc_filename}</a></td>
             <td>${dotPill(u.rag_status, u.rag_status === 'done' ? 'green' : u.rag_status === 'failed' ? 'red' : 'yellow')}</td>
             <td>${dotPill(u.validation_status, u.validation_status === 'match' ? 'green' : u.validation_status === 'mismatch' ? 'red' : 'yellow')}</td>
             <td class="muted" style="font-size:12px">${u.validation_notes ?? '—'}</td>
@@ -1833,7 +1903,7 @@ const pages = {
               <div style="margin-top:10px;font-size:13px">
                 <div><b>Razón:</b> <span class="muted">${h.reason ?? '—'}</span></div>
                 <div><b>Riesgo empresa:</b> ${h.company?.effectiveRisk ?? '—'}</div>
-                ${cmatches.length ? `<div style="margin-top:8px"><b>Listas con match:</b> <span class="muted">${cmatches.map(m => m.list).join(', ')}</span></div>` : ''}
+                ${cmatches.length ? `<div style="margin-top:8px"><b>Listas con match:</b> <span class="muted">${cmatches.map(m => regcheqListLabel(m.list)).join(', ')}</span></div>` : ''}
                 ${relCount ? `<div style="margin-top:8px"><b>Relacionados:</b> ${relCount} (${relAlerts} con alerta)</div>` : ''}
                 ${h.workflow_run_id ? `<div style="margin-top:8px"><a href="#workflows/${h.workflow_run_id}" style="font-size:12px">Ver solicitud relacionada →</a></div>` : ''}
               </div>
@@ -2972,6 +3042,35 @@ async function usersPage() {
     });
   });
 }
+
+window.submitRegcheqManual = async function (runId, providerId) {
+  const errEl = document.getElementById('rcq-manual-err');
+  const okEl = document.getElementById('rcq-manual-ok');
+  if (errEl) errEl.hidden = true;
+  if (okEl) okEl.hidden = true;
+  const decision = document.getElementById('rcq-decision')?.value ?? '';
+  const reason = (document.getElementById('rcq-reason')?.value ?? '').trim();
+  const file = document.getElementById('rcq-file')?.files?.[0] ?? null;
+  if (!providerId) { errEl.textContent = 'No se pudo resolver el proveedor de esta solicitud.'; errEl.hidden = false; return; }
+  if (!decision) { errEl.textContent = 'Elegí una decisión (bloquear / revisión / aprobar).'; errEl.hidden = false; return; }
+  const fd = new FormData();
+  fd.append('provider_id', providerId);
+  fd.append('run_id', runId);
+  fd.append('decision', decision);
+  if (reason) fd.append('reason', reason);
+  if (file) fd.append('file', file, file.name);
+  try {
+    const r = await fetch('/api/regcheq/manual', { method: 'POST', credentials: 'include', body: fd });
+    const result = await r.json();
+    if (!r.ok) throw new Error(result.error ?? 'Error');
+    okEl.innerHTML = `✓ Decisión <b>${result.decision}</b> guardada${result.report_filename ? ` + informe <code>${result.report_filename}</code>` : ' (sin informe adjunto)'}.`;
+    okEl.hidden = false;
+    setTimeout(() => location.reload(), 1300);
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.hidden = false;
+  }
+};
 
 window.submitApproval = async function (runId, decision) {
   const sociedad = document.getElementById('approve-sociedad').value;

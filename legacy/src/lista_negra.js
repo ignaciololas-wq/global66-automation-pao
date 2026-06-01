@@ -108,6 +108,19 @@ export async function runFullCheck(supplier, representantes, textoPoderes, { run
   if (runId) {
     await recordSanctionsCheck(runId, sanctions).catch((e) => console.error('record sanctions failed', e));
     await recordRegcheqCheck(runId, regcheq, { taxId: supplier.tax_id }).catch((e) => console.error('record regcheq failed', e));
+    // Aviso a revisores si RegCheq arrojó review/block.
+    if (regcheq.decision === 'review' || regcheq.decision === 'block') {
+      const { notifyRegcheqDecision } = await import('./notifications.js');
+      await notifyRegcheqDecision({
+        workflowRunId: runId,
+        supplierName: supplier.razon_social,
+        taxId: supplier.tax_id,
+        decision: regcheq.decision,
+        reason: regcheq.reason,
+        matches: regcheq.company?.matches ?? [],
+        effectiveRisk: regcheq.company?.effectiveRisk,
+      }).catch((e) => console.error('regcheq notify failed', e.message));
+    }
   }
 
   // Decisión final: peor caso entre OpenSanctions, Regcheq, validación apoderados

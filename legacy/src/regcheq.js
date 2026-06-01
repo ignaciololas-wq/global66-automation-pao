@@ -14,10 +14,12 @@ function assertKey() {
   if (!KEY) throw new Error('REGCHEQ_API_KEY missing');
 }
 
-// ── Limpia RUT chileno: "76.123.456-7" → "76123456-7" ───────────────────────
+// ── Limpia RUT chileno → dígitos planos: "76.123.456-7" → "761234567" ────────
+// RegCheq almacena y busca el dni SIN puntos NI guión. Conservar el guión hacía
+// que todo GET /record devolviera 404 ("record not found") aunque la ficha existiera.
 function normalizeDni(dni) {
   if (!dni) return dni;
-  return String(dni).replace(/\./g, '').trim();
+  return String(dni).replace(/[.\-\s]/g, '').trim();
 }
 
 // ── POST /record — crea/actualiza ficha ─────────────────────────────────────
@@ -59,7 +61,13 @@ export async function addToInterestList({ dni, name, personType, reason, status 
 
 // ── Reglas de bloqueo (AML estándar) ────────────────────────────────────────
 // Lee respuesta de GET /record y decide acción.
-const CRITICAL_LISTS = ['internationalOrganizations']; // OFAC/ONU/UE → bloqueo duro
+// Solo sanciones internacionales (OFAC/ONU/UE) bloquean duro. PEP, riesgo alto,
+// socios riesgosos y causas penales chilenas → review (revisión humana).
+const CRITICAL_LISTS = [
+  'internationalOrganizations', // OFAC/ONU/UE consolidado
+  'ofacAddressResult',          // OFAC por dirección
+  'bicResult',                  // sanciones bancarias/BIC
+];
 const REVIEW_LISTS = [
   'pepChile',
   'funcPublicChile',
@@ -68,7 +76,20 @@ const REVIEW_LISTS = [
   'gafiResult',
   'internList',
   'regcheqList',
+  'keywordsResult',
+  'screeningGlobal',         // adverse media / screening global
+  'associatedRisk',          // socios/beneficiarios con riesgo
+  'secondCriminalCasesChile', // causas penales chilenas
 ];
+
+// "High Risk" / "Alto" / "high" → 'high'; "Medium Risk" / "Medio" → 'medium'
+function normalizeRisk(value) {
+  const s = String(value ?? '').toLowerCase();
+  if (s.includes('high') || s.includes('alto')) return 'high';
+  if (s.includes('medium') || s.includes('medio')) return 'medium';
+  if (s.includes('low') || s.includes('bajo')) return 'low';
+  return null;
+}
 
 export function evaluateRecord(record) {
   if (!record || (Array.isArray(record) && record.length === 0)) {
@@ -81,13 +102,18 @@ export function evaluateRecord(record) {
   for (const key of [...CRITICAL_LISTS, ...REVIEW_LISTS]) {
     const entry = listas?.[key];
     if (entry?.coincidence === true) {
-      matches.push({ list: key, risk: entry.risk ?? null, data: entry.data ?? null });
+      matches.push({
+        list: key,
+        risk: entry.risk ?? null,
+        info: entry.info ?? null,
+        data: entry.data ?? null,
+      });
     }
   }
 
   const hasCritical = matches.some((m) => CRITICAL_LISTS.includes(m.list));
   const hasReview = matches.some((m) => REVIEW_LISTS.includes(m.list));
-  const effectiveRisk = r.effectiveRisk ?? r.calculatedRisk ?? null;
+  const effectiveRisk = normalizeRisk(r.effectiveRisk ?? r.calculatedRisk);
 
   let decision = 'approve';
   let reason = 'no_matches';
@@ -103,7 +129,7 @@ export function evaluateRecord(record) {
     reason = 'medium_risk';
   }
 
-  return { decision, reason, effectiveRisk, matches, raw: r };
+  return { decision, reason, effectiveRisk, calculatedRisk: r.calculatedRisk ?? null, matches, raw: r };
 }
 
 // ── Orquestador nodo 4: valida proveedor + relacionados ─────────────────────
@@ -133,19 +159,37 @@ export async function checkSupplier(supplier, relations = []) {
       ...(r.fatherName ? { fatherName: r.fatherName } : {}),
     }));
 
-  await upsertRecord({
-    dni: supplier.tax_id,
-    personType: 'legal',
-    dniType: 'RUT',
-    socialReason: supplier.razon_social,
-    email: supplier.email_contacto,
-    country: supplier.pais,
-    nationality: supplier.pais,
-    ...(personsRelations.length ? { personsRelations } : {}),
-  });
+  // Si la ficha ya existe en RegCheq, POST /record devuelve 500 (personType
+  // inmutable). Probamos GET primero; si la ficha existe, saltamos el upsert.
+  // El upsert solo crea fichas nuevas — su fallo NO debe abortar el check.
+  let companyRecord = null;
+  try {
+    companyRecord = await getRecord(supplier.tax_id);
+  } catch (e) {
+    if (e.response?.status !== 404) {
+      console.error('[regcheq] getRecord pre-check failed:', e.response?.status ?? e.message);
+    }
+  }
 
-  // 2) GET ficha empresa
-  const companyRecord = await getRecord(supplier.tax_id);
+  if (!companyRecord) {
+    try {
+      await upsertRecord({
+        dni: supplier.tax_id,
+        personType: 'legal',
+        dniType: 'RUT',
+        socialReason: supplier.razon_social,
+        email: supplier.email_contacto,
+        country: supplier.pais,
+        nationality: supplier.pais,
+        ...(personsRelations.length ? { personsRelations } : {}),
+      });
+    } catch (e) {
+      console.error('[regcheq] upsertRecord failed (ficha quizá ya existe):', e.response?.status ?? e.message);
+    }
+    // 2) GET ficha empresa (tras crearla)
+    companyRecord = await getRecord(supplier.tax_id);
+  }
+
   const companyEval = evaluateRecord(companyRecord);
 
   // 3) GET ficha cada relacionado

@@ -73,6 +73,7 @@ import {
   markRead as markNotificationsRead,
   markAllRead as markAllNotificationsRead,
   unreadCount as notificationUnreadCount,
+  notifyRegcheqDecision,
 } from './notifications.js';
 import {
   runAiEdit,
@@ -187,7 +188,128 @@ const routes = {
         taxId: body.supplier.tax_id,
       });
     }
+    // Aviso a revisores si review/block (no bloquea la respuesta).
+    notifyRegcheqDecision({
+      workflowRunId: body.run_id ?? null,
+      providerId: body.provider_id ?? null,
+      supplierName: body.supplier.razon_social,
+      taxId: body.supplier.tax_id,
+      decision: result.decision,
+      reason: result.reason,
+      matches: result.company?.matches ?? [],
+      effectiveRisk: result.company?.effectiveRisk,
+    }).catch((e) => console.error('[regcheq notify]', e.message));
     json(res, 200, result);
+  },
+
+  'POST /api/regcheq/manual': async (req, res) => {
+    // Plan B manual: admin sube el PDF del reporte RegCheq (generado en su web) + decisión manual.
+    // La API de RegCheq no entrega resultados para el key actual (sync 500 / async sin callback),
+    // así que el reporte se carga a mano y la decisión se registra igual en regcheq_checks.
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    if (!auth.roles?.some((r) => r === 'admin' || r === 'aprobador')) {
+      return json(res, 403, { error: 'admin o aprobador required' });
+    }
+
+    const ct = (req.headers['content-type'] ?? '').toLowerCase();
+    if (!ct.startsWith('multipart/form-data')) {
+      return json(res, 400, { error: 'multipart/form-data required (file + provider_id + decision)' });
+    }
+
+    const ALLOWED = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/webp']);
+    const MAX = 10 * 1024 * 1024;
+    const VALID_DECISIONS = new Set(['block', 'review', 'approve_flag', 'approve']);
+
+    let parsed;
+    try {
+      parsed = await new Promise((resolve, reject) => {
+        const fields = {};
+        let fileResult = null;
+        let fileError = null;
+        const bb = busboy({ headers: req.headers, limits: { fileSize: MAX, files: 1 } });
+        bb.on('field', (name, val) => { fields[name] = val; });
+        bb.on('file', (name, stream, info) => {
+          const chunks = [];
+          let truncated = false;
+          stream.on('data', (c) => chunks.push(c));
+          stream.on('limit', () => { truncated = true; });
+          stream.on('end', () => {
+            if (truncated) { fileError = 'file too large (max 10MB)'; return; }
+            fileResult = { field: name, filename: info.filename, mimeType: info.mimeType, buffer: Buffer.concat(chunks) };
+          });
+          stream.on('error', (e) => { fileError = e.message; });
+        });
+        bb.on('error', reject);
+        bb.on('close', () => resolve({ fields, file: fileResult, fileError }));
+        req.pipe(bb);
+      });
+    } catch (e) {
+      console.error('[regcheq/manual] busboy parse failed:', e.message);
+      return json(res, 400, { error: `multipart parse: ${e.message}` });
+    }
+
+    const { fields, file, fileError } = parsed;
+    if (fileError) return json(res, 413, { error: fileError });
+
+    const providerId = fields.provider_id;
+    const runId = fields.run_id || null;
+    const decision = (fields.decision || '').toLowerCase();
+    const reason = fields.reason || fields.notes || null;
+    if (!providerId) return json(res, 400, { error: 'provider_id required' });
+    if (!VALID_DECISIONS.has(decision)) {
+      return json(res, 400, { error: `decision invalida: '${decision}'. Use: ${[...VALID_DECISIONS].join('|')}` });
+    }
+
+    // Subir el PDF/imagen del reporte (opcional pero recomendado)
+    let uploadRow = null;
+    if (file && file.buffer.length) {
+      if (!ALLOWED.has(file.mimeType)) return json(res, 400, { error: `mime not allowed: ${file.mimeType}` });
+      const safeName = (file.filename ?? 'regcheq-report.pdf').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 120);
+      const fileId = crypto.randomUUID();
+      const storagePath = `providers/${providerId}/${fileId}-${safeName}`;
+      const upRes = await sb.storage.from('contracts').upload(storagePath, file.buffer, { contentType: file.mimeType, upsert: false });
+      if (upRes.error) return json(res, 500, { error: `storage.upload: ${upRes.error.message}` });
+      const ins = await sb.from('provider_uploads').insert({
+        provider_id: providerId,
+        workflow_run_id: runId,
+        doc_type: 'regcheq_report',
+        doc_filename: safeName,
+        file_url: storagePath,
+        file_size: file.buffer.length,
+        uploaded_by_email: auth.email ?? fields.by_email ?? null,
+      }).select().single();
+      if (ins.error) return json(res, 500, { error: ins.error.message });
+      uploadRow = ins.data;
+    }
+
+    // Registrar decisión manual en regcheq_checks (reusa helper existente)
+    await recordRegcheqCheck(runId, {
+      decision,
+      reason: reason ?? 'manual_review',
+      company: {
+        manual: true,
+        decision,
+        notes: reason,
+        report_upload_id: uploadRow?.id ?? null,
+        by: auth.email ?? fields.by_email ?? null,
+      },
+      relations: [],
+    }, { providerId });
+
+    if (runId) {
+      await logAudit(runId, auth.email ?? 'admin', 'regcheq.manual', 'provider', providerId, {
+        decision, reason, report_upload_id: uploadRow?.id ?? null,
+      });
+    }
+
+    return json(res, 200, {
+      ok: true,
+      decision,
+      provider_id: providerId,
+      report_upload_id: uploadRow?.id ?? null,
+      report_filename: uploadRow?.doc_filename ?? null,
+    });
   },
 
   'GET /api/provider-uploads/url': async (req, res, url) => {

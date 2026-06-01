@@ -194,6 +194,69 @@ export async function sendCommentNotification({ recipients, authorEmail, body, f
   }
 }
 
+// Aviso a revisores cuando RegCheq arroja review/block.
+// Postea a canal Compliance (+ Legal si configurado distinto). No bloquea el flujo.
+const REGCHEQ_LIST_LABELS = {
+  internationalOrganizations: 'Sanciones internacionales (OFAC/ONU/UE)',
+  ofacAddressResult: 'OFAC (dirección)',
+  bicResult: 'Sanciones bancarias (BIC)',
+  pepChile: 'PEP Chile',
+  funcPublicChile: 'Funcionario público (Chile)',
+  pdiResult: 'PDI', rtpResult: 'RTP', gafiResult: 'GAFI',
+  internList: 'Lista interna', regcheqList: 'Lista RegCheq',
+  keywordsResult: 'Keywords de riesgo',
+  screeningGlobal: 'Screening global / adverse media',
+  associatedRisk: 'Socios/beneficiarios con riesgo',
+  secondCriminalCasesChile: 'Causas penales (Chile)',
+};
+
+export async function notifyRegcheqDecision({ workflowRunId, providerId, supplierName, taxId, decision, reason, matches = [], effectiveRisk } = {}) {
+  if (decision !== 'review' && decision !== 'block') return { ok: false, skipped: 'decision_not_actionable' };
+
+  const compliance = process.env.SLACK_COMPLIANCE_CHANNEL || process.env.SLACK_DEFAULT_CHANNEL;
+  const legal = process.env.SLACK_LEGAL_CHANNEL || process.env.SLACK_DEFAULT_CHANNEL;
+  const channels = [...new Set([compliance, legal].filter(Boolean))];
+  if (!channels.length) {
+    console.warn('[regcheq notify] sin canal Slack configurado — skip');
+    return { ok: false, error: 'no_channel' };
+  }
+
+  const emoji = decision === 'block' ? '⛔' : '⚠️';
+  const head = decision === 'block' ? 'BLOQUEO AML' : 'Revisión AML requerida';
+  const matchLines = matches.length
+    ? matches.map((m) => `• ${REGCHEQ_LIST_LABELS[m.list] ?? m.list}${m.risk ? ` _(riesgo ${m.risk})_` : ''}`).join('\n')
+    : '_sin listas con match — disparado por nivel de riesgo_';
+  const link = `${SITE_URL}/admin#workflows/${workflowRunId ?? ''}`;
+
+  const blocks = [
+    { type: 'section', text: { type: 'mrkdwn', text: `${emoji} *${head}* — RegCheq\n*${supplierName ?? taxId ?? 'proveedor'}* ${taxId ? `\`${taxId}\`` : ''}` } },
+    { type: 'section', text: { type: 'mrkdwn', text: `*Riesgo:* ${effectiveRisk ?? '—'}  ·  *Motivo:* ${reason ?? '—'}\n${matchLines}` } },
+  ];
+  if (workflowRunId) {
+    blocks.push({ type: 'actions', elements: [{ type: 'button', text: { type: 'plain_text', text: 'Ver solicitud' }, url: link }] });
+  }
+
+  const fallback = `${emoji} ${head}: ${supplierName ?? taxId} (${reason ?? decision})`;
+  const results = await Promise.all(channels.map((channel) =>
+    slackApiJson('chat.postMessage', { channel, text: fallback, blocks })
+      .catch((e) => ({ ok: false, error: e.message }))));
+  results.forEach((r, i) => { if (!r.ok) console.warn(`[regcheq notify] canal ${channels[i]} falló:`, r.error); });
+
+  // Audit log (best-effort).
+  if (workflowRunId) {
+    await sb.from('audit_log').insert({
+      workflow_run_id: workflowRunId,
+      actor: 'system',
+      action: 'regcheq.review_notified',
+      target_type: 'provider',
+      target_id: String(providerId ?? taxId ?? ''),
+      payload: { decision, reason, channels, delivered: results.filter((r) => r.ok).length },
+    }).catch((e) => console.error('[regcheq notify] audit failed', e.message));
+  }
+
+  return { ok: results.some((r) => r.ok), delivered: results.filter((r) => r.ok).length };
+}
+
 export async function listForUser(email, { limit = 50, unreadOnly = false } = {}) {
   let q = sb
     .from('notifications')
