@@ -93,7 +93,8 @@ export async function sendToSignNow(runId: string): Promise<{ document_id: strin
   await slackDM(
     primary.email,
     `📄 ${saludo}, tienes un contrato de Global66 para *firmar*: ${run.razon_social} (${run.tax_id}).\n` +
-    `👉 Firma acá: ${signUrl}`,
+    `👉 Firma acá: ${signUrl}\n` +
+    `_También te llega por mail — si no lo ves, revisá la carpeta de *spam*._`,
   );
   sendEmail({
     to: primary.email,
