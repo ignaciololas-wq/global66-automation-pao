@@ -1792,7 +1792,7 @@ const pages = {
           ${rcq ? `<dl class="props">
             <dt>Decisión</dt><dd><b>${decisionLabel}</b> <span class="muted">(${rcq.reason ?? '—'})</span></dd>
             <dt>Riesgo empresa</dt><dd>${rcq.company?.effectiveRisk ?? '—'}</dd>
-            ${reportId ? `<dt>Informe</dt><dd><a href="javascript:void(0)" onclick="downloadFile('/api/provider-uploads/url?id=${reportId}')">⬇ Descargar informe RegCheq</a></dd>` : ''}
+            ${reportId ? `<dt>Informe</dt><dd><a href="javascript:void(0)" onclick="viewRegcheqReport('${reportId}')">👁 Ver informe</a> <span class="muted">·</span> <a href="javascript:void(0)" onclick="downloadFile('/api/provider-uploads/url?id=${reportId}')">⬇ Descargar</a></dd>` : ''}
           </dl>` : `<p class="muted" style="font-size:13px">Sin chequeo RegCheq registrado. La API automática no está disponible — cargá el informe manual abajo.</p>`}
           ${companyMatches.length ? `<h4 style="margin:16px 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-family:'Inter';font-weight:600">Listas con match (empresa)</h4>
             <ul style="margin:0 0 12px 18px">${companyMatches.map(m => `<li><b>${regcheqListLabel(m.list)}</b> ${m.risk ? `<span class="muted">— riesgo ${m.risk}</span>` : ''}${regcheqMatchDetail(m)}</li>`).join('')}</ul>` : ''}
@@ -2168,6 +2168,51 @@ async function downloadFile(apiUrl) {
     else throw new Error('no signed url');
   } catch (e) {
     alert('Error descargando archivo: ' + e.message);
+  }
+}
+// Script es type=module: las funciones usadas en onclick="" deben colgar de window.
+window.downloadFile = downloadFile;
+
+// Previsualiza un provider_upload (informe RegCheq PDF/imagen) embebido en un modal.
+window.viewRegcheqReport = async function viewRegcheqReport(id) {
+  const m = document.createElement('div');
+  m.className = 'ai-modal';
+  m.innerHTML = `
+    <div class="ai-modal-backdrop"></div>
+    <div class="ai-modal-card" style="max-width:920px;width:100%;padding:0;display:flex;flex-direction:column;max-height:92vh">
+      <div style="display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--border)">
+        <h3 style="margin:0;font-size:16px">📄 Informe RegCheq</h3>
+        <span id="rcq-view-name" class="muted" style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+        <span style="margin-left:auto;display:flex;gap:8px;flex-shrink:0">
+          <button type="button" class="ghost" id="rcq-view-download">⬇ Descargar</button>
+          <button type="button" class="ghost" id="rcq-view-close">✕</button>
+        </span>
+      </div>
+      <div id="rcq-view-body" style="flex:1;overflow:auto;padding:16px;background:#fafbff;min-height:55vh">
+        <div class="muted" style="padding:16px">Cargando informe…</div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+  const close = () => m.remove();
+  m.querySelector('.ai-modal-backdrop').addEventListener('click', close);
+  m.querySelector('#rcq-view-close').addEventListener('click', close);
+  m.querySelector('#rcq-view-download').addEventListener('click', () => downloadFile(`/api/provider-uploads/url?id=${id}`));
+  const body = m.querySelector('#rcq-view-body');
+  try {
+    const r = await fetch(`/api/provider-uploads/url?id=${id}&inline=1`, { credentials: 'include' });
+    if (!r.ok) throw new Error(await r.text());
+    const { url, filename } = await r.json();
+    m.querySelector('#rcq-view-name').textContent = filename ?? '';
+    const ext = (filename ?? '').toLowerCase().split('.').pop();
+    if (['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)) {
+      body.innerHTML = `<img src="${url}" style="max-width:100%;border-radius:8px;display:block;margin:0 auto">`;
+    } else {
+      // PDF (o sin extensión reconocida) → render con pdfjs; fallback a abrir en pestaña.
+      body.innerHTML = '';
+      await renderPdf(body, url);
+    }
+  } catch (e) {
+    body.innerHTML = `<div class="err" style="padding:16px">Error: ${e.message}</div>`;
   }
 }
 

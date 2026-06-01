@@ -313,8 +313,12 @@ const routes = {
   },
 
   'GET /api/provider-uploads/url': async (req, res, url) => {
-    // Devuelve signed URL para descargar un provider_upload (RUT cert, NDA firmado, etc.).
+    // Devuelve signed URL para un provider_upload (RUT cert, NDA firmado, informe RegCheq, etc.).
+    // inline=1 → sin Content-Disposition de descarga, para previsualizar en el navegador.
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
     const id = url.searchParams.get('id');
+    const inline = url.searchParams.get('inline') === '1';
     if (!id) return json(res, 400, { error: 'id required' });
     const { data: row, error } = await sb
       .from('provider_uploads')
@@ -322,7 +326,8 @@ const routes = {
       .eq('id', id)
       .maybeSingle();
     if (error || !row) return json(res, 404, { error: 'upload not found' });
-    const { data: signed, error: e2 } = await sb.storage.from('contracts').createSignedUrl(row.file_url, 3600, { download: row.doc_filename });
+    const opts = inline ? {} : { download: row.doc_filename };
+    const { data: signed, error: e2 } = await sb.storage.from('contracts').createSignedUrl(row.file_url, 3600, opts);
     if (e2) return json(res, 500, { error: e2.message });
     json(res, 200, { url: signed.signedUrl, filename: row.doc_filename });
   },
