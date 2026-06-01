@@ -1779,7 +1779,11 @@ const pages = {
         const decisionKind = { block: 'red', review: 'yellow', approve_flag: 'yellow', approve: 'green', unknown: 'gray', skip: 'gray' }[dec] ?? 'gray';
         const decisionLabel = { block: '⛔ Bloquear', review: '⚠️ Revisión manual', approve_flag: '⚑ Aprobar con flag', approve: '✓ Aprobar', unknown: 'Sin datos', skip: 'Omitido' }[dec] ?? (dec ?? '—');
         const isManual = !!rcq?.company?.manual;
-        const reportId = rcq?.company?.report_upload_id ?? null;
+        // El informe puede venir referenciado por el chequeo más reciente, o existir
+        // como provider_upload (doc_type=regcheq_report) aunque otro chequeo sea el último.
+        const reportUpload = (uploads ?? []).find((u) => u.doc_type === 'regcheq_report');
+        const reportId = rcq?.company?.report_upload_id ?? reportUpload?.id ?? null;
+        const reportName = reportUpload?.doc_filename ?? 'informe-regcheq';
         const companyMatches = rcq?.company?.matches ?? [];
         const relations = rcq?.relations ?? [];
         const fichaRaw = rcq?.company?.raw ?? null;
@@ -1789,10 +1793,18 @@ const pages = {
             <h3>Validación PEP/AML (Regcheq)${isManual ? ' <span class="muted" style="font-size:12px;font-weight:400">· manual</span>' : ''}</h3>
             ${rcq ? dotPill(decisionLabel, decisionKind) : ''}
           </div>
+          ${reportId ? `<div style="display:flex;gap:10px;align-items:center;margin:0 0 14px;padding:12px 14px;background:var(--blue-50);border:1px solid var(--blue-200);border-radius:10px">
+            <span style="font-size:22px;line-height:1">📄</span>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:13px;color:var(--blue-700)">Informe RegCheq adjunto</div>
+              <div class="muted" style="font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${reportName}</div>
+            </div>
+            <button type="button" class="primary" style="padding:8px 16px;font-size:13px;white-space:nowrap" onclick="viewRegcheqReport('${reportId}')">👁 Ver informe</button>
+            <button type="button" class="ghost" style="padding:8px 12px;font-size:13px;white-space:nowrap" onclick="downloadFile('/api/provider-uploads/url?id=${reportId}')" title="Descargar">⬇</button>
+          </div>` : ''}
           ${rcq ? `<dl class="props">
             <dt>Decisión</dt><dd><b>${decisionLabel}</b> <span class="muted">(${rcq.reason ?? '—'})</span></dd>
             <dt>Riesgo empresa</dt><dd>${rcq.company?.effectiveRisk ?? '—'}</dd>
-            ${reportId ? `<dt>Informe</dt><dd><a href="javascript:void(0)" onclick="viewRegcheqReport('${reportId}')">👁 Ver informe</a> <span class="muted">·</span> <a href="javascript:void(0)" onclick="downloadFile('/api/provider-uploads/url?id=${reportId}')">⬇ Descargar</a></dd>` : ''}
           </dl>` : `<p class="muted" style="font-size:13px">Sin chequeo RegCheq registrado. La API automática no está disponible — cargá el informe manual abajo.</p>`}
           ${companyMatches.length ? `<h4 style="margin:16px 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-family:'Inter';font-weight:600">Listas con match (empresa)</h4>
             <ul style="margin:0 0 12px 18px">${companyMatches.map(m => `<li><b>${regcheqListLabel(m.list)}</b> ${m.risk ? `<span class="muted">— riesgo ${m.risk}</span>` : ''}${regcheqMatchDetail(m)}</li>`).join('')}</ul>` : ''}
