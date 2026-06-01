@@ -5,6 +5,33 @@ import { getCurrentUser } from '@/lib/auth';
 import { runAiEdit, applyAiDraft, discardAiDraft } from '@/lib/ai';
 import { revalidatePath } from 'next/cache';
 import { randomUUID } from 'node:crypto';
+import { recordApproval, getApprovals, setSemaforo, setPhase } from '@/lib/data/approvals';
+import { computeSemaphore } from '@/lib/hito1';
+import { requiredApprovalTeams, markInternalApprovalsDone } from '@/lib/slack/dispatch';
+
+// Aprobación manual desde la plataforma (mismo camino que el callback de Slack).
+// Permite a admin/aprobador decidir sin usar el DM de Slack.
+export async function recordManualApproval(runId: string, team: string, decision: string) {
+  const auth = await getCurrentUser();
+  if (!auth.ok) throw new Error('No autorizado');
+  if (!auth.roles.includes('admin') && !auth.roles.includes('aprobador')) throw new Error('Solo admin o aprobador');
+  if (!['compliance', 'legal', 'admin'].includes(team)) throw new Error('Equipo inválido');
+  if (!['approved', 'rejected', 'requested_changes'].includes(decision)) throw new Error('Decisión inválida');
+
+  await recordApproval({ runId, team, decision, email: auth.email });
+
+  const approvals = await getApprovals(runId);
+  const sb = createAdminClient();
+  const { data: run } = await sb.from('workflow_runs').select('pais').eq('id', runId).maybeSingle();
+  const requiredTeams = await requiredApprovalTeams((run as any)?.pais);
+  if (requiredTeams.every((t) => approvals[t])) {
+    const result = computeSemaphore({ approvals: approvals as Record<string, any>, requiredTeams });
+    await setSemaforo(runId, result.color, result.reason);
+    if (result.color === 'red') await setPhase(runId, 'rejected');
+    else await markInternalApprovalsDone(runId, result.color, result.reason);
+  }
+  revalidatePath(`/admin/workflows/${runId}`);
+}
 
 const MENTION_RE = /@([a-z0-9._-]+@[a-z0-9.-]+\.[a-z]{2,})/gi;
 

@@ -9,6 +9,9 @@ import { DocViewerPanel } from '@/components/workflow/doc-viewer-panel';
 import { RegcheqManualCard, type RegcheqLatest } from '@/components/workflow/regcheq-manual-card';
 import { phaseLabel, phaseKind, semKind, formatMoney, formatDateTime } from '@/lib/format';
 import type { FileComment } from '@/lib/types';
+import { ApprovalPanel } from '@/components/workflow/approval-panel';
+import { getApprovals } from '@/lib/data/approvals';
+import { requiredApprovalTeams } from '@/lib/slack/dispatch';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +23,11 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
   const commentsByFile: Record<string, FileComment[]> = {};
   await Promise.all(files.map(async (f) => { commentsByFile[f.id] = await listComments(f.id); }));
   const canRunAi = auth.ok && (auth.roles.includes('admin') || auth.roles.includes('aprobador'));
+  const canApprove = canRunAi;
+  const [approvals, requiredTeams] = await Promise.all([
+    getApprovals(id).catch(() => ({} as Record<string, string>)),
+    requiredApprovalTeams((r as any).pais).catch(() => ['compliance', 'legal', 'admin']),
+  ]);
 
   // Provider uploads via tax_id → provider lookup
   const sb = createAdminClient();
@@ -65,6 +73,7 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
         </div>
       </div>
       <FlowCanvas run={r} />
+      {canApprove && <ApprovalPanel runId={id} requiredTeams={requiredTeams} approvals={approvals} />}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
         <div className="card">
           <div className="text-[12px] uppercase tracking-wider text-muted font-semibold mb-1.5">Monto</div>
