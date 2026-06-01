@@ -86,6 +86,13 @@ export async function sendToSignNow(runId: string): Promise<{ document_id: strin
   const primary = signers[0];
   await freeFormInvite(docId, primary.email);
 
+  // Aviso por Slack al apoderado (el mail de SignNow puede caer en spam).
+  await slackDM(
+    primary.email,
+    `📄 Tenés un contrato de Global66 para *firmar*: ${run.razon_social} (${run.tax_id}).\n` +
+    `Te llegó por mail de *SignNow* — ⚠️ si no lo ves, *revisá la carpeta de spam*.`,
+  );
+
   await sb.from('workflow_runs').update({ signnow_document_id: docId }).eq('id', runId);
   await logAudit(runId, 'system', 'signature.sent_to_signnow', 'workflow_run', runId, {
     document_id: docId, signer: primary.email, signers_count: signers.length,
