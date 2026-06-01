@@ -4,6 +4,10 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { getCurrentUser } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { requireField, requireEmail, requirePositiveNumber, clampLen } from '@/lib/validation';
+import { sendEmail, intakeConfirmation, providerInvitation } from '@/lib/email';
+import { dispatchApprovalRequests } from '@/lib/slack/dispatch';
+
+const SITE_URL = (process.env.SITE_URL ?? 'https://global66-automation-pao.vercel.app').replace(/\/$/, '');
 
 export interface IntakeInput {
   solicitante_nombre: string;
@@ -81,8 +85,12 @@ export async function createIntake(input: IntakeInput) {
 
   let providerId: string;
   let providerNew = false;
+  let providerToken: string | null = null;
+  let providerEmail: string | null = null;
   if (existing) {
     providerId = (existing as any).id;
+    providerToken = (existing as any).public_token ?? null;
+    providerEmail = (existing as any).email_contacto ?? input.email_contacto ?? null;
     const patch: Record<string, any> = {};
     const fields = ['razon_social', 'tipo_proveedor', 'email_contacto', 'email_facturacion', 'representante_legal', 'sociedad_contratante', 'servicio_descripcion', 'pais'] as const;
     for (const f of fields) {
@@ -110,6 +118,8 @@ export async function createIntake(input: IntakeInput) {
       .single();
     if (error) throw new Error('Provider create: ' + error.message);
     providerId = (data as any).id;
+    providerToken = token;
+    providerEmail = input.email_contacto ?? null;
     providerNew = true;
   }
 
@@ -138,17 +148,39 @@ export async function createIntake(input: IntakeInput) {
     fecha_inicio: input.fecha_inicio || null,
     fecha_fin: input.fecha_fin || null,
     internal_approval_status: 'pending',
-    current_phase: 'fase1',
+    // Arranca en paralelo: datos proveedor || aprobaciones internas (PR-B).
+    current_phase: 'parallel',
+    active_phases: ['fase2_provider_data', 'hito1_approvals'],
   };
   for (const k of Object.keys(insert)) if (insert[k] == null || insert[k] === '') delete insert[k];
 
   const { data, error } = await sb.from('workflow_runs').insert(insert).select('id').single();
   if (error) throw new Error('Workflow create: ' + error.message);
+  const runId = (data as any).id as string;
+
+  // Branch confirmación: email al solicitante interno.
+  const confirmTo = input.solicitante_email ?? input.owner_email;
+  if (confirmTo) {
+    const tpl = intakeConfirmation({ runId, solicitanteNombre: input.solicitante_nombre, razonSocial: input.razon_social, taxId: input.rut, pais: input.pais, monto: input.monto, moneda: input.moneda });
+    try { await sendEmail({ to: confirmTo, ...tpl }); } catch (e: any) { console.error('Confirmation email failed:', e.message); }
+  }
+
+  // Branch A: invitación al proveedor con su magic-link de perfil.
+  if (providerEmail && providerToken) {
+    const tpl = providerInvitation({ providerName: input.representante_legal ?? input.razon_social, profileUrl: `${SITE_URL}/p/${providerToken}`, sociedadContratante: input.sociedad_contratante, solicitanteNombre: input.solicitante_nombre });
+    try {
+      await sendEmail({ to: providerEmail, ...tpl });
+      await sb.from('providers').update({ profile_invited_at: new Date().toISOString() }).eq('id', providerId);
+    } catch (e: any) { console.error('Provider invitation failed:', e.message); }
+  }
+
+  // Branch B: Slack a los equipos de aprobación requeridos por país.
+  try { await dispatchApprovalRequests(runId); } catch (e: any) { console.error('dispatchApprovalRequests failed:', e.message); }
 
   revalidatePath('/admin');
   revalidatePath('/admin/workflows');
 
-  return { run_id: (data as any).id, provider_id: providerId, provider_new: providerNew };
+  return { run_id: runId, provider_id: providerId, provider_new: providerNew };
 }
 
 function randomToken() {
