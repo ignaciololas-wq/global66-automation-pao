@@ -350,6 +350,11 @@ const routes = {
   'POST /hito1-semaforo': async (req, res) => {
     const body = JSON.parse(await readBody(req));
     if (body.run_id && !body.approvals) body.approvals = await getApprovals(body.run_id);
+    if (body.run_id && !body.requiredTeams) {
+      const { data: run } = await sb.from('workflow_runs').select('pais').eq('id', body.run_id).maybeSingle();
+      const { requiredApprovalTeams } = await import('./approvals_dispatch.js');
+      body.requiredTeams = await requiredApprovalTeams(run?.pais);
+    }
     const result = computeSemaphore(body);
     if (body.run_id) {
       await setSemaforo(body.run_id, result.color, result.reason);
@@ -383,13 +388,16 @@ const routes = {
     });
 
     const approvals = await getApprovals(run_id);
-    const allDecided = ['compliance', 'legal', 'admin'].every((t) => approvals[t]);
+    const { data: run } = await sb.from('workflow_runs').select('pais').eq('id', run_id).maybeSingle();
+    const { requiredApprovalTeams } = await import('./approvals_dispatch.js');
+    const requiredTeams = await requiredApprovalTeams(run?.pais);
+    const allDecided = requiredTeams.every((t) => approvals[t]);
 
     if (allDecided) {
       await fetch(`http://localhost:${PORT}/hito1-semaforo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ run_id, approvals }),
+        body: JSON.stringify({ run_id, approvals, requiredTeams }),
       }).catch((e) => console.error('hito1 trigger failed', e));
     }
 

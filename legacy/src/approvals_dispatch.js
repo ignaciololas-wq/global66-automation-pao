@@ -76,6 +76,20 @@ function canonCountry(s) {
   return COUNTRY_ALIASES[t] ?? t;
 }
 
+// Equipos de aprobación requeridos para un país = los que tienen ≥1 aprobador
+// configurado. Si el país no tiene NADA configurado, cae a los 3 clásicos
+// (compliance/legal/admin) para no romper países sin matriz. Un equipo sin
+// aprobador en un país configurado NO se exige (no cuelga el semáforo hito1).
+export async function requiredApprovalTeams(pais) {
+  const ALL = ['compliance', 'legal', 'admin'];
+  if (!pais) return ALL;
+  const { data, error } = await sb.from('approval_assignments').select('team, country').eq('active', true);
+  if (error) { console.warn('[approvals] requiredApprovalTeams query failed:', error.message); return ALL; }
+  const want = canonCountry(pais);
+  const teams = [...new Set((data ?? []).filter((r) => canonCountry(r.country) === want).map((r) => r.team))];
+  return teams.length ? ALL.filter((t) => teams.includes(t)) : ALL;
+}
+
 // Aprobadores configurados en la plataforma (tabla approval_assignments) para
 // un equipo, resueltos por el país del run. Devuelve lista de emails.
 async function resolveDbApprovers(team, pais) {
@@ -137,7 +151,7 @@ export async function dispatchApprovalRequests(runId) {
   const riskSummary = riskSummaryFromExtraction(ext?.extracted_json);
   const draftUrl = `${SITE_URL}/admin#workflows/${runId}`;
 
-  const teams = ['compliance', 'legal', 'admin'];
+  const teams = await requiredApprovalTeams(supplier.pais);
   const results = await Promise.all(
     teams.map(async (team) => {
       try {
