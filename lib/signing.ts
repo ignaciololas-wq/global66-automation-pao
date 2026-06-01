@@ -52,7 +52,7 @@ export async function resolveSigners(run: any): Promise<Signer[]> {
 
 // Envía el contrato (PDF main del run) a SignNow y dispara la invitación de
 // firma free-form al apoderado. Guarda signnow_document_id en el run.
-export async function sendToSignNow(runId: string): Promise<{ document_id: string; signer: string; all_signers: string[] }> {
+export async function sendToSignNow(runId: string): Promise<{ document_id: string; signer: string; sign_url: string; all_signers: string[] }> {
   const sb = createAdminClient();
   const { data: run } = await sb.from('workflow_runs').select('*').eq('id', runId).single();
   if (!run) throw new Error('run no encontrado');
