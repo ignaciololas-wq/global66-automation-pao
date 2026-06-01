@@ -135,7 +135,7 @@ export async function subscribeDocumentComplete(documentId: string, callbackUrl:
   const r = await fetch(`${BASE}/api/v2/events`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ event: 'document.complete', entity_id: documentId, action: 'callback', attributes: { callback: callbackUrl, use_tls_12: true } }),
+    body: JSON.stringify({ event: 'document.complete', entity_id: documentId, action: 'callback', attributes: { callback: callbackUrl, use_tls_12: true, docid_queryparam: true } }),
   });
   if (r.ok || r.status === 201) return true;
   console.warn('[signnow] subscribe document.complete falló', r.status, (await r.text()).slice(0, 150));

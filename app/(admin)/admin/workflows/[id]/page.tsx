@@ -13,13 +13,23 @@ import { ApprovalPanel } from '@/components/workflow/approval-panel';
 import { SignaturePanel } from '@/components/workflow/signature-panel';
 import { getApprovals } from '@/lib/data/approvals';
 import { requiredApprovalTeams } from '@/lib/slack/dispatch';
+import { syncSignatureStatus } from '@/lib/signing';
 
 export const dynamic = 'force-dynamic';
 
 export default async function WorkflowDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [r, files, auth] = await Promise.all([getWorkflow(id), listContractFiles(id), getCurrentUser()]);
+  let [r, files, auth] = await Promise.all([getWorkflow(id), listContractFiles(id), getCurrentUser()]);
   if (!r) notFound();
+
+  // Red de seguridad: si está en firma, sincroniza con SignNow al abrir el detalle
+  // (cierra solo si ya firmaron, por si el webhook no disparó).
+  if (r.current_phase === 'fase3' && (r as any).signnow_document_id) {
+    try {
+      const s = await syncSignatureStatus(id);
+      if (s.signed) { const fresh = await getWorkflow(id); if (fresh) { r = fresh; files = await listContractFiles(id); } }
+    } catch { /* best-effort */ }
+  }
 
   const commentsByFile: Record<string, FileComment[]> = {};
   await Promise.all(files.map(async (f) => { commentsByFile[f.id] = await listComments(f.id); }));
