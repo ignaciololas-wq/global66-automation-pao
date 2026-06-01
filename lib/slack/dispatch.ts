@@ -91,17 +91,15 @@ export async function dispatchApprovalRequests(runId: string): Promise<Record<st
 
   const { data: ext } = await sb.from('extractions').select('extracted_json').eq('workflow_run_id', runId).order('created_at', { ascending: false }).limit(1).maybeSingle();
 
-  const supplier = { razon_social: run.razon_social, tax_id: run.tax_id, pais: run.pais };
-  const contract = { tipo_contrato: run.tipo_contrato, monto: run.monto, moneda: run.moneda, vigencia_meses: run.vigencia_meses };
   const riskSummary = riskSummaryFromExtraction(ext?.extracted_json);
   const draftUrl = `${SITE_URL}/admin/workflows/${runId}`;
 
-  const teams = await requiredApprovalTeams(supplier.pais);
+  const teams = await requiredApprovalTeams(run.pais);
   const results = await Promise.all(teams.map(async (team) => {
     try {
-      const blocks = approvalBlocks({ team, runId, supplier, contract, riskSummary, draftUrl });
-      const fallback = `Nuevo contrato para revisión ${team}: ${supplier.razon_social} (${supplier.tax_id})`;
-      return [team, await sendTeamApproval(team, blocks, fallback, supplier.pais)] as const;
+      const blocks = approvalBlocks({ team, runId, run, riskSummary, draftUrl });
+      const fallback = `Nuevo contrato para revisión ${team}: ${run.razon_social} (${run.tax_id})`;
+      return [team, await sendTeamApproval(team, blocks, fallback, run.pais)] as const;
     } catch (e: any) {
       return [team, { ok: false, error: e.message }] as const;
     }
