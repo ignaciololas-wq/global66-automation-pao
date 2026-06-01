@@ -45,14 +45,13 @@ export function SignaturePanel({ runId, phase, signnowDocumentId, hasMainFile }:
         <p className="text-muted text-xs">El contrato está firmado y archivado. El PDF firmado aparece arriba en el visor de documentos.</p>
       ) : signnowDocumentId ? (
         <div className="space-y-2">
-          <p className="text-muted text-xs">Ya se envió la invitación de firma al apoderado (mail de SignNow + aviso por Slack). Cuando firme, se guarda solo (o actualizá el estado acá).</p>
-          <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2 text-[11px]">⚠️ El mail de SignNow puede caer en <b>spam</b>. Si el apoderado no lo ve, pedile que revise spam (también le llega aviso por Slack).</div>
+          <p className="text-muted text-xs">Se le envió al apoderado el <b>link de firma</b> por Slack + mail. Cuando firme, se guarda solo (o actualizá el estado acá).</p>
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2 text-[11px]">⚠️ SignNow además manda su propio mail, que puede caer en <b>spam</b>. El link que mandamos por Slack/mail no depende de eso.</div>
           <button className="btn-ghost text-xs" disabled={pending} onClick={check}>🔄 Actualizar estado de firma</button>
         </div>
       ) : (
         <div className="space-y-2">
-          <p className="text-muted text-xs">{hasMainFile ? 'Envía el contrato al apoderado para firma electrónica (mail de SignNow + aviso por Slack).' : 'Subí primero el PDF del contrato (visor de documentos) para poder enviarlo a firma.'}</p>
-          {hasMainFile && <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2 text-[11px]">⚠️ El mail de SignNow puede caer en <b>spam</b> — al apoderado también le llega aviso por Slack.</div>}
+          <p className="text-muted text-xs">{hasMainFile ? 'Envía el contrato al apoderado: le llega el link de firma por Slack + mail.' : 'Subí primero el PDF del contrato (visor de documentos) para poder enviarlo a firma.'}</p>
           <button className="btn-primary text-xs" disabled={pending || !hasMainFile} onClick={send}>📤 Enviar a firma</button>
         </div>
       )}

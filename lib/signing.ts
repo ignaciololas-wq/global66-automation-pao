@@ -1,6 +1,6 @@
 import 'server-only';
 import { createAdminClient } from '@/lib/supabase/server';
-import { uploadDocument, freeFormInvite, getDocumentStatus, downloadSigned, subscribeDocumentComplete } from '@/lib/signnow';
+import { uploadDocument, getDocumentStatus, downloadSigned, subscribeDocumentComplete, getDocumentPageCount, addSignatureField, createSigningLink } from '@/lib/signnow';
 import { logAudit } from '@/lib/data/approvals';
 import { sendEmail } from '@/lib/email';
 
@@ -81,24 +81,33 @@ export async function sendToSignNow(runId: string): Promise<{ document_id: strin
 
   const signers = await resolveSigners(run);
   if (!signers.length) throw new Error('No hay apoderados firmantes con email para esta sociedad');
-
-  // Free-form admite un firmante por documento; invitamos al primario (priority 1).
   const primary = signers[0];
-  await freeFormInvite(docId, primary.email);
 
-  // Aviso por Slack al apoderado (el mail de SignNow puede caer en spam).
+  // Campo de firma en la última página → link de firma directo (no depende del
+  // mail de SignNow, que puede caer en spam). El link va por Slack + mail propio.
+  const pages = await getDocumentPageCount(docId);
+  await addSignatureField(docId, { page: Math.max(0, pages - 1) });
+  const signUrl = await createSigningLink(docId);
+
+  const saludo = primary.name ? primary.name.split(' ')[0] : 'Hola';
   await slackDM(
     primary.email,
-    `📄 Tenés un contrato de Global66 para *firmar*: ${run.razon_social} (${run.tax_id}).\n` +
-    `Te llegó por mail de *SignNow* — ⚠️ si no lo ves, *revisá la carpeta de spam*.`,
+    `📄 ${saludo}, tienes un contrato de Global66 para *firmar*: ${run.razon_social} (${run.tax_id}).\n` +
+    `👉 Firma acá: ${signUrl}`,
   );
+  sendEmail({
+    to: primary.email,
+    subject: `✍️ Contrato para firmar — ${run.razon_social}`,
+    html: `<div style="font-family:Inter,system-ui,Arial;max-width:560px;margin:0 auto;padding:24px;color:#132046"><h2 style="font-family:Montserrat,sans-serif">Contrato para firmar</h2><p>${saludo}, tienes un contrato de Global66 para firmar: <b>${run.razon_social}</b> (${run.tax_id}).</p><p><a href="${signUrl}" style="display:inline-block;background:#1F49B6;color:#fff;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:600">Firmar contrato →</a></p><p style="color:#565656;font-size:12px">Si el botón no abre, copia: ${signUrl}</p></div>`,
+    text: `${saludo}, tienes un contrato de Global66 para firmar: ${run.razon_social} (${run.tax_id}).\nFirma acá: ${signUrl}`,
+  }).catch((e) => console.error('[signing] mail firma falló:', e.message));
 
   await sb.from('workflow_runs').update({ signnow_document_id: docId }).eq('id', runId);
   await logAudit(runId, 'system', 'signature.sent_to_signnow', 'workflow_run', runId, {
     document_id: docId, signer: primary.email, signers_count: signers.length,
   });
 
-  return { document_id: docId, signer: primary.email, all_signers: signers.map((s) => s.email) };
+  return { document_id: docId, signer: primary.email, sign_url: signUrl, all_signers: signers.map((s) => s.email) };
 }
 
 // Baja el PDF firmado, lo guarda como nueva versión 'main' (visible en el viewer),

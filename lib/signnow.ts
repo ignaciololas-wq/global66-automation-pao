@@ -86,6 +86,47 @@ export async function downloadSigned(documentId: string): Promise<Buffer> {
   return Buffer.from(await r.arrayBuffer());
 }
 
+// Nº de páginas del documento (para ubicar la firma en la última).
+export async function getDocumentPageCount(documentId: string): Promise<number> {
+  ensureToken();
+  const r = await fetch(`${BASE}/document/${documentId}`, { headers: authHeaders() });
+  const d = await r.json();
+  if (Array.isArray(d.pages)) return d.pages.length || 1;
+  return d.page_count ?? 1;
+}
+
+// Agrega un campo de firma (necesario para generar signing link). Lo ubica abajo
+// en la página dada (por defecto coords de hoja carta/A4).
+export async function addSignatureField(documentId: string, opts: { page: number; x?: number; y?: number; width?: number; height?: number }): Promise<void> {
+  ensureToken();
+  const r = await fetch(`${BASE}/document/${documentId}`, {
+    method: 'PUT',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({
+      fields: [{
+        x: opts.x ?? 70, y: opts.y ?? 680, width: opts.width ?? 180, height: opts.height ?? 40,
+        page_number: opts.page, type: 'signature', required: true, role: 'Signer', role_id: '',
+      }],
+    }),
+  });
+  if (!r.ok) throw new Error(`signnow addField ${r.status}: ${(await r.text()).slice(0, 150)}`);
+}
+
+// Genera un link de firma (requiere que el doc tenga campos). Cualquiera con el
+// link puede firmar — lo mandamos por Slack/mail propio (evita spam de SignNow).
+export async function createSigningLink(documentId: string): Promise<string> {
+  ensureToken();
+  const r = await fetch(`${BASE}/link`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ document_id: documentId }),
+  });
+  const d = await r.json();
+  const url = d.url ?? d.url_no_signup;
+  if (!r.ok || !url) throw new Error(`signnow link ${r.status}: ${JSON.stringify(d).slice(0, 150)}`);
+  return url as string;
+}
+
 // Registra un webhook document.complete para ESTE documento (per-document event
 // subscription; SignNow no soporta account-wide con este token). callbackUrl
 // debe incluir el secret en query. Best-effort: si falla, queda el polling.
