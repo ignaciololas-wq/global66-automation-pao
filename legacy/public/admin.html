@@ -1380,6 +1380,73 @@ function regcheqMatchDetail(m) {
   }
   return '';
 }
+// Render completo de la ficha RegCheq (raw del GET /record).
+function fichaRow(label, val) {
+  if (val == null || val === '') return '';
+  return `<dt>${label}</dt><dd>${val}</dd>`;
+}
+function regcheqFichaHtml(raw) {
+  if (!raw) return '<p class="muted">Sin ficha estructurada (chequeo manual o pre-fix).</p>';
+  const r = raw;
+  const listas = r.listas ?? {};
+  const ident = `<dl class="props">
+    ${fichaRow('Razón social', r.socialReason ?? r.name)}
+    ${fichaRow('Nombre fantasía', r.fantasyName)}
+    ${fichaRow('RUT', r.dni)}
+    ${fichaRow('Tipo', [r.dniType?.document, r.dniType?.person, r.dniType?.country].filter(Boolean).join(' · '))}
+    ${fichaRow('Estado', r.status)}
+    ${fichaRow('Riesgo calculado', r.calculatedRisk)}
+    ${fichaRow('Riesgo efectivo', r.effectiveRisk)}
+    ${fichaRow('Score', r.score)}
+    ${fichaRow('Ventas', r.sales)}
+    ${fichaRow('Giro', r.bussinesType ?? r.businessType)}
+    ${fichaRow('Dirección', r.address)}
+    ${fichaRow('Dirección fiscal', r.fiscalAddress)}
+    ${fichaRow('Ciudad / Región', [r.city, r.region].filter(Boolean).join(' · '))}
+    ${fichaRow('Teléfono', r.phone)}
+    ${fichaRow('Actualizado', r.updated_at ? dt(r.updated_at) : null)}
+    ${fichaRow('ID ficha', r.identificadorFicha)}
+  </dl>`;
+  const tags = Array.isArray(r.tags) && r.tags.length
+    ? `<h4 style="margin:16px 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#565656;font-weight:600">Tags</h4><ul style="margin:0 0 8px 18px">${r.tags.map(t => `<li>${t.name}${t.createdBy ? ` <span class="muted">— ${t.createdBy}${t.createdAt ? ', ' + dt(t.createdAt) : ''}</span>` : ''}</li>`).join('')}</ul>` : '';
+  const socios = Array.isArray(r.personsRelations) && r.personsRelations.length
+    ? `<h4 style="margin:16px 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#565656;font-weight:600">Socios / relacionados</h4><table><thead><tr><th>Nombre</th><th>RUT</th><th>Tipo</th><th>%</th><th>Tags</th></tr></thead><tbody>${r.personsRelations.map(p => `<tr>
+        <td>${p.name ?? '—'}</td><td>${p.dni ?? '—'}</td>
+        <td class="muted">${(Array.isArray(p.type) ? p.type.join(', ') : p.type) ?? '—'}</td>
+        <td>${p.percentage != null ? p.percentage + '%' : '—'}</td>
+        <td class="muted" style="font-size:12px">${(p.tagFile ?? []).join(', ') || '—'}</td></tr>`).join('')}</tbody></table>` : '';
+  const listKeys = Object.keys(listas).filter(k => listas[k] && typeof listas[k] === 'object' && 'coincidence' in listas[k]);
+  const lists = listKeys.length
+    ? `<h4 style="margin:16px 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#565656;font-weight:600">Listas chequeadas (${listKeys.length})</h4><table><thead><tr><th>Lista</th><th>Coinc.</th><th>Riesgo</th><th>Detalle</th></tr></thead><tbody>${listKeys.map(k => {
+        const e = listas[k];
+        const hit = e.coincidence === true;
+        const detail = regcheqMatchDetail({ list: k, info: e.info, data: e.data });
+        return `<tr${hit ? ' style="background:#fff8ec"' : ''}><td>${regcheqListLabel(k)}</td><td>${hit ? '⚠️ Sí' : '✓ No'}</td><td class="muted">${e.risk ?? '—'}</td><td>${detail || '—'}</td></tr>`;
+      }).join('')}</tbody></table>` : '';
+  return ident + tags + socios + lists;
+}
+window.__regcheqFichaRaw = null;
+window.downloadRegcheqFicha = function () {
+  const raw = window.__regcheqFichaRaw;
+  if (!raw) { alert('No hay ficha estructurada para descargar.'); return; }
+  const name = raw.socialReason ?? raw.name ?? 'ficha';
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Ficha RegCheq — ${name}</title>
+<style>body{font-family:Inter,system-ui,sans-serif;color:#132046;max-width:840px;margin:24px auto;padding:0 16px}
+h2{font-family:Montserrat,sans-serif} h4{margin:18px 0 6px;text-transform:uppercase;font-size:13px;letter-spacing:.05em;color:#565656}
+dl{display:grid;grid-template-columns:200px 1fr;gap:4px 12px;margin:0} dt{font-weight:600}
+table{width:100%;border-collapse:collapse;margin:6px 0} th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #e5e8f0;font-size:13px}
+.muted{color:#7a7a8c} ul{font-size:13px}</style></head><body>
+<h2>Ficha RegCheq — ${name}</h2>
+<p class="muted">Generado desde la plataforma Global66 Contratos · RUT ${raw.dni ?? '—'}</p>
+${regcheqFichaHtml(raw)}</body></html>`;
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `ficha-regcheq-${String(raw.dni ?? 'sin-rut').replace(/\W/g, '')}.html`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+};
 const pill = (txt, kind) => txt ? `<span class="pill ${kind ?? 'gray'}">${txt}</span>` : `<span class="pill gray">—</span>`;
 const semKind = (s) => s === 'green' ? 'green' : s === 'yellow' ? 'yellow' : s === 'red' ? 'red' : 'gray';
 const phaseKind = (p) => p === 'signed' ? 'green' : p === 'rejected' ? 'red' : p === 'cancelled' ? 'gray' : 'blue';
@@ -1714,6 +1781,8 @@ const pages = {
         const reportId = rcq?.company?.report_upload_id ?? null;
         const companyMatches = rcq?.company?.matches ?? [];
         const relations = rcq?.relations ?? [];
+        const fichaRaw = rcq?.company?.raw ?? null;
+        window.__regcheqFichaRaw = fichaRaw;
         return `<div class="card" style="margin-bottom:16px">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
             <h3>Validación PEP/AML (Regcheq)${isManual ? ' <span class="muted" style="font-size:12px;font-weight:400">· manual</span>' : ''}</h3>
@@ -1734,6 +1803,12 @@ const pages = {
               <td>${dotPill(rel.decision, { block:'red', review:'yellow', approve_flag:'yellow', approve:'green' }[rel.decision] ?? 'gray')}</td>
               <td class="muted" style="font-size:12px">${(rel.matches ?? []).map(m => regcheqListLabel(m.list)).join(', ') || '—'}</td>
             </tr>`).join('')}</tbody></table>` : ''}
+
+          ${fichaRaw ? `<details style="margin-top:14px">
+            <summary style="cursor:pointer;font-weight:600;font-size:13px;color:#1F49B6">Ver ficha completa</summary>
+            <div class="regcheq-ficha" style="margin-top:10px;font-size:13px">${regcheqFichaHtml(fichaRaw)}</div>
+            <div style="margin-top:10px"><button class="ghost" type="button" onclick="downloadRegcheqFicha()">⬇ Descargar ficha (HTML)</button></div>
+          </details>` : ''}
 
           <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
             <h4 style="margin:0 0 4px;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-family:'Inter';font-weight:600">Informe RegCheq manual</h4>
