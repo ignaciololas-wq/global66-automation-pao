@@ -95,6 +95,9 @@ import {
   createSociedadDoc,
   updateSociedadDoc,
   deleteSociedadDoc,
+  listApprovers,
+  setTeamApprovers,
+  listApproverCountries,
 } from './matriz.js';
 
 const PORT = process.env.PORT ?? 3000;
@@ -1507,6 +1510,28 @@ const routes = {
     if (!sociedadId) return json(res, 400, { error: 'sociedad_id required' });
     try { json(res, 200, await listSociedadDocs(sociedadId)); }
     catch (e) { json(res, 500, { error: e.message }); }
+  },
+
+  // Aprobadores internos por país × equipo (DM Slack). Lectura admin/aprobador.
+  'GET /api/matriz/approvers': async (req, res, url) => {
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    const country = url.searchParams.get('country');
+    try {
+      const [rows, countries] = await Promise.all([listApprovers({ country }), listApproverCountries()]);
+      const byTeam = { compliance: [], legal: [], admin: [] };
+      rows.forEach((r) => { (byTeam[r.team] ??= []).push(r); });
+      json(res, 200, { country: country ?? null, countries, byTeam });
+    } catch (e) { json(res, 500, { error: e.message }); }
+  },
+
+  // Admin: reemplaza el set de aprobadores de un (country, team).
+  'PUT /api/admin/matriz/approvers': async (req, res) => {
+    const auth = await requireAdmin(req);
+    if (!auth.ok) return json(res, auth.status, { error: auth.error });
+    const body = JSON.parse(await readBody(req));
+    try { json(res, 200, await setTeamApprovers(body)); }
+    catch (e) { json(res, 400, { error: e.message }); }
   },
 
   // Admin CRUD.

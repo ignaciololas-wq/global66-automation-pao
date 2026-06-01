@@ -2672,6 +2672,7 @@ async function matrizPage() {
       <button type="button" class="matriz-tab active" data-tab="sociedades">🏢 Sociedades</button>
       <button type="button" class="matriz-tab" data-tab="apoderados">✍️ Apoderados</button>
       <button type="button" class="matriz-tab" data-tab="documentos">📄 Documentos</button>
+      <button type="button" class="matriz-tab" data-tab="approvers">👥 Aprobadores</button>
       <button type="button" class="matriz-tab" data-tab="branding">🎨 Branding</button>
     </div>
     <div id="matriz-body" class="card" style="margin-top:14px"></div>
@@ -2689,7 +2690,106 @@ async function renderMatrizTab(tab) {
   if (tab === 'sociedades') return renderSociedadesTab(body);
   if (tab === 'apoderados') return renderApoderadosTab(body);
   if (tab === 'documentos') return renderDocumentosTab(body);
+  if (tab === 'approvers') return renderApproversTab(body);
   if (tab === 'branding') return renderBrandingTab(body);
+}
+
+// Tab Aprobadores: por país, asignar aprobadores (usuarios existentes) a cada
+// equipo (Compliance/Legal/Admin). Las aprobaciones Slack van por DM a estos.
+async function renderApproversTab(body) {
+  const [usersR, metaR] = await Promise.all([
+    fetch('/api/admin/users', { credentials: 'include' }),
+    fetch('/api/matriz/approvers', { credentials: 'include' }),
+  ]);
+  const users = usersR.ok ? await usersR.json() : [];
+  const aprobadores = users.filter((u) => (u.roles ?? []).includes('aprobador') && u.email);
+  const meta = metaR.ok ? await metaR.json() : { countries: [], byTeam: {} };
+  const countries = meta.countries ?? [];
+  const TEAMS = [
+    { key: 'compliance', label: 'Compliance' },
+    { key: 'legal', label: 'Legal' },
+    { key: 'admin', label: 'Administración' },
+  ];
+
+  if (!countries.length) {
+    body.innerHTML = '<div class="muted" style="padding:20px">No hay países (cargá sociedades primero en el tab 🏢 Sociedades).</div>';
+    return;
+  }
+  if (!aprobadores.length) {
+    body.innerHTML = `<div style="padding:20px">
+      <p style="color:var(--muted);font-size:13.5px">No hay usuarios con rol <b>aprobador</b>. Creálos primero en <a href="javascript:void(0)" onclick="location.hash='users'">Usuarios</a> y volvé acá para asignarlos por país.</p>
+    </div>`;
+    return;
+  }
+
+  if (!window.__apprCountry || !countries.includes(window.__apprCountry)) window.__apprCountry = countries[0];
+
+  body.innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap">
+      <h3 style="margin:0">Aprobadores por país</h3>
+      <label style="margin-left:auto;font-size:13px;color:var(--muted)">País</label>
+      <select id="appr-country" style="min-width:180px">
+        ${countries.map((c) => `<option value="${escapeHtml(c)}" ${c === window.__apprCountry ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('')}
+      </select>
+    </div>
+    <p style="color:var(--muted);font-size:12.5px;margin-bottom:16px">Cada equipo recibe la solicitud de aprobación por <b>DM de Slack</b> (identificado por email). Si un equipo queda vacío, cae al canal configurado por env.</p>
+    <div id="appr-teams" class="grid grid-3" style="gap:14px"></div>
+  `;
+
+  function renderTeams(byTeam) {
+    const host = document.querySelector('#appr-teams');
+    host.innerHTML = TEAMS.map((t) => {
+      const assigned = new Set((byTeam[t.key] ?? []).map((a) => (a.email ?? '').toLowerCase()));
+      return `
+        <div class="card" style="margin:0;padding:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <b style="font-size:13.5px">${t.label}</b>
+            <span class="muted" style="font-size:11px">${assigned.size} asignado(s)</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow:auto">
+            ${aprobadores.map((u) => `
+              <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer">
+                <input type="checkbox" class="appr-chk" data-team="${t.key}" data-id="${u.id}" data-email="${escapeHtml(u.email)}" data-name="${escapeHtml(u.display_name ?? '')}" ${assigned.has(u.email.toLowerCase()) ? 'checked' : ''}>
+                <span>${escapeHtml(u.display_name ?? u.email)}<br><span class="muted" style="font-size:11px">${escapeHtml(u.email)}</span></span>
+              </label>`).join('')}
+          </div>
+          <button type="button" class="primary appr-save" data-team="${t.key}" style="margin-top:12px;width:100%;padding:8px;font-size:12.5px">Guardar ${t.label}</button>
+          <div class="appr-status" data-team="${t.key}" style="font-size:11.5px;margin-top:6px"></div>
+        </div>`;
+    }).join('');
+
+    host.querySelectorAll('.appr-save').forEach((btn) => btn.addEventListener('click', async () => {
+      const team = btn.dataset.team;
+      const status = host.querySelector(`.appr-status[data-team="${team}"]`);
+      const members = [...host.querySelectorAll(`.appr-chk[data-team="${team}"]:checked`)].map((c) => ({
+        user_id: c.dataset.id, email: c.dataset.email, display_name: c.dataset.name || null,
+      }));
+      btn.disabled = true; status.innerHTML = '<span class="muted">Guardando…</span>';
+      const r = await fetch('/api/admin/matriz/approvers', {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ country: window.__apprCountry, team, members }),
+      });
+      btn.disabled = false;
+      if (r.ok) status.innerHTML = `<span style="color:var(--green)">✓ Guardado (${members.length})</span>`;
+      else status.innerHTML = `<span style="color:var(--red)">${escapeHtml(await r.text())}</span>`;
+    }));
+  }
+
+  async function loadCountry(country) {
+    const host = document.querySelector('#appr-teams');
+    host.innerHTML = '<div class="muted" style="padding:16px">Cargando…</div>';
+    const r = await fetch(`/api/matriz/approvers?country=${encodeURIComponent(country)}`, { credentials: 'include' });
+    const m = r.ok ? await r.json() : { byTeam: {} };
+    renderTeams(m.byTeam ?? {});
+  }
+
+  await loadCountry(window.__apprCountry);
+
+  document.querySelector('#appr-country').addEventListener('change', (e) => {
+    window.__apprCountry = e.target.value;
+    loadCountry(window.__apprCountry);
+  });
 }
 
 async function renderBrandingTab(body) {

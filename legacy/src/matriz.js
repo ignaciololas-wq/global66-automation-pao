@@ -93,6 +93,53 @@ export async function deleteApoderado(id) {
   if (error) throw new Error(error.message);
 }
 
+// ── Aprobadores internos por país × equipo (migración 025) ──────────────────
+
+export async function listApprovers({ country = null } = {}) {
+  let q = sb
+    .from('approval_assignments')
+    .select('id, country, team, user_id, email, display_name, active')
+    .eq('active', true);
+  if (country) q = q.eq('country', country);
+  const { data, error } = await q.order('country').order('team');
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+// Reemplaza el set de aprobadores de un (country, team) por la lista dada.
+// members: [{ user_id, email, display_name }]. Borra los previos e inserta los nuevos.
+export async function setTeamApprovers({ country, team, members }) {
+  if (!country || !team) throw new Error('country y team requeridos');
+  if (!['compliance', 'legal', 'admin'].includes(team)) throw new Error(`team inválido: ${team}`);
+  const del = await sb.from('approval_assignments').delete().eq('country', country).eq('team', team);
+  if (del.error) throw new Error(del.error.message);
+  const rows = (members ?? [])
+    .filter((m) => m && m.email)
+    .map((m) => ({
+      country,
+      team,
+      user_id: m.user_id ?? null,
+      email: String(m.email).trim(),
+      display_name: m.display_name ?? null,
+    }));
+  if (!rows.length) return [];
+  const { data, error } = await sb.from('approval_assignments').insert(rows).select();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+// Países disponibles para el selector: unión de sociedades.country + países con asignaciones.
+export async function listApproverCountries() {
+  const [soc, asg] = await Promise.all([
+    sb.from('sociedades').select('country').eq('active', true),
+    sb.from('approval_assignments').select('country').eq('active', true),
+  ]);
+  const set = new Set();
+  (soc.data ?? []).forEach((r) => r.country && set.add(r.country));
+  (asg.data ?? []).forEach((r) => r.country && set.add(r.country));
+  return [...set].sort();
+}
+
 export async function createSociedadDoc(input) {
   const { data, error } = await sb.from('sociedad_documents').insert(input).select().single();
   if (error) throw new Error(error.message);

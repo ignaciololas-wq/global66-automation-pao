@@ -65,13 +65,41 @@ async function dmApprover(email, blocks, text, team) {
   return { ...result, email };
 }
 
-// Manda los bloques de aprobación de un equipo: DM a cada aprobador si hay emails
-// configurados; si no, cae al canal (retrocompatible).
-async function sendTeamApproval(team, blocks, fallback) {
-  const emails = TEAM_EMAILS[team];
+// Normaliza país a una clave comparable: minúsculas, sin tildes, códigos → nombre.
+// run.pais llega sucio ("CL", "Chile", "Estados Unidos", "Panamá"…).
+const COUNTRY_ALIASES = {
+  cl: 'chile', co: 'colombia', ar: 'argentina', pe: 'peru',
+  us: 'estados unidos', usa: 'estados unidos', mx: 'mexico', pa: 'panama',
+};
+function canonCountry(s) {
+  const t = String(s ?? '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return COUNTRY_ALIASES[t] ?? t;
+}
+
+// Aprobadores configurados en la plataforma (tabla approval_assignments) para
+// un equipo, resueltos por el país del run. Devuelve lista de emails.
+async function resolveDbApprovers(team, pais) {
+  if (!pais) return [];
+  const { data, error } = await sb
+    .from('approval_assignments')
+    .select('email, country')
+    .eq('team', team)
+    .eq('active', true);
+  if (error) { console.warn('[approvals] approval_assignments query failed:', error.message); return []; }
+  const want = canonCountry(pais);
+  return (data ?? []).filter((r) => canonCountry(r.country) === want).map((r) => r.email);
+}
+
+// Manda los bloques de aprobación de un equipo. Prioridad de destinatarios:
+//   1) aprobadores configurados en plataforma por país (DM)
+//   2) env SLACK_{TEAM}_EMAILS (DM)
+//   3) canal (retrocompatible)
+async function sendTeamApproval(team, blocks, fallback, pais) {
+  const dbEmails = await resolveDbApprovers(team, pais);
+  const emails = dbEmails.length ? dbEmails : TEAM_EMAILS[team];
   if (emails.length) {
     const dms = await Promise.all(emails.map((e) => dmApprover(e, blocks, fallback, team)));
-    return { ok: dms.some((d) => d.ok), mode: 'dm', recipients: dms };
+    return { ok: dms.some((d) => d.ok), mode: dbEmails.length ? 'dm-db' : 'dm-env', recipients: dms };
   }
   const r = await postBlocks(CHANNELS[team], blocks, fallback, team);
   return { ok: r.ok, mode: 'channel', ts: r.ts, error: r.error };
@@ -115,7 +143,7 @@ export async function dispatchApprovalRequests(runId) {
       try {
         const blocks = approvalBlocks({ team, runId, supplier, contract, riskSummary, draftUrl });
         const fallback = `Nuevo contrato para revisión ${team}: ${supplier.razon_social} (${supplier.tax_id})`;
-        const r = await sendTeamApproval(team, blocks, fallback);
+        const r = await sendTeamApproval(team, blocks, fallback, supplier.pais);
         return [team, r];
       } catch (e) {
         return [team, { ok: false, error: e.message }];
