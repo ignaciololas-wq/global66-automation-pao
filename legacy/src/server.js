@@ -552,6 +552,55 @@ const routes = {
     }
   },
 
+  'POST /api/runs/validate-docs': async (req, res) => {
+    // Nodo 4 (Validación docs): Compliance confirma los documentos del proveedor.
+    // Setea docs_validated_at, que es el gate para habilitar el nodo 5 (Firma).
+    // Sin esto, validación y firma se marcaban activos a la vez en fase3.
+    const auth = await getUserFromRequest(req);
+    if (!auth.ok) return json(res, auth.status ?? 401, { error: auth.error });
+    if (!auth.roles?.some((r) => r === 'admin' || r === 'aprobador')) {
+      return json(res, 403, { error: 'admin o aprobador required' });
+    }
+    const body = JSON.parse(await readBody(req));
+    if (!body.run_id) return json(res, 400, { error: 'run_id required' });
+
+    const { data: run, error: rErr } = await sb
+      .from('workflow_runs')
+      .select('current_phase, docs_validated_at')
+      .eq('id', body.run_id)
+      .maybeSingle();
+    if (rErr) return json(res, 500, { error: rErr.message });
+    if (!run) return json(res, 404, { error: 'run not found' });
+
+    // Revertir (validated:false) limpia el flag; por defecto valida.
+    const validate = body.validated !== false;
+    if (validate && run.current_phase !== 'fase3') {
+      return json(res, 409, { error: `solo se valida en fase3 (run está en '${run.current_phase}')` });
+    }
+
+    const newVal = validate ? new Date().toISOString() : null;
+    // Idempotente: si ya está en el estado pedido, no re-escribe.
+    if ((validate && run.docs_validated_at) || (!validate && !run.docs_validated_at)) {
+      return json(res, 200, { ok: true, docs_validated_at: run.docs_validated_at, unchanged: true });
+    }
+
+    const { error: uErr } = await sb
+      .from('workflow_runs')
+      .update({ docs_validated_at: newVal })
+      .eq('id', body.run_id);
+    if (uErr) return json(res, 500, { error: uErr.message });
+
+    await logAudit(
+      body.run_id,
+      auth.email,
+      validate ? 'docs.validated' : 'docs.validation_revoked',
+      'workflow_run',
+      body.run_id,
+      { note: body.note ?? null },
+    );
+    json(res, 200, { ok: true, docs_validated_at: newVal });
+  },
+
   'POST /api/intake/approve': async (req, res) => {
     // Aprobador interno aprueba/rechaza la solicitud. Si aprueba → manda email al proveedor.
     const body = JSON.parse(await readBody(req));

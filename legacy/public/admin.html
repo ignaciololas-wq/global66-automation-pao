@@ -1709,6 +1709,7 @@ const pages = {
       ${renderStepper(r)}
 
       ${r.internal_approval_status === 'pending' ? renderApprovalPanel(r) : ''}
+      ${shouldShowDocsValidationGate(r) ? renderDocsValidationGate(r) : ''}
       ${shouldShowSignaturePanel(r) ? renderSignaturePanel(r) : ''}
 
       <div class="grid grid-4">
@@ -2179,6 +2180,7 @@ function renderStepper(r) {
   // Ambos arrancan simultáneamente apenas se crea la solicitud (POST /api/intake).
   const providerDone = r.provider_data_completed_at != null || r.profile_completed_at != null;
   const approvalsDone = r.internal_approvals_completed_at != null;
+  const docsValidated = r.docs_validated_at != null;
   const arrancoParalelo = phase === 'parallel' || phase === 'fase2' || phase === 'fase3' || phase === 'signed';
 
   function stateOf(num) {
@@ -2200,14 +2202,16 @@ function renderStepper(r) {
       return 'pending';
     }
     if (num === 4) {
-      // Validación docs + RegCheq AML/PEP — empieza cuando ambos branches paralelos terminaron
-      if (phase === 'signed') return 'done';
+      // Validación docs + RegCheq AML/PEP — empieza cuando ambos branches paralelos terminaron.
+      // 'done' cuando Compliance valida docs (docs_validated_at) o ya se firmó.
+      if (phase === 'signed' || docsValidated) return 'done';
       if (phase === 'fase3') return 'active';
       return 'pending';
     }
     if (num === 5) {
+      // Firma — SECUENCIAL: solo se habilita DESPUÉS de validar docs (nodo 4).
       if (phase === 'signed') return 'done';
-      if (phase === 'fase3' && approvalsDone && providerDone) return 'active';
+      if (phase === 'fase3' && docsValidated && approvalsDone && providerDone) return 'active';
       return 'pending';
     }
     if (num === 6) return phase === 'signed' ? 'done' : 'pending';
@@ -2218,7 +2222,7 @@ function renderStepper(r) {
     1: { num: 1, label: 'Se creó solicitud',  who: 'Solicitante',  icon: '📝', assignee: r.solicitante_email, date: r.created_at },
     2: { num: 2, label: 'Aprobación interna', who: 'Compliance + Legal + Admin', icon: '✅', assignee: r.internal_approver_email ?? 'Slack: compliance + legal + admin', date: r.internal_approvals_completed_at },
     3: { num: 3, label: 'Datos proveedor',    who: 'Proveedor',    icon: '🏢', assignee: r.email_contacto ?? '—', date: r.provider_data_completed_at ?? r.profile_completed_at },
-    4: { num: 4, label: 'Validación docs',    who: 'IA + Compliance', icon: '🔍', assignee: 'compliance@global66.com', date: r.current_phase === 'fase3' || r.current_phase === 'signed' ? r.updated_at : null },
+    4: { num: 4, label: 'Validación docs',    who: 'IA + Compliance', icon: '🔍', assignee: 'compliance@global66.com', date: r.docs_validated_at ?? (r.current_phase === 'signed' ? r.updated_at : null) },
     5: { num: 5, label: 'Firma',              who: 'Apoderado',    icon: '✍️', assignee: r.sociedad_apoderado_email ?? 'Pendiente apoderado', date: r.current_phase === 'signed' ? r.updated_at : null },
     6: { num: 6, label: 'Cerrado',            who: 'Sistema',      icon: '🏁', assignee: '—', date: r.current_phase === 'signed' ? r.updated_at : null },
   };
@@ -2304,10 +2308,32 @@ function flowZoom(dir) {
 }
 
 function shouldShowSignaturePanel(r) {
-  // Nodo 5: aprobación interna completada + docs validados o avanzados, sin firma todavía.
+  // Nodo 5: SECUENCIAL tras nodo 4. Requiere fase3 + aprobación interna + docs validados.
+  // Antes se mostraba en fase2/fase3 sin gate, solapado con la validación de docs.
   if (!r) return false;
   if (r.current_phase === 'signed' || r.current_phase === 'rejected' || r.current_phase === 'cancelled') return false;
-  return r.internal_approval_status === 'approved' && ['fase2', 'fase3'].includes(r.current_phase);
+  return r.internal_approval_status === 'approved' && r.current_phase === 'fase3' && r.docs_validated_at != null;
+}
+
+// Nodo 4: gate de validación de docs. Se muestra en fase3, aprobado, ANTES de validar.
+function shouldShowDocsValidationGate(r) {
+  if (!r) return false;
+  return r.current_phase === 'fase3'
+    && r.internal_approval_status === 'approved'
+    && r.docs_validated_at == null;
+}
+function renderDocsValidationGate(r) {
+  return `<div class="card" style="margin-bottom:16px;border-left:4px solid #02A757">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <h3 style="margin:0">🔍 Nodo 4 — Validación de documentos</h3>
+      <span class="pill yellow">en curso</span>
+    </div>
+    <p style="color:var(--muted);font-size:13px;margin:8px 0 14px">Revisá los documentos del proveedor y el resultado RegCheq/AML arriba. Cuando estén OK, validá para <b>habilitar la firma</b> (nodo 5). La firma queda bloqueada hasta este paso.</p>
+    <div id="docs-val-err" class="err" hidden style="margin-bottom:8px"></div>
+    <div style="display:flex;justify-content:flex-end">
+      <button class="primary" type="button" onclick="validateDocs('${r.id}')">✓ Validar documentos y habilitar firma</button>
+    </div>
+  </div>`;
 }
 
 function renderSignaturePanel(r) {
@@ -2519,6 +2545,24 @@ window.saveSignatureConfig = async function (runId, sendToSignNow) {
   } catch (e) {
     errEl.textContent = e.message;
     errEl.hidden = false;
+  }
+};
+
+window.validateDocs = async function (runId) {
+  const errEl = document.getElementById('docs-val-err');
+  if (errEl) errEl.hidden = true;
+  try {
+    const r = await fetch('/api/runs/validate-docs', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ run_id: runId, validated: true }),
+    });
+    const result = await r.json();
+    if (!r.ok) throw new Error(result.error ?? 'Error');
+    location.reload();
+  } catch (e) {
+    if (errEl) { errEl.textContent = e.message; errEl.hidden = false; }
   }
 };
 
