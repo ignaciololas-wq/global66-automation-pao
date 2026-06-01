@@ -10,6 +10,7 @@ import { RegcheqManualCard, type RegcheqLatest } from '@/components/workflow/reg
 import { phaseLabel, phaseKind, semKind, formatMoney, formatDateTime } from '@/lib/format';
 import type { FileComment } from '@/lib/types';
 import { ApprovalPanel } from '@/components/workflow/approval-panel';
+import { SignaturePanel } from '@/components/workflow/signature-panel';
 import { getApprovals } from '@/lib/data/approvals';
 import { requiredApprovalTeams } from '@/lib/slack/dispatch';
 
@@ -74,6 +75,7 @@ export default async function WorkflowDetailPage({ params }: { params: Promise<{
       </div>
       <FlowCanvas run={r} />
       {canApprove && <ApprovalPanel runId={id} requiredTeams={requiredTeams} approvals={approvals} />}
+      {canApprove && <SignaturePanel runId={id} phase={r.current_phase} signnowDocumentId={(r as any).signnow_document_id ?? null} hasMainFile={files.some((f) => f.kind === 'main')} />}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
         <div className="card">
           <div className="text-[12px] uppercase tracking-wider text-muted font-semibold mb-1.5">Monto</div>

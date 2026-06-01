@@ -8,6 +8,27 @@ import { randomUUID } from 'node:crypto';
 import { recordApproval, getApprovals, setSemaforo, setPhase } from '@/lib/data/approvals';
 import { computeSemaphore } from '@/lib/hito1';
 import { requiredApprovalTeams, markInternalApprovalsDone } from '@/lib/slack/dispatch';
+import { sendToSignNow, syncSignatureStatus } from '@/lib/signing';
+
+// Envía el contrato a firma (SignNow) — admin/aprobador.
+export async function sendForSignature(runId: string) {
+  const auth = await getCurrentUser();
+  if (!auth.ok) throw new Error('No autorizado');
+  if (!auth.roles.includes('admin') && !auth.roles.includes('aprobador')) throw new Error('Solo admin o aprobador');
+  const r = await sendToSignNow(runId);
+  revalidatePath(`/admin/workflows/${runId}`);
+  return r;
+}
+
+// Consulta el estado de firma en SignNow y finaliza si está completo.
+export async function checkSignatureStatus(runId: string) {
+  const auth = await getCurrentUser();
+  if (!auth.ok) throw new Error('No autorizado');
+  if (!auth.roles.includes('admin') && !auth.roles.includes('aprobador')) throw new Error('Solo admin o aprobador');
+  const r = await syncSignatureStatus(runId);
+  revalidatePath(`/admin/workflows/${runId}`);
+  return r;
+}
 
 // Aprobación manual desde la plataforma (mismo camino que el callback de Slack).
 // Permite a admin/aprobador decidir sin usar el DM de Slack.

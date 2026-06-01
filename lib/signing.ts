@@ -1,7 +1,26 @@
 import 'server-only';
 import { createAdminClient } from '@/lib/supabase/server';
-import { uploadDocument, freeFormInvite } from '@/lib/signnow';
+import { uploadDocument, freeFormInvite, getDocumentStatus, downloadSigned } from '@/lib/signnow';
 import { logAudit } from '@/lib/data/approvals';
+import { sendEmail } from '@/lib/email';
+
+const SLACK_TOKEN = process.env.SLACK_BOT_TOKEN;
+const SITE_URL = (process.env.SITE_URL ?? 'https://global66-automation-pao.vercel.app').replace(/\/$/, '');
+
+// DM de Slack por email (lookup → open → postMessage). Best-effort.
+async function slackDM(email: string, text: string) {
+  if (!SLACK_TOKEN || !email) return;
+  try {
+    const H = { 'Content-Type': 'application/json; charset=utf-8', Authorization: `Bearer ${SLACK_TOKEN}` };
+    const lk = await fetch(`https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`, { headers: { Authorization: `Bearer ${SLACK_TOKEN}` } }).then((r) => r.json());
+    if (!lk.ok || !lk.user?.id) return;
+    const open = await fetch('https://slack.com/api/conversations.open', { method: 'POST', headers: H, body: JSON.stringify({ users: lk.user.id }) }).then((r) => r.json());
+    if (!open.ok || !open.channel?.id) return;
+    await fetch('https://slack.com/api/chat.postMessage', { method: 'POST', headers: H, body: JSON.stringify({ channel: open.channel.id, text }) });
+  } catch (e) {
+    console.error('[signing] slackDM falló:', (e as any)?.message);
+  }
+}
 
 const BUCKET = 'contracts';
 
@@ -68,4 +87,74 @@ export async function sendToSignNow(runId: string): Promise<{ document_id: strin
   });
 
   return { document_id: docId, signer: primary.email, all_signers: signers.map((s) => s.email) };
+}
+
+// Baja el PDF firmado, lo guarda como nueva versión 'main' (visible en el viewer),
+// marca la solicitud 'signed' y avisa al solicitante (mail + Slack). Idempotente.
+async function finalizeSigned(run: any, docId: string) {
+  const sb = createAdminClient();
+  if (run.current_phase === 'signed') return;
+
+  const pdf = await downloadSigned(docId);
+  const path = `providers/${run.id}/firmado-${docId}.pdf`;
+  const up = await sb.storage.from(BUCKET).upload(path, pdf, { contentType: 'application/pdf', upsert: true });
+  if (up.error) throw new Error('storage.upload signed: ' + up.error.message);
+
+  // provider_id + próxima versión para el contract_files
+  const { data: prov } = await sb.from('providers').select('id').eq('tax_id', run.tax_id).maybeSingle();
+  const { data: last } = await sb.from('contract_files').select('version').eq('workflow_run_id', run.id).order('version', { ascending: false }).limit(1);
+  const nextVersion = ((last?.[0] as any)?.version ?? 0) + 1;
+
+  await sb.from('contract_files').insert({
+    workflow_run_id: run.id,
+    provider_id: (prov as any)?.id ?? null,
+    kind: 'main',
+    storage_path: path,
+    filename: 'contrato-firmado.pdf',
+    mime_type: 'application/pdf',
+    size_bytes: pdf.length,
+    version: nextVersion,
+    uploaded_by: 'signnow',
+  });
+
+  await sb.from('workflow_runs').update({ current_phase: 'signed' }).eq('id', run.id);
+  await logAudit(run.id, 'system', 'signature.completed', 'workflow_run', run.id, { document_id: docId });
+
+  // Avisar al solicitante (mail + Slack DM).
+  const to = run.solicitante_email ?? run.owner_email;
+  const link = `${SITE_URL}/admin/workflows/${run.id}`;
+  if (to) {
+    sendEmail({
+      to,
+      subject: `✅ Contrato firmado — ${run.razon_social}`,
+      html: `<div style="font-family:Inter,system-ui,Arial;max-width:560px;margin:0 auto;padding:24px;color:#132046"><h2 style="font-family:Montserrat,sans-serif">✅ Contrato firmado</h2><p>El contrato con <b>${run.razon_social}</b> fue firmado por el/los apoderado(s) y quedó archivado.</p><p><a href="${link}" style="display:inline-block;background:#1F49B6;color:#fff;padding:10px 18px;border-radius:999px;text-decoration:none;font-weight:600">Ver solicitud →</a></p></div>`,
+      text: `Contrato firmado — ${run.razon_social}. Ver: ${link}`,
+    }).catch((e) => console.error('[signing] mail solicitante falló:', e.message));
+  }
+  await slackDM(to ?? '', `✅ Contrato *firmado*: ${run.razon_social} (${run.tax_id}). ${link}`);
+}
+
+// Consulta el estado en SignNow y, si está completo, finaliza (idempotente).
+export async function syncSignatureStatus(runId: string): Promise<{ signed: boolean; reason?: string }> {
+  const sb = createAdminClient();
+  const { data: run } = await sb.from('workflow_runs').select('*').eq('id', runId).single();
+  if (!run) return { signed: false, reason: 'run_not_found' };
+  if (run.current_phase === 'signed') return { signed: true };
+  if (!run.signnow_document_id) return { signed: false, reason: 'no_document' };
+  const status = await getDocumentStatus(run.signnow_document_id);
+  if (!status.fully_signed) return { signed: false, reason: 'pending' };
+  await finalizeSigned(run, run.signnow_document_id);
+  return { signed: true };
+}
+
+// Procesa un evento de webhook por document_id (busca el run y finaliza).
+export async function processSignedByDocumentId(documentId: string): Promise<boolean> {
+  const sb = createAdminClient();
+  const { data: run } = await sb.from('workflow_runs').select('*').eq('signnow_document_id', documentId).maybeSingle();
+  if (!run) return false;
+  if (run.current_phase === 'signed') return true;
+  const status = await getDocumentStatus(documentId);
+  if (!status.fully_signed) return false;
+  await finalizeSigned(run, documentId);
+  return true;
 }
