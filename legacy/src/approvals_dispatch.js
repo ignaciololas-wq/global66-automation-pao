@@ -13,6 +13,17 @@ const CHANNELS = {
   admin: process.env.SLACK_ADMIN_CHANNEL || DEFAULT_CHANNEL,
 };
 
+// Emails de aprobadores por equipo (coma-separados). Si están seteados, las
+// aprobaciones van por DM directo a cada persona en vez de a un canal.
+const parseEmails = (v) => (v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+const TEAM_EMAILS = {
+  compliance: parseEmails(process.env.SLACK_COMPLIANCE_EMAILS),
+  legal: parseEmails(process.env.SLACK_LEGAL_EMAILS),
+  admin: parseEmails(process.env.SLACK_ADMIN_EMAILS),
+};
+
+const SLACK_HEADERS = { 'Content-Type': 'application/json; charset=utf-8', Authorization: `Bearer ${SLACK_TOKEN}` };
+
 async function postBlocks(channel, blocks, text, team) {
   if (!SLACK_TOKEN) {
     console.warn(`[slack] SLACK_BOT_TOKEN missing — skipping ${team} approval message`);
@@ -24,12 +35,46 @@ async function postBlocks(channel, blocks, text, team) {
   }
   const r = await fetch('https://slack.com/api/chat.postMessage', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json; charset=utf-8', Authorization: `Bearer ${SLACK_TOKEN}` },
+    headers: SLACK_HEADERS,
     body: JSON.stringify({ channel, text, blocks }),
   });
   const result = await r.json();
   if (!result.ok) console.warn(`[slack] ${team} → channel ${channel} failed:`, result.error);
   return result;
+}
+
+// DM directo a un aprobador por email: lookupByEmail → conversations.open → postMessage.
+// No requiere invitar al bot a ningún canal (a diferencia de postBlocks a canal privado).
+async function dmApprover(email, blocks, text, team) {
+  if (!SLACK_TOKEN) return { ok: false, error: 'slack_not_configured', email };
+  const lk = await fetch(`https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`, {
+    headers: { Authorization: `Bearer ${SLACK_TOKEN}` },
+  }).then((r) => r.json());
+  if (!lk.ok || !lk.user?.id) {
+    console.warn(`[slack] ${team} DM: usuario no encontrado para ${email}:`, lk.error);
+    return { ok: false, error: lk.error ?? 'user_not_found', email };
+  }
+  const open = await fetch('https://slack.com/api/conversations.open', {
+    method: 'POST', headers: SLACK_HEADERS, body: JSON.stringify({ users: lk.user.id }),
+  }).then((r) => r.json());
+  if (!open.ok || !open.channel?.id) {
+    console.warn(`[slack] ${team} DM: conversations.open falló para ${email}:`, open.error);
+    return { ok: false, error: open.error ?? 'open_failed', email };
+  }
+  const result = await postBlocks(open.channel.id, blocks, text, team);
+  return { ...result, email };
+}
+
+// Manda los bloques de aprobación de un equipo: DM a cada aprobador si hay emails
+// configurados; si no, cae al canal (retrocompatible).
+async function sendTeamApproval(team, blocks, fallback) {
+  const emails = TEAM_EMAILS[team];
+  if (emails.length) {
+    const dms = await Promise.all(emails.map((e) => dmApprover(e, blocks, fallback, team)));
+    return { ok: dms.some((d) => d.ok), mode: 'dm', recipients: dms };
+  }
+  const r = await postBlocks(CHANNELS[team], blocks, fallback, team);
+  return { ok: r.ok, mode: 'channel', ts: r.ts, error: r.error };
 }
 
 // Dispara mensajes Slack a los 3 equipos en paralelo.
@@ -70,8 +115,8 @@ export async function dispatchApprovalRequests(runId) {
       try {
         const blocks = approvalBlocks({ team, runId, supplier, contract, riskSummary, draftUrl });
         const fallback = `Nuevo contrato para revisión ${team}: ${supplier.razon_social} (${supplier.tax_id})`;
-        const r = await postBlocks(CHANNELS[team], blocks, fallback, team);
-        return [team, { ok: r.ok, ts: r.ts, error: r.error }];
+        const r = await sendTeamApproval(team, blocks, fallback);
+        return [team, r];
       } catch (e) {
         return [team, { ok: false, error: e.message }];
       }
