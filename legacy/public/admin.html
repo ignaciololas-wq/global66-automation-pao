@@ -3815,19 +3815,19 @@ async function renderPdf(container, url) {
 
     const textLayer = document.createElement('div');
     textLayer.className = 'pdf-text-layer';
+    // pdfjs v4 posiciona los spans con la CSS var --scale-factor; sin ella no hay capa de texto seleccionable.
+    textLayer.style.setProperty('--scale-factor', viewport.scale);
     pageWrap.appendChild(textLayer);
 
     container.appendChild(pageWrap);
     await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
 
     const textContent = await page.getTextContent();
-    if (pdfjs.renderTextLayer) {
-      pdfjs.renderTextLayer({
-        textContentSource: textContent,
-        container: textLayer,
-        viewport,
-        textDivs: [],
-      });
+    // pdfjs 4.7+ removió renderTextLayer() → usar la clase TextLayer. Fallback a la API vieja por si baja la versión.
+    if (typeof pdfjs.TextLayer === 'function') {
+      await new pdfjs.TextLayer({ textContentSource: textContent, container: textLayer, viewport }).render();
+    } else if (pdfjs.renderTextLayer) {
+      pdfjs.renderTextLayer({ textContentSource: textContent, container: textLayer, viewport, textDivs: [] });
     }
   }
 }
